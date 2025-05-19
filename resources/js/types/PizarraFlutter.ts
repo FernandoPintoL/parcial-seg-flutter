@@ -7,6 +7,7 @@ export interface PizarraFlutter {
 }
 
 export interface FlutterWidget {
+    id : string;
     type: string;
     props: Record<string, any>;
     children?: FlutterWidget[];
