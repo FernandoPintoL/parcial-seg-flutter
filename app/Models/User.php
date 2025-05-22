@@ -51,21 +51,17 @@ class User extends Authenticatable
     /**
      * Get the forms that the user is collaborating on.
      */
-    public function collaboratingForms(): BelongsToMany
+    public function collaborating(): BelongsToMany
     {
-        return $this->belongsToMany(FormBuilder::class, 'form_collaborators')
+        return $this->belongsToMany(Pizarra::class, 'pizarra_collaborators')
             ->withPivot('status')
             ->withTimestamps();
     }
 
-    /**
-     * Get the pizarra flutters that the user is collaborating on.
-     */
-    public function collaboratingPizarraFlutters(): BelongsToMany
+    public function isColaborator($pizarraId): bool
     {
-        return $this->belongsToMany(PizarraFlutter::class, 'pizarra_collaborators')
-            ->withPivot('status')
-            ->withTimestamps();
+        return $this->collaborating()
+            ->where('pizarra_id', $pizarraId)
+            ->exists();
     }
-
 }

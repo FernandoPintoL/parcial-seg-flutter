@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WhiteboardActivity extends Model
 {
-    use HasFactory;
+    protected $table = 'whiteboard_activities';
+    protected $primaryKey = 'id';
+    public $incrementing = true;
 
     /**
      * The attributes that are mass assignable.
@@ -16,7 +17,7 @@ class WhiteboardActivity extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'form_id',
+        'pizarra_id',
         'user_id',
         'action_type',
         'action_data',

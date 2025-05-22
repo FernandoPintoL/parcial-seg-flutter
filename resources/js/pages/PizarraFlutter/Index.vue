@@ -5,9 +5,10 @@ import type { BreadcrumbItem } from '@/types';
 import { ref, defineProps, computed, onMounted } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-// Using any type for now as PizarraFlutter type might not be defined yet
-// import type { PizarraFlutter } from '@/types/PizarraFlutter';
+// Using any type for now as Pizarra type might not be defined yet
+import type { Pizarra } from '@/types/Pizarra';
 import FormList from '@/pages/FormBuilder/FormList.vue';
+import { AlertService } from '@/services/AlertService';
 
 // definir props form
 const props = defineProps({
@@ -40,7 +41,7 @@ const showNewPizarra = ref(false);
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Pizarra Flutter',
-        href: '/pizarra-flutter',
+        href: '/pizarra',
     },
 ];
 const flashMessage = computed(() => page.props.flash?.message);
@@ -63,8 +64,8 @@ onMounted(() => {
 });
 
 // Select a pizarra to edit
-const selectPizarra = (pizarra) => {
-    router.get(`/pizarra-flutter/${pizarra.id}`);
+const selectPizarra = (pizarra: Pizarra) => {
+    router.get(`/pizarra/${pizarra.id}/flutter`);
 };
 
 const createNewPizarra = async () => {
@@ -85,18 +86,17 @@ const createNewPizarra = async () => {
     if (pizarraName) {
         try {
             // Crear la pizarra en el servidor
-            const response = await axios.post('/pizarra-flutter', { name: pizarraName });
-            console.log('Pizarra creada:', response.data);
-
-            // Redirigir a la página de edición de la pizarra recién creada
-            window.location.href = `/pizarra-flutter/${response.data.id}`;
+            await axios.post('/pizarra', { name: pizarraName, elements : [] }).then((response) => {
+                console.log('Pizarra creada:', response.data);
+                if (response.status !== 200) {
+                    throw new Error('Error al crear la pizarra');
+                }
+                // Redirigir a la página de edición de la pizarra recién creada
+                window.location.href = `/pizarra/${response.data.id}/edit`;
+            });
         } catch (error) {
             console.error('Error al crear la pizarra:', error);
-            Swal.fire({
-                title: 'Error',
-                text: 'Hubo un problema al crear la pizarra. Inténtalo de nuevo.',
-                icon: 'error',
-            });
+            AlertService.prototype.error('Error', 'Error al crear la pizarra. Inténtalo de nuevo.');
         }
     }
 };
@@ -116,9 +116,7 @@ const acceptInvitation = async (pizarra) => {
 
         // actualizar la lista de pizarras colaborativas y invitaciones pendientes
         collaboratingPizarras.value.push(pizarra);
-        pendingInvitations.value = pendingInvitations.value.filter(
-            (p) => p.id !== pizarra.id
-        );
+        pendingInvitations.value = pendingInvitations.value.filter((p) => p.id !== pizarra.id);
 
         Swal.fire({
             title: 'Éxito!',
@@ -204,7 +202,7 @@ const leaveCollaboration = async (pizarra) => {
         const response = await axios.post(`/pizarra-flutter/${pizarra.id}/leave`);
         // Remove the pizarra from the list
         collaboratingPizarras.value = collaboratingPizarras.value.filter((p) => p.id !== pizarra.id);
-        if(response.status === 200) {
+        if (response.status === 200) {
             Swal.fire('Éxito!', 'Has dejado de colaborar en la pizarra.', 'success');
         } else {
             Swal.fire('Error!', 'No se pudo dejar de colaborar en la pizarra.', 'error');
@@ -258,8 +256,8 @@ const processInvitationLink = async () => {
                 <div>
                     <h1 class="text-2xl font-bold">Pizarra Flutter</h1>
                     <p class="text-gray-600">
-                        Crea pizarras de Flutter arrastrando y soltando widgets. Los cambios se comparten con los colaboradores en tiempo real y se guardan
-                        al hacer clic en el botón Guardar.
+                        Crea pizarras de Flutter arrastrando y soltando widgets. Los cambios se comparten con los colaboradores en tiempo real y se
+                        guardan al hacer clic en el botón Guardar.
                     </p>
                 </div>
                 <div class="mt-2">
@@ -290,7 +288,7 @@ const processInvitationLink = async () => {
             <div v-if="!selectedPizarra && !showNewPizarra" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <!-- Mis Pizarras -->
                 <FormList
-                    :title="'Tus pizarras: [ ' + ownedPizarras.length+' ]'"
+                    :title="'Tus pizarras: [ ' + ownedPizarras.length + ' ]'"
                     :forms="ownedPizarras"
                     :onSelect="selectPizarra"
                     :onDelete="deletePizarra"
@@ -301,7 +299,7 @@ const processInvitationLink = async () => {
 
                 <!-- Pizarras de Colaboracion -->
                 <FormList
-                    :title="'Pizarras de colaboración: [ ' +collaboratingPizarras.length+' ]'"
+                    :title="'Pizarras de colaboración: [ ' + collaboratingPizarras.length + ' ]'"
                     :forms="collaboratingPizarras"
                     :onSelect="selectPizarra"
                     :on-quit="leaveCollaboration"
@@ -312,7 +310,7 @@ const processInvitationLink = async () => {
 
                 <!-- Invitaciones Pendientes -->
                 <FormList
-                    :title="'Invitaciones pendientes: [ '+ pendingInvitations.length+' ]'"
+                    :title="'Invitaciones pendientes: [ ' + pendingInvitations.length + ' ]'"
                     :forms="pendingInvitations"
                     :onSelect="acceptInvitation"
                     :onDelete="rejectInvitation"

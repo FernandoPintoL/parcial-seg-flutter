@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { LayoutGrid, PanelTopDashed, SquareDashedBottomCode } from 'lucide-vue-next';
+import { LayoutGrid, SquareDashedBottomCode } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -15,28 +15,13 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Builder Angular',
-        href: '/form-builder',
-        icon: PanelTopDashed,
-    },
-    {
-        title: 'Builder Flutter',
-        href: '/pizarra-flutter',
+        title: 'Pizarra Flutter',
+        href: '/pizarra',
         icon: SquareDashedBottomCode,
     },
 ];
 
 const footerNavItems: NavItem[] = [
-    /*{
-        title: 'Github Repo',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits',
-        icon: BookOpen,
-    },*/
 ];
 </script>
 

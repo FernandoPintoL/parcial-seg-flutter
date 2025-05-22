@@ -2,7 +2,7 @@ export interface User{
     id: number;
     name: string;
     email: string;
-    password: string;
+    usernick : string;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;

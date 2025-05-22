@@ -10,6 +10,9 @@ class Chat extends Model
 {
     /** @use HasFactory<\Database\Factories\ChatFactory> */
     use HasFactory;
+    protected $table = 'chats';
+    protected $primaryKey = 'id';
+    public $timestamps = true;
 
     /**
      * The attributes that are mass assignable.
@@ -17,7 +20,7 @@ class Chat extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'form_id',
+        'pizarra_id',
         'user_id',
         'message',
         'is_system_message',
@@ -35,9 +38,9 @@ class Chat extends Model
     /**
      * Get the form that the chat message belongs to.
      */
-    public function form(): BelongsTo
+    public function pizarra(): BelongsTo
     {
-        return $this->belongsTo(FormBuilder::class, 'form_id');
+        return $this->belongsTo(Pizarra::class, 'form_id');
     }
 
     /**

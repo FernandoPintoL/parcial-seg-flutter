@@ -13,13 +13,12 @@ return new class extends Migration
     {
         Schema::create('pizarra_collaborators', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pizarra_flutter_id')->constrained()->onDelete('cascade');
+            $table->foreignId('pizarra_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');
             $table->timestamps();
-
             // Ensure a user can only be invited once to a pizarra
-            $table->unique(['pizarra_flutter_id', 'user_id']);
+            $table->unique(['pizarra_id']);
         });
     }
 

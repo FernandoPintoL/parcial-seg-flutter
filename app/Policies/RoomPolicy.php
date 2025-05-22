@@ -2,11 +2,11 @@
 
 namespace App\Policies;
 
-use App\Models\PizarraFlutter;
+use App\Models\Room;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-class PizarraFlutterPolicy
+class RoomPolicy
 {
     /**
      * Determine whether the user can view any models.
@@ -19,7 +19,7 @@ class PizarraFlutterPolicy
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, PizarraFlutter $pizarraFlutter): bool
+    public function view(User $user, Room $room): bool
     {
         return false;
     }
@@ -35,7 +35,7 @@ class PizarraFlutterPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, PizarraFlutter $pizarraFlutter): bool
+    public function update(User $user, Room $room): bool
     {
         return false;
     }
@@ -43,7 +43,7 @@ class PizarraFlutterPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, PizarraFlutter $pizarraFlutter): bool
+    public function delete(User $user, Room $room): bool
     {
         return false;
     }
@@ -51,7 +51,7 @@ class PizarraFlutterPolicy
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, PizarraFlutter $pizarraFlutter): bool
+    public function restore(User $user, Room $room): bool
     {
         return false;
     }
@@ -59,7 +59,7 @@ class PizarraFlutterPolicy
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, PizarraFlutter $pizarraFlutter): bool
+    public function forceDelete(User $user, Room $room): bool
     {
         return false;
     }

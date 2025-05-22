@@ -9,7 +9,7 @@ import Swal from 'sweetalert2';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
 import type { FormBuilder } from '@/types/FormBuilder';
-import type { User } from '@types/User';
+import type { User } from '@/types/User';
 
 // Props
 const props = defineProps({
@@ -1143,8 +1143,8 @@ ${selector} {
     });
 
     // TypeScript code
-    let tsCode = `import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+    let tsCode = `import { Component, OnInit } from '${'@angular/core'}';
+import { FormBuilder, FormGroup, Validators } from '${'@angular/forms'}';
 
 @Component({
   selector: 'app-${formName.value.toLowerCase().replace(/\s+/g, '-')}',
@@ -1430,7 +1430,7 @@ const generateAngularProjectFiles = () => {
 }`;
 
     // main.ts
-    const mainTs = `import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+    const mainTs = `import { platformBrowserDynamic } from '${'@angular/platform-browser-dynamic'}';
 
 import { AppModule } from './app/app.module';
 
@@ -1439,9 +1439,9 @@ platformBrowserDynamic().bootstrapModule(AppModule)
 `;
 
     // app.module.ts
-    const appModuleTs = `import { NgModule } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
-import { ReactiveFormsModule } from '@angular/forms';
+    const appModuleTs = `import { NgModule } from '${'@angular/core'}';
+import { BrowserModule } from '${'@angular/platform-browser'}';
+import { ReactiveFormsModule } from '${'@angular/forms'}';
 
 import { AppComponent } from './app.component';
 import { ${componentName}Component } from './components/${baseName}/${baseName}.component';
@@ -1462,7 +1462,7 @@ export class AppModule { }
 `;
 
     // app.component.ts
-    const appComponentTs = `import { Component } from '@angular/core';
+    const appComponentTs = `import { Component } from '${'@angular/core'}';
 
 @Component({
   selector: 'app-root',

@@ -5,19 +5,23 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class DeepSeekService
+class AzureService
 {
     protected $apiKey;
     protected $apiUrl;
+    protected $modelName;
+    protected $deploymentName;
 
     public function __construct()
     {
-        $this->apiKey = env('DEEPSEEK_API_KEY');
-        $this->apiUrl = env('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1');
+        $this->apiKey = env('AZURE_API_KEY');
+        $this->apiUrl = env('AZURE_API_URL');
+        $this->modelName = env('AZURE_MODEL_NAME', 'gpt-4.1');
+        $this->deploymentName = env('AZURE_DEPLOYMENT_NAME', 'gpt-4.1');
     }
 
     /**
-     * Generate a response from DeepSeek AI
+     * Generate a response from Azure OpenAI
      *
      * @param string $prompt The prompt to send to the AI
      * @param array $options Additional options for the API call
@@ -27,9 +31,11 @@ class DeepSeekService
     {
         try {
             $defaultOptions = [
-                'model' => 'deepseek-chat',
                 'messages' => [
-                    ['role' => 'user', 'content' => $prompt]
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
                 ],
                 'temperature' => 0.7,
                 'max_tokens' => 1000,
@@ -37,10 +43,13 @@ class DeepSeekService
 
             $requestOptions = array_merge($defaultOptions, $options);
 
+            // Azure OpenAI API endpoint format
+            $endpoint = rtrim($this->apiUrl, '/') . '/openai/deployments/' . $this->deploymentName . '/chat/completions?api-version=2023-05-15';
+
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->post($this->apiUrl . '/chat/completions', $requestOptions);
+                'api-key' => $this->apiKey
+            ])->post($endpoint, $requestOptions);
 
             if ($response->successful()) {
                 return [
@@ -48,7 +57,7 @@ class DeepSeekService
                     'data' => $response->json(),
                 ];
             } else {
-                Log::error('DeepSeek API error: ' . $response->body());
+                Log::error('Azure OpenAI API error: ' . $response->body());
                 return [
                     'success' => false,
                     'error' => 'API request failed: ' . $response->status(),
@@ -56,7 +65,7 @@ class DeepSeekService
                 ];
             }
         } catch (\Exception $e) {
-            Log::error('DeepSeek service error: ' . $e->getMessage());
+            Log::error('Azure service error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => 'Service error',
@@ -73,7 +82,7 @@ class DeepSeekService
      */
     public function generateFlutterUI(string $prompt)
     {
-        $enhancedPrompt = "Generate Flutter UI code for the following description. Return only valid Dart code that can be used in a Flutter application. The code should be complete and ready to use. Description: " . $prompt;
+        $enhancedPrompt = "Generate Flutter UI code for the following description. The code should be a complete StatelessWidget class that can be directly copied and pasted into a Dart file. Include necessary imports and make sure the code is properly formatted with correct indentation. The StatelessWidget should have a build method that returns a Scaffold with an AppBar and the described UI in the body. Description: " . $prompt;
 
         return $this->generateResponse($enhancedPrompt, [
             'temperature' => 0.5, // Lower temperature for more deterministic code generation
@@ -99,6 +108,7 @@ class DeepSeekService
 
         try {
             // Extract the content from the response
+            // Azure OpenAI response format is different from Gemini
             $content = $response['data']['choices'][0]['message']['content'] ?? '';
 
             // Extract code blocks from markdown

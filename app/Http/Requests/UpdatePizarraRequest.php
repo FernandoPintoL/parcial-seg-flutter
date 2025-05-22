@@ -11,7 +11,9 @@ class UpdatePizarraRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        /*$pizarraFlutter = $this->route('pizarra_flutter');
+        return auth()->check() && $pizarraFlutter->user_id === auth()->id();*/
+        return true;
     }
 
     /**
@@ -22,7 +24,8 @@ class UpdatePizarraRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name' => 'sometimes|required|string|max:255',
+            'elements' => 'sometimes|nullable|array',
         ];
     }
 }

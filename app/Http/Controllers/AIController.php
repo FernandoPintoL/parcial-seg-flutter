@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\DeepSeekService;
+use App\Services\AzureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class AIController extends Controller
 {
-    protected $deepSeekService;
+    protected $azureService;
 
-    public function __construct(DeepSeekService $deepSeekService)
+    public function __construct(AzureService $azureService)
     {
-        $this->deepSeekService = $deepSeekService;
+        $this->azureService = $azureService;
     }
 
     /**
@@ -30,10 +30,10 @@ class AIController extends Controller
 
         try {
             // Generate Flutter UI code
-            $response = $this->deepSeekService->generateFlutterUI($validated['prompt']);
+            $response = $this->azureService->generateFlutterUI($validated['prompt']);
 
             // Parse the response to extract widgets
-            $parsedResponse = $this->deepSeekService->parseFlutterWidgets($response);
+            $parsedResponse = $this->azureService->parseFlutterWidgets($response);
 
             if ($parsedResponse['success']) {
                 return response()->json([
@@ -59,7 +59,7 @@ class AIController extends Controller
     }
 
     /**
-     * Generate a response from DeepSeek AI
+     * Generate a response from Azure OpenAI
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -74,7 +74,7 @@ class AIController extends Controller
 
         try {
             // Generate response
-            $response = $this->deepSeekService->generateResponse(
+            $response = $this->azureService->generateResponse(
                 $validated['prompt'],
                 $validated['options'] ?? []
             );

@@ -2,20 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class FormCollaborator extends Model
+class PizarraCollaborator extends Model
 {
-    use HasFactory;
-
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table = 'form_collaborators';
+    protected $table = 'pizarra_collaborators';
 
     /**
      * The attributes that are mass assignable.
@@ -23,19 +20,17 @@ class FormCollaborator extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'form_builder_id',
+        'pizarra_id',
         'user_id',
         'status',
     ];
-
     /**
      * Get the form that this collaboration is for.
      */
-    public function form(): BelongsTo
+    public function pizarra(): BelongsTo
     {
-        return $this->belongsTo(FormBuilder::class, 'form_builder_id');
+        return $this->belongsTo(Pizarra::class);
     }
-
     /**
      * Get the user that is collaborating.
      */

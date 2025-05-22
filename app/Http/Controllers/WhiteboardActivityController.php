@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\FormBuilder;
+use App\Models\Pizarra;
 use App\Models\WhiteboardActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,16 +12,16 @@ class WhiteboardActivityController extends Controller
     /**
      * Get whiteboard activities for a specific form.
      */
-    public function getFormActivities(Request $request, $formId)
+    public function getFormActivities(Request $request, $pizarraId)
     {
         // Find the form
-        $form = FormBuilder::findOrFail($formId);
+        $pizarra = Pizarra::findOrFail($pizarraId);
 
         // Check if user has access to this form
-        $this->authorizeAccess($form);
+        $this->authorizeAccess($pizarra);
 
         // Get whiteboard activities for this form
-        $activities = $form->whiteboardActivities()
+        $activities = $pizarra->whiteboardActivities()
             ->with('user:id,name,email')
             ->orderBy('created_at', 'asc')
             ->get();
@@ -42,7 +42,7 @@ class WhiteboardActivityController extends Controller
         ]);
 
         // Find the form
-        $form = FormBuilder::findOrFail($validated['form_id']);
+        $form = Pizarra::findOrFail($validated['form_id']);
 
         // Check if user has access to this form
         $this->authorizeAccess($form);
@@ -65,7 +65,7 @@ class WhiteboardActivityController extends Controller
     /**
      * Check if the current user has access to the form.
      */
-    private function authorizeAccess(FormBuilder $form)
+    private function authorizeAccess(Pizarra $pizarra)
     {
         $user = Auth::user();
 
@@ -75,12 +75,12 @@ class WhiteboardActivityController extends Controller
         }
 
         // Check if user is the owner
-        if ($form->user_id === $user->id) {
+        if ($pizarra->user_id === $user->id) {
             return true;
         }
 
         // Check if user is a collaborator with accepted status
-        $isCollaborator = $form->collaborators()
+        $isCollaborator = $pizarra->collaborators()
             ->wherePivot('user_id', $user->id)
             ->wherePivot('status', 'accepted')
             ->exists();

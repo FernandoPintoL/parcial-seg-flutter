@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('pizarra_flutters', function (Blueprint $table) {
+        Schema::create('whiteboard_activities', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->json('elements')->nullable();
+            $table->foreignId('pizarra_id')->constrained('pizarras')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->string('action_type'); // 'add', 'remove', 'update', 'join', etc.
+            $table->json('action_data')->nullable(); // Details of the action
+            $table->text('description')->nullable(); // Human-readable description of the action
             $table->timestamps();
         });
     }
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('pizarra_flutters');
+        Schema::dropIfExists('whiteboard_activities');
     }
 };

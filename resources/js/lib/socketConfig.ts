@@ -45,6 +45,6 @@ export function getSocketConfig(useLocal = false) {
  * @param currentlyUsingLocal Whether currently using local socket
  * @returns New socket configuration
  */
-export function toggleSocketEnvironment(currentlyUsingLocal) {
+export function toggleSocketEnvironment(currentlyUsingLocal : any) {
     return getSocketConfig(!currentlyUsingLocal);
 }

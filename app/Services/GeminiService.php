@@ -5,19 +5,19 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class DeepSeekService
+class GeminiService
 {
     protected $apiKey;
     protected $apiUrl;
 
     public function __construct()
     {
-        $this->apiKey = env('DEEPSEEK_API_KEY');
-        $this->apiUrl = env('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1');
+        $this->apiKey = env('GEMENIS_API_KEY');
+        $this->apiUrl = env('GEMENIS_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro');
     }
 
     /**
-     * Generate a response from DeepSeek AI
+     * Generate a response from Gemini AI
      *
      * @param string $prompt The prompt to send to the AI
      * @param array $options Additional options for the API call
@@ -27,20 +27,26 @@ class DeepSeekService
     {
         try {
             $defaultOptions = [
-                'model' => 'deepseek-chat',
-                'messages' => [
-                    ['role' => 'user', 'content' => $prompt]
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt]
+                        ]
+                    ]
                 ],
-                'temperature' => 0.7,
-                'max_tokens' => 1000,
+                'generationConfig' => [
+                    'temperature' => 0.7,
+                    'maxOutputTokens' => 1000,
+                ]
             ];
 
             $requestOptions = array_merge($defaultOptions, $options);
 
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->post($this->apiUrl . '/chat/completions', $requestOptions);
+            ])->withQueryParameters([
+                'key' => $this->apiKey
+            ])->post($this->apiUrl . ':generateContent', $requestOptions);
 
             if ($response->successful()) {
                 return [
@@ -48,7 +54,7 @@ class DeepSeekService
                     'data' => $response->json(),
                 ];
             } else {
-                Log::error('DeepSeek API error: ' . $response->body());
+                Log::error('Gemini API error: ' . $response->body());
                 return [
                     'success' => false,
                     'error' => 'API request failed: ' . $response->status(),
@@ -56,7 +62,7 @@ class DeepSeekService
                 ];
             }
         } catch (\Exception $e) {
-            Log::error('DeepSeek service error: ' . $e->getMessage());
+            Log::error('Gemini service error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => 'Service error',
@@ -76,8 +82,10 @@ class DeepSeekService
         $enhancedPrompt = "Generate Flutter UI code for the following description. Return only valid Dart code that can be used in a Flutter application. The code should be complete and ready to use. Description: " . $prompt;
 
         return $this->generateResponse($enhancedPrompt, [
-            'temperature' => 0.5, // Lower temperature for more deterministic code generation
-            'max_tokens' => 2000, // Allow more tokens for code generation
+            'generationConfig' => [
+                'temperature' => 0.5, // Lower temperature for more deterministic code generation
+                'maxOutputTokens' => 2000, // Allow more tokens for code generation
+            ]
         ]);
     }
 
@@ -99,7 +107,7 @@ class DeepSeekService
 
         try {
             // Extract the content from the response
-            $content = $response['data']['choices'][0]['message']['content'] ?? '';
+            $content = $response['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
             // Extract code blocks from markdown
             preg_match_all('/```dart\s*([\s\S]*?)\s*```/', $content, $matches);

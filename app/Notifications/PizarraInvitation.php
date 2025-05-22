@@ -2,14 +2,15 @@
 
 namespace App\Notifications;
 
-use App\Models\FormBuilder;
+
+use App\Models\Pizarra;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class FormInvitation extends Notification
+class PizarraInvitation extends Notification
 {
     use Queueable;
 
@@ -19,7 +20,7 @@ class FormInvitation extends Notification
     /**
      * Create a new notification instance.
      */
-    public function __construct(FormBuilder $form, User $inviter)
+    public function __construct(Pizarra $form, User $inviter)
     {
         $this->form = $form;
         $this->inviter = $inviter;
@@ -32,7 +33,7 @@ class FormInvitation extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail','database'];
     }
 
     /**
@@ -40,7 +41,7 @@ class FormInvitation extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $url = url("/form-builder/invite/{$this->form->id}");
+        $url = url("/pizarra-flutter/invite/{$this->form->id}");
 
         return (new MailMessage)
             ->subject('Invitación para colaborar en un formulario')
@@ -49,6 +50,26 @@ class FormInvitation extends Notification
             ->action('Ver invitación', $url)
             ->line('Haz clic en el botón de arriba para ver y aceptar la invitación.')
             ->line('¡Gracias por usar nuestra aplicación!');
+    }
+
+    public function toDatabase(object $notifiable): array
+    {
+        return [
+            'read_at' => null,
+            'type' => 'pizarra_invitation',
+            'data' => [
+                'form_id' => $this->form->id,
+                'form_name' => $this->form->name,
+                'inviter_id' => $this->inviter->id,
+                'inviter_name' => $this->inviter->name,
+                'message' => $this->inviter->name . ' te ha invitado a colaborar en el formulario "' . $this->form->name . '".',
+                'url' => url("/pizarra-flutter/invite/{$this->form->id}"),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            'notifiable_id' => $notifiable->id,
+            'notifiable_type' => get_class($notifiable),
+        ];
     }
 
     /**
@@ -63,6 +84,7 @@ class FormInvitation extends Notification
             'form_name' => $this->form->name,
             'inviter_id' => $this->inviter->id,
             'inviter_name' => $this->inviter->name,
+            'url' => url("/pizarra-flutter/invite/{$this->form->id}"),
         ];
     }
 }
