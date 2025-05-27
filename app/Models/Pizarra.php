@@ -49,18 +49,17 @@ class Pizarra extends Model
      */
     public function collaborators(): BelongsToMany
     {
-        return $this->belongsToMany(PizarraCollaborator::class, 'pizarra_collaborators')
+        return $this->belongsToMany(User::class, 'pizarra_collaborators')
             ->withPivot('status')
-            ->withTimestamps();
+            ->wherePivot('status', 'accept');
     }
-    public function collaboratorsAccept(): BelongsToMany
+    public function isCollaboratingOrPropietario($userId): bool
     {
-        return $this->belongsToMany(PizarraCollaborator::class, 'pizarra_collaborators')
-            ->wherePivot('status', 'accept')
-            ->withTimestamps();
+        return $this->collaborators()->where('user_id', $userId)->exists() || $this->user_id === $userId;
     }
-    public function isCollaborating($userId): bool
+
+    public function chatMessages()
     {
-        return $this->collaboratorsAccept()->where('user_id', $userId)->exists();
+        return $this->hasMany(Chat::class);
     }
 }

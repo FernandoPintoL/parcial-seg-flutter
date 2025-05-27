@@ -42,9 +42,9 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 // Chat routes for form-specific messages
-/*Route::resource('/chat', ChatController::class);
-Route::get('/chat/form/{formId}/messages', [ChatController::class, 'getFormMessages'])->name('chat.form.messages');
-Route::post('/chat/message', [ChatController::class, 'storeMessage'])->name('chat.message.store');*/
+/*Route::resource('/chat', ChatController::class);*/
+Route::get('/chat/form/{pizarra}/messages', [ChatController::class, 'getFormMessages'])->name('chat.form.messages');
+Route::post('/chat/message', [ChatController::class, 'storeMessage'])->name('chat.message.store');
 
 // Whiteboard activity routes
 /*Route::get('/whiteboard/form/{formId}/activities', [WhiteboardActivityController::class, 'getFormActivities'])->middleware('auth')->name('whiteboard.form.activities');
@@ -66,7 +66,7 @@ Route::post('/ai/generate-flutter-ui', [AIController::class, 'generateFlutterUI'
 Route::post('/ai/generate-response', [AIController::class, 'generateResponse'])->name('ai.generate-response');
 
 // Flutter Project Download Route
-Route::get('/pizarra/download-flutter-project', [PizarraController::class, 'downloadFlutterProject'])->name('pizarra.download-flutter-project');
+Route::post('/pizarra/download-flutter-project', [PizarraController::class, 'downloadFlutterProject'])->name('pizarra.download-flutter-project');
 
 // Flutter Image Scanning Route
 Route::post('/pizarra/scan-image', [PizarraController::class, 'scanImage'])->name('pizarra.scan-image');

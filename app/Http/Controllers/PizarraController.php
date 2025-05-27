@@ -23,10 +23,11 @@ class PizarraController extends Controller
     public function downloadFlutterProject(Request $request)
     {
         // Validate the request
-        $validated = $request->validate([
+        /*$validated = $request->validate([
             'code' => 'required|string',
             'project_name' => 'required|string|max:255',
-        ]);
+            'id' => 'id:nullable|exists:pizarras,id',
+        ]);*/
 
         // For GET requests, the parameters are in the query string
 
@@ -37,10 +38,10 @@ class PizarraController extends Controller
         }
 
         // Create the project structure
-        $this->createFlutterProjectStructure($tempDir, $validated['project_name'], $validated['code']);
+        $this->createFlutterProjectStructure($tempDir, $request->project_name, $request->code);
 
         // Create a zip file
-        $zipFileName = $validated['project_name'] . '.zip';
+        $zipFileName = $request->project_name . '.zip';
         $zipFilePath = storage_path('app/temp/' . $zipFileName);
 
         // Create the zip archive
@@ -347,7 +348,7 @@ class PizarraController extends Controller
             'pizarra' => $pizarra,
             'isCreador' => $pizarra->user_id === auth()->id(),
             'creador' => $pizarra->user,
-            'collaborators' => $pizarra->collaboratorsAccept(),
+            'collaborators' => $pizarra->collaborators(),
         ]);
     }
 
@@ -575,51 +576,4 @@ class PizarraController extends Controller
             ->with('highlight_invitation', $form->id)
             ->with('message', 'Has sido invitado a colaborar en "' . $form->name . '". Por favor revise sus invitaciones pendientes.');
     }
-    /**
-     * Handle invitation link To Angular.
-     */
-    /*public function handleInviteLink(Pizarra $form)
-    {
-        // Check if user is authenticated
-        if (!Auth::check()) {
-            // Redirect to login page with a redirect back to this page after login
-            return redirect()->route('login')->with('redirect', route('pizarra-flutter.invite-link', $form->id));
-        }
-
-        $user = Auth::user();
-
-        // Check if user is already the owner
-        if ($form->user_id === $user->id) {
-            return redirect()->route('pizarra.index')
-                ->with('message', 'Usted ya es el propietario de esta pizarra.');
-        }
-
-        // Check if user is already a collaborator
-        $existingCollaboration = PizarraCollaborator::where('pizarra_id', $form->id)
-            ->where('user_id', $user->id)
-            ->first();
-
-        if ($existingCollaboration) {
-            if ($existingCollaboration->status === 'accepted') {
-                return redirect()->route('pizarra-flutter.index')
-                    ->with('message', 'Ya eres colaborador en esta pizarra.');
-            } elseif ($existingCollaboration->status === 'rejected') {
-                // Update status to pending
-                $existingCollaboration->update(['status' => 'pending']);
-            }
-            // If status is pending, show the invitation page
-        } else {
-            // Create a new collaboration with pending status
-            PizarraCollaborator::create([
-                'pizarra_flutter_id' => $form->id,
-                'user_id' => $user->id,
-                'status' => 'pending',
-            ]);
-        }
-
-        // Redirect to pizarra flutter index with the invitation highlighted
-        return redirect()->route('pizarra-flutter.index')
-            ->with('highlight_invitation', $form->id)
-            ->with('message', 'Has sido invitado a colaborar en "' . $form->name . '". Por favor revise sus invitaciones pendientes.');
-    }*/
 }

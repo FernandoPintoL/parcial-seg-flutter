@@ -65,7 +65,7 @@ onMounted(() => {
 
 // Select a pizarra to edit
 const selectPizarra = (pizarra: Pizarra) => {
-    router.get(`/pizarra/${pizarra.id}/flutter`);
+    router.get(`/pizarra/${pizarra.id}/edit`);
 };
 
 const createNewPizarra = async () => {
@@ -102,9 +102,9 @@ const createNewPizarra = async () => {
 };
 
 // Accept an invitation
-const acceptInvitation = async (pizarra) => {
+const acceptInvitation = async (pizarra : Pizarra) => {
     try {
-        const response = await axios.post(`/pizarra-flutter/${pizarra.id}/accept`);
+        const response = await axios.post(`/pizarra/${pizarra.id}/accept/flutter`);
         if (response.status !== 200) {
             Swal.fire({
                 title: 'Error!',
@@ -125,7 +125,7 @@ const acceptInvitation = async (pizarra) => {
             timer: 2000,
             showConfirmButton: false,
         }).then(() => {
-            window.location.href = `/pizarra-flutter/${pizarra.id}`;
+            window.location.href = `/pizarra/${pizarra.id}/edit`;
         });
     } catch (error) {
         console.error('Error accepting invitation:', error);
@@ -138,9 +138,9 @@ const acceptInvitation = async (pizarra) => {
 };
 
 // Reject an invitation
-const rejectInvitation = async (pizarra) => {
+const rejectInvitation = async (pizarra : Pizarra) => {
     try {
-        await axios.post(`/pizarra-flutter/${pizarra.id}/reject`);
+        await axios.post(`/pizarra/${pizarra.id}/reject/flutter`);
 
         // Instead of reloading the page, update the lists directly
         pendingInvitations.value = pendingInvitations.value.filter((p) => p.id !== pizarra.id);
@@ -163,7 +163,7 @@ const rejectInvitation = async (pizarra) => {
 };
 
 // Delete a pizarra
-const deletePizarra = async (pizarra, event) => {
+const deletePizarra = async (pizarra : Pizarra, event : any) => {
     // Prevent the click from propagating to the parent (which would open the pizarra)
     event.stopPropagation();
 
@@ -182,11 +182,11 @@ const deletePizarra = async (pizarra, event) => {
     }
 
     try {
-        await axios.delete(`/pizarra-flutter/${pizarra.id}`);
+        await axios.delete(`/pizarra/${pizarra.id}`);
         // Remove the pizarra from the list
         ownedPizarras.value = ownedPizarras.value.filter((p) => p.id !== pizarra.id);
         Swal.fire('Eliminado!', 'Su pizarra ha sido eliminada.', 'success');
-    } catch (error) {
+    } catch (error : any) {
         console.error('Error deleting pizarra:', error);
         if (error.response && error.response.status === 403) {
             Swal.fire('Error!', 'No está autorizado a eliminar esta pizarra.', 'error');
@@ -197,11 +197,11 @@ const deletePizarra = async (pizarra, event) => {
 };
 
 // Dejar de ser colaborador
-const leaveCollaboration = async (pizarra) => {
+const leaveCollaboration = async (pizarra : Pizarra) => {
     try {
-        const response = await axios.post(`/pizarra-flutter/${pizarra.id}/leave`);
+        const response = await axios.post(`/pizarra/${pizarra.id}/leave/flutter`);
         // Remove the pizarra from the list
-        collaboratingPizarras.value = collaboratingPizarras.value.filter((p) => p.id !== pizarra.id);
+        collaboratingPizarras.value = collaboratingPizarras.value.filter((p : any) => p.id !== pizarra.id);
         if (response.status === 200) {
             Swal.fire('Éxito!', 'Has dejado de colaborar en la pizarra.', 'success');
         } else {
@@ -232,7 +232,7 @@ const processInvitationLink = async () => {
         }
 
         // Redirect to the invitation link
-        window.location.href = `/pizarra-flutter/invite/${pizarraId}`;
+        window.location.href = `/pizarra/invite/${pizarraId}/flutter`;
     } catch (error) {
         console.error('Error processing invitation link:', error);
         Swal.fire('Error!', 'Enlace de invitación no válido. Revísalo y vuelve a intentarlo.', 'error');

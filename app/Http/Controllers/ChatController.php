@@ -22,16 +22,13 @@ class ChatController extends Controller
     /**
      * Get chat messages for a specific form.
      */
-    public function getFormMessages(Request $request, $pizarraId)
+    public function getFormMessages(Pizarra $pizarra)
     {
-        // Find the form
-        $form = Pizarra::findOrFail($pizarraId);
-
         // Check if user has access to this form
-        $this->authorizeAccess($form);
+        $this->authorizeAccess($pizarra);
 
         // Get chat messages for this form
-        $messages = $form->chatMessages()
+        $messages = $pizarra->chatMessages()
             ->with('user:id,name,email')
             ->orderBy('created_at', 'asc')
             ->get();
@@ -77,21 +74,11 @@ class ChatController extends Controller
     {
         $user = Auth::user();
 
-        // Check if user is the owner
-        if ($pizarra->user_id === $user->id) {
+        // Si es dueño o colaborador aceptado
+        if ($pizarra->isCollaboratingOrPropietario($user->id)) {
             return true;
         }
 
-        // Check if user is a collaborator with accepted status
-        $isCollaborator = $pizarra->collaborators()
-            ->wherePivot('user_id', $user->id)
-            ->wherePivot('status', 'accepted')
-            ->exists();
-
-        if (!$isCollaborator) {
-            abort(403, 'You do not have access to this form\'s chat.');
-        }
-
-        return true;
+        abort(403, 'No tienes acceso al chat de este formulario.');
     }
 }

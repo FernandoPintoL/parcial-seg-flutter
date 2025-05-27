@@ -10,9 +10,11 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/Services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
+import type { Pizarra, PizarraCollaborators, FlutterWidget } from '@/types/Pizarra';
+import { availableFlutterWidgets } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/Services/SocketService';
+import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
 
 // Props
 const props = defineProps({
@@ -43,7 +45,7 @@ const props = defineProps({
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Pizarra Flutter',
-        href: '/pizarra-flutter'
+        href: '/pizarra/' + props.pizarra?.id + '/edit'
     }
 ];
 
@@ -84,9 +86,6 @@ const aiMessages = ref<any>([]);
 const aiPrompt = ref<string>('');
 const isProcessingAI = ref<boolean>(false);
 
-// Only show chat for collaborators, not for the creator
-const showChatButton = computed(() => !isCreator.value || collaborators.value.length > 0);
-
 // Image upload state
 const showImageUpload = ref<boolean>(false);
 const selectedImage = ref<File | null>(null);
@@ -99,8 +98,35 @@ let widgetIdCounter = 1;
 // Project name ref
 const projectName = ref<string>(props.pizarra?.name || 'Nueva Pizarra Flutter');
 
+
+// Selected widget for editing
+const selectedWidget = ref<FlutterWidget | null>(null);
+
+// Available Flutter widgets
+const availableWidgets = ref(availableFlutterWidgets);
+
+
 // Flutter widgets on the canvas
 // Initialize with a properly computed value
+// Ensure all widgets have unique IDs
+const addIdsToWidgets = (widgetList: any) => {
+    return widgetList.map((widget: any) => {
+        // Add ID if not present
+        if (!widget.id) {
+            widget.id = `widget-${widgetIdCounter++}`;
+        }
+
+        // Process children recursively if they exist
+        if (widget.children && Array.isArray(widget.children)) {
+            widget.children = addIdsToWidgets(widget.children);
+        } else {
+            // Initialize children as an empty array if it doesn't exist or isn't an array
+            widget.children = [];
+        }
+
+        return widget;
+    });
+}
 const getInitialFlutterWidgets = (): FlutterWidget[] => {
     let widgets = [];
 
@@ -118,382 +144,9 @@ const getInitialFlutterWidgets = (): FlutterWidget[] => {
             return [];
         }
     }
-
-    // Ensure all widgets have unique IDs
-    const addIdsToWidgets = (widgetList: any) => {
-        return widgetList.map((widget: any) => {
-            // Add ID if not present
-            if (!widget.id) {
-                widget.id = `widget-${widgetIdCounter++}`;
-            }
-
-            // Process children recursively if they exist
-            if (widget.children && Array.isArray(widget.children)) {
-                widget.children = addIdsToWidgets(widget.children);
-            } else {
-                // Initialize children as an empty array if it doesn't exist or isn't an array
-                widget.children = [];
-            }
-
-            return widget;
-        });
-    };
-
     return addIdsToWidgets(widgets);
-};
-
+}
 const flutterWidgets = ref<FlutterWidget[]>(getInitialFlutterWidgets());
-
-// Selected widget for editing
-const selectedWidget = ref<FlutterWidget | null>(null);
-
-// Available Flutter widgets
-const availableWidgets = ref<FlutterWidgetDefinition[]>([
-    // Input widgets
-    {
-        type: 'TextField',
-        category: 'input',
-        label: 'Text Field',
-        properties: [
-            { name: 'decoration', type: 'string', defaultValue: 'InputDecoration(labelText: "Label")' },
-            { name: 'controller', type: 'string', defaultValue: 'TextEditingController()' },
-            {
-                name: 'keyboardType',
-                type: 'select',
-                defaultValue: 'TextInputType.text',
-                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone']
-            },
-            { name: 'obscureText', type: 'boolean', defaultValue: false }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'TextFormField',
-        category: 'input',
-        label: 'Text Form Field',
-        properties: [
-            { name: 'decoration', type: 'string', defaultValue: 'InputDecoration(labelText: "Label", hintText: "Enter text")' },
-            { name: 'controller', type: 'string', defaultValue: 'TextEditingController()' },
-            { name: 'validator', type: 'string', defaultValue: '(value) => value == null || value.isEmpty ? "Please enter some text" : null' },
-            {
-                name: 'keyboardType',
-                type: 'select',
-                defaultValue: 'TextInputType.text',
-                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone']
-            },
-            { name: 'obscureText', type: 'boolean', defaultValue: false },
-            { name: 'enabled', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Form',
-        category: 'input',
-        label: 'Form',
-        properties: [
-            { name: 'key', type: 'string', defaultValue: 'GlobalKey<FormState>()' },
-            { name: 'autovalidateMode', type: 'select', defaultValue: 'AutovalidateMode.disabled',
-              options: ['AutovalidateMode.disabled', 'AutovalidateMode.always', 'AutovalidateMode.onUserInteraction'] }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Checkbox',
-        category: 'input',
-        label: 'Checkbox',
-        properties: [
-            { name: 'value', type: 'boolean', defaultValue: false },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
-            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'DropdownButton',
-        category: 'input',
-        label: 'Dropdown',
-        properties: [
-            { name: 'value', type: 'string', defaultValue: 'Option 1' },
-            { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
-        ],
-        hasChildren: false
-    },
-    // Layout widgets
-    {
-        type: 'Container',
-        category: 'container',
-        label: 'Container',
-        properties: [
-            { name: 'width', type: 'number', defaultValue: 200 },
-            { name: 'height', type: 'number', defaultValue: 200 },
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' },
-            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
-            {
-                name: 'alignment',
-                type: 'select',
-                defaultValue: 'Alignment.center',
-                options: ['Alignment.center', 'Alignment.topLeft', 'Alignment.topRight', 'Alignment.bottomLeft', 'Alignment.bottomRight']
-            }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Row',
-        category: 'layout',
-        label: 'Row',
-        properties: [
-            {
-                name: 'mainAxisAlignment',
-                type: 'select',
-                defaultValue: 'MainAxisAlignment.start',
-                options: ['MainAxisAlignment.start', 'MainAxisAlignment.center', 'MainAxisAlignment.end', 'MainAxisAlignment.spaceBetween', 'MainAxisAlignment.spaceAround', 'MainAxisAlignment.spaceEvenly']
-            },
-            {
-                name: 'crossAxisAlignment',
-                type: 'select',
-                defaultValue: 'CrossAxisAlignment.center',
-                options: ['CrossAxisAlignment.start', 'CrossAxisAlignment.center', 'CrossAxisAlignment.end', 'CrossAxisAlignment.stretch', 'CrossAxisAlignment.baseline']
-            }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Column',
-        category: 'layout',
-        label: 'Column',
-        properties: [
-            {
-                name: 'mainAxisAlignment',
-                type: 'select',
-                defaultValue: 'MainAxisAlignment.start',
-                options: ['MainAxisAlignment.start', 'MainAxisAlignment.center', 'MainAxisAlignment.end', 'MainAxisAlignment.spaceBetween', 'MainAxisAlignment.spaceAround', 'MainAxisAlignment.spaceEvenly']
-            },
-            {
-                name: 'crossAxisAlignment',
-                type: 'select',
-                defaultValue: 'CrossAxisAlignment.center',
-                options: ['CrossAxisAlignment.start', 'CrossAxisAlignment.center', 'CrossAxisAlignment.end', 'CrossAxisAlignment.stretch', 'CrossAxisAlignment.baseline']
-            }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Padding',
-        category: 'layout',
-        label: 'Padding',
-        properties: [
-            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'SafeArea',
-        category: 'layout',
-        label: 'SafeArea',
-        properties: [
-            { name: 'top', type: 'boolean', defaultValue: true },
-            { name: 'bottom', type: 'boolean', defaultValue: true },
-            { name: 'left', type: 'boolean', defaultValue: true },
-            { name: 'right', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Scaffold',
-        category: 'layout',
-        label: 'Scaffold',
-        properties: [
-            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
-            { name: 'extendBody', type: 'boolean', defaultValue: false },
-            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'AppBar',
-        category: 'layout',
-        label: 'App Bar',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'elevation', type: 'number', defaultValue: 4 },
-            { name: 'centerTitle', type: 'boolean', defaultValue: false },
-            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Center',
-        category: 'layout',
-        label: 'Center',
-        properties: [
-            { name: 'widthFactor', type: 'number', defaultValue: null },
-            { name: 'heightFactor', type: 'number', defaultValue: null }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'SizedBox',
-        category: 'layout',
-        label: 'Sized Box',
-        properties: [
-            { name: 'width', type: 'number', defaultValue: 100 },
-            { name: 'height', type: 'number', defaultValue: 100 }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Drawer',
-        category: 'layout',
-        label: 'Drawer',
-        properties: [
-            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'width', type: 'number', defaultValue: 300 },
-            { name: 'elevation', type: 'number', defaultValue: 16 }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Card',
-        category: 'layout',
-        label: 'Card',
-        properties: [
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'elevation', type: 'number', defaultValue: 1 },
-            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
-            { name: 'shape', type: 'string', defaultValue: 'RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))' }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'ListTile',
-        category: 'layout',
-        label: 'List Tile',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
-            { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
-            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
-            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
-            { name: 'dense', type: 'boolean', defaultValue: false },
-            { name: 'enabled', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'FloatingActionButton',
-        category: 'layout',
-        label: 'Floating Action Button',
-        properties: [
-            { name: 'child', type: 'string', defaultValue: 'Icon(Icons.add)' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'foregroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'tooltip', type: 'string', defaultValue: 'Floating Action Button' },
-            { name: 'mini', type: 'boolean', defaultValue: false },
-            { name: 'elevation', type: 'number', defaultValue: 6 }
-        ],
-        hasChildren: false
-    },
-    // Display widgets
-    {
-        type: 'Text',
-        category: 'display',
-        label: 'Text',
-        properties: [
-            { name: 'data', type: 'string', defaultValue: 'Hello World' },
-            { name: 'style', type: 'string', defaultValue: 'TextStyle(fontSize: 16.0)' },
-            {
-                name: 'textAlign',
-                type: 'select',
-                defaultValue: 'TextAlign.left',
-                options: ['TextAlign.left', 'TextAlign.center', 'TextAlign.right', 'TextAlign.justify']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Image',
-        category: 'display',
-        label: 'Image',
-        properties: [
-            { name: 'src', type: 'string', defaultValue: 'https://via.placeholder.com/150' },
-            { name: 'width', type: 'number', defaultValue: 150 },
-            { name: 'height', type: 'number', defaultValue: 150 },
-            {
-                name: 'fit',
-                type: 'select',
-                defaultValue: 'BoxFit.cover',
-                options: ['BoxFit.cover', 'BoxFit.contain', 'BoxFit.fill', 'BoxFit.fitWidth', 'BoxFit.fitHeight', 'BoxFit.none', 'BoxFit.scaleDown']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Icon',
-        category: 'display',
-        label: 'Icon',
-        properties: [
-            { name: 'icon', type: 'string', defaultValue: 'Icons.star' },
-            { name: 'size', type: 'number', defaultValue: 24 },
-            { name: 'color', type: 'color', defaultValue: '#000000' }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'ScrollChildren',
-        category: 'layout',
-        label: 'Scroll Children',
-        properties: [
-            {
-                name: 'scrollDirection',
-                type: 'select',
-                defaultValue: 'Axis.vertical',
-                options: ['Axis.vertical', 'Axis.horizontal']
-            },
-            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
-            {
-                name: 'physics',
-                type: 'select',
-                defaultValue: 'ClampingScrollPhysics()',
-                options: ['ClampingScrollPhysics()', 'BouncingScrollPhysics()', 'AlwaysScrollableScrollPhysics()']
-            }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'TableList',
-        category: 'display',
-        label: 'Table List',
-        properties: [
-            { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
-            { name: 'rows', type: 'number', defaultValue: 3 },
-            { name: 'border', type: 'boolean', defaultValue: true },
-            { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'CardText',
-        category: 'display',
-        label: 'Card Text',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'Card Title' },
-            { name: 'subtitle', type: 'string', defaultValue: 'Card Subtitle' },
-            {
-                name: 'content',
-                type: 'string',
-                defaultValue: 'Card content goes here with more details about the item.'
-            },
-            { name: 'elevation', type: 'number', defaultValue: 2 },
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'borderRadius', type: 'number', defaultValue: 8 }
-        ],
-        hasChildren: false
-    }
-]);
-
 // Function to add a widget to the canvas
 const addWidget = (widgetType: string) => {
     const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
@@ -899,12 +552,14 @@ const downloadFlutterProject = async () => {
         AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
 
         // Send request to backend to generate and download the project
-        const response = await axios.get('/pizarra/download-flutter-project', {
-            params: {
-                code: flutterCode.value,
-                project_name: projectName.value || 'FlutterProject'
-            },
-            responseType: 'blob' // Important for handling binary data (zip file)
+        const response = await axios.post('/pizarra/download-flutter-project', {
+            name: projectName.value || 'FlutterProject',
+            elements: flutterWidgets.value, // Enviar como array, no como string
+            code: flutterCode.value,
+            project_name: projectName.value || 'FlutterProject',
+            id: props.pizarra?.id || null,
+        }, {
+            responseType: 'blob' // Important to set response type for file download
         });
 
         // Create a blob URL from the response
@@ -937,7 +592,6 @@ const closeImageUpload = () => {
     showImageUpload.value = false;
     clearSelectedImage();
 };
-
 const handleImageUpload = (event: Event) => {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
@@ -951,12 +605,10 @@ const handleImageUpload = (event: Event) => {
         reader.readAsDataURL(selectedImage.value);
     }
 };
-
 const clearSelectedImage = () => {
     selectedImage.value = null;
     previewImage.value = null;
 };
-
 const processImage = async () => {
     if (!selectedImage.value) {
         AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
@@ -1043,7 +695,7 @@ const savePizarraFlutter = async () => {
             projectName.value = newName;
         }
 
-        await axios.put(`/pizarra/${props.pizarra.id}`, {
+        await axios.put(`/pizarra/${props.pizarra.id}/edit`, {
             name: projectName.value,
             elements: flutterWidgets.value // Enviar como array, no como string
         });
@@ -1078,45 +730,6 @@ watch(flutterWidgets, () => {
     debouncedSave();
 }, { deep: true, flush: 'post' });
 
-// Create a new pizarraFlutter
-/*
-const createNewPizarra = async () => {
-    try {
-        // Prompt for project name
-        const { value: newName } = await Swal.fire({
-            title: 'Nombre del Proyecto',
-            input: 'text',
-            inputLabel: 'Por favor ingrese un nombre para el proyecto',
-            inputValue: projectName.value,
-            showCancelButton: true,
-            inputValidator: (value) => {
-                if (!value || value.trim() === '') {
-                    return 'El nombre del proyecto es requerido';
-                }
-            }
-        });
-
-        if (!newName) return; // User cancelled
-        projectName.value = newName;
-
-        const response = await axios.post('/pizarra-flutter', {
-            name: projectName.value,
-            elements: JSON.stringify(flutterWidgets.value) // Send as JSON string for consistency
-        });
-
-        // Redirect to the new pizarraFlutter
-        if (response.data && response.data.id) {
-            window.location.href = `/pizarra-flutter/${response.data.id}`;
-        } else {
-            console.error('No ID returned from server');
-            AlertService.prototype.error('Error', 'No se pudo crear la pizarra');
-        }
-    } catch (error) {
-        console.error('Error creating pizarra flutter:', error);
-        AlertService.prototype.error('Error', 'Ha ocurrido un error al crear la pizarra');
-    }
-};
-*/
 // Load collaborators
 const loadCollaborators = async () => {
     if (!props.pizarra?.id) return;
@@ -1208,6 +821,7 @@ const loadChatMessages = async () => {
 
     try {
         const response = await axios.get(`/chat/form/${props.pizarra.id}/messages`);
+        console.log('Chat messages loaded:', response.data);
 
         // Format messages from the database
         const dbMessages = response.data.map((msg: any) => ({
@@ -1274,8 +888,8 @@ const sendChatMessage = async () => {
  * @param inputString The AI response text
  * @returns The extracted Flutter code
  */
-function extractFromFirstImport(inputString : string) : string {
-    console.log("Extracting code from AI response...");
+function extractFromFirstImport(inputString: string): string {
+    console.log('Extracting code from AI response...');
 
     // First, try to find code blocks in markdown format (```dart ... ```)
     const codeBlockRegex = /```(?:dart|flutter)?\s*([\s\S]*?)\s*```/g;
@@ -1298,14 +912,14 @@ function extractFromFirstImport(inputString : string) : string {
         // If no code blocks found, look for import statements
         const importIndex = inputString.indexOf('import');
         if (importIndex !== -1) {
-            console.log("Found import statement");
+            console.log('Found import statement');
             return inputString.slice(importIndex);
         }
 
         // If no imports found, look for class or widget definitions
         const classMatch = /class\s+\w+/.exec(inputString);
         if (classMatch) {
-            console.log("Found class definition");
+            console.log('Found class definition');
             const classIndex = classMatch.index;
             return inputString.slice(classIndex);
         }
@@ -1320,10 +934,10 @@ function extractFromFirstImport(inputString : string) : string {
 
         // If nothing else works, return the original string
         // This is better than returning empty string as it might still contain useful code
-        console.log("No code patterns found, using original text");
+        console.log('No code patterns found, using original text');
         return inputString;
     } catch (error) {
-        console.error("Error in extractFromFirstImport:", error);
+        console.error('Error in extractFromFirstImport:', error);
         // Return the original string in case of error
         return inputString;
     }
@@ -1343,179 +957,200 @@ function extractFromFirstImport(inputString : string) : string {
  * @param inputCode The Flutter code to parse
  */
 function parseFlutterWidgets(inputCode: string) {
-    console.log("Parsing Flutter widgets from code...");
+    console.log('Parsing Flutter widgets from code...');
 
     try {
         // Define regex patterns for different widget structures
         const widgetRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\b/g;
 
-    // This regex captures widget definitions with their content between parentheses
-    // It handles nested parentheses by using a non-greedy approach
-    const widgetWithContentRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(([\s\S]*?)(?:\)\s*,|\)$|\);)/g;
+        // This regex captures widget definitions with their content between parentheses
+        // It handles nested parentheses by using a non-greedy approach
+        const widgetWithContentRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(([\s\S]*?)(?:\)\s*,|\)$|\);)/g;
 
-    // These regex patterns capture child and children properties
-    // Improved to handle more complex child widget references
-    const childRegex = /child\s*:\s*(?:(?:const\s+)?([A-Za-z][A-Za-z0-9_]*)\s*\(|([A-Za-z][A-Za-z0-9_]*)\s*\.\s*[a-zA-Z]+\()/;
+        // These regex patterns capture child and children properties
+        // Improved to handle more complex child widget references
+        const childRegex = /child\s*:\s*(?:(?:const\s+)?([A-Za-z][A-Za-z0-9_]*)\s*\(|([A-Za-z][A-Za-z0-9_]*)\s*\.\s*[a-zA-Z]+\()/;
 
-    // Improved to better extract the content of the children array
-    const childrenRegex = /children\s*:\s*\[\s*([\s\S]*?)\s*\]\s*(?:,|$)/;
+        // Improved to better extract the content of the children array
+        const childrenRegex = /children\s*:\s*\[\s*([\s\S]*?)\s*\]\s*(?:,|$)/;
 
-    // This regex helps identify widget types within a children array
-    const childrenWidgetsRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(/g;
+        // This regex helps identify widget types within a children array
+        const childrenWidgetsRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(/g;
 
-    // Helper function to extract property values from widget content
-    const extractProperties = (widgetContent: string, widgetDefinition: any) => {
-        const props = {};
+        // Helper function to extract property values from widget content
+        const extractProperties = (widgetContent: string, widgetDefinition: any) => {
+            const props = {};
 
-        // Initialize with default values first
-        widgetDefinition.properties.forEach(prop => {
-            props[prop.name] = prop.defaultValue;
-        });
+            // Initialize with default values first
+            widgetDefinition.properties.forEach(prop => {
+                props[prop.name] = prop.defaultValue;
+            });
 
-        // Try to extract actual values for common properties
-        widgetDefinition.properties.forEach(prop => {
-            // Different regex patterns based on property type
-            let propRegex;
-            let valueExtractor = (match) => match[1];
+            // Try to extract actual values for common properties
+            widgetDefinition.properties.forEach(prop => {
+                // Different regex patterns based on property type
+                let propRegex;
+                let valueExtractor = (match) => match[1];
 
-            switch(prop.type) {
-                case 'string':
-                    // Match string values with quotes
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*['"]([^'"]*?)['"]`, 'i');
-                    break;
-                case 'number':
-                    // Match numeric values
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*(\\d+(?:\\.\\d+)?)`, 'i');
-                    valueExtractor = (match) => parseFloat(match[1]);
-                    break;
-                case 'boolean':
-                    // Match boolean values
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*(true|false)`, 'i');
-                    valueExtractor = (match) => match[1].toLowerCase() === 'true';
-                    break;
-                case 'color':
-                    // Try to match color values in various formats
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*(?:Colors\\.([a-zA-Z]+)|Color\\(0x([0-9A-Fa-f]+)\\)|'#([0-9A-Fa-f]+)')`, 'i');
-                    valueExtractor = (match) => {
-                        if (match[1]) return `#${colorNameToHex(match[1])}`;
-                        if (match[2]) return `#${match[2]}`;
-                        if (match[3]) return `#${match[3]}`;
-                        return prop.defaultValue;
-                    };
-                    break;
-                case 'select':
-                    // Match enum values
-                    const options = prop.options.map(opt => opt.replace(/\./g, '\\.'));
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
-                    break;
-                default:
-                    // For other types, try a generic approach
-                    propRegex = new RegExp(`${prop.name}\\s*:\\s*([^,}]+)`, 'i');
-                    valueExtractor = (match) => match[1].trim();
+                switch (prop.type) {
+                    case 'string':
+                        // Match string values with quotes
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*['"]([^'"]*?)['"]`, 'i');
+                        break;
+                    case 'number':
+                        // Match numeric values
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*(\\d+(?:\\.\\d+)?)`, 'i');
+                        valueExtractor = (match) => parseFloat(match[1]);
+                        break;
+                    case 'boolean':
+                        // Match boolean values
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*(true|false)`, 'i');
+                        valueExtractor = (match) => match[1].toLowerCase() === 'true';
+                        break;
+                    case 'color':
+                        // Try to match color values in various formats
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*(?:Colors\\.([a-zA-Z]+)|Color\\(0x([0-9A-Fa-f]+)\\)|'#([0-9A-Fa-f]+)')`, 'i');
+                        valueExtractor = (match) => {
+                            if (match[1]) return `#${colorNameToHex(match[1])}`;
+                            if (match[2]) return `#${match[2]}`;
+                            if (match[3]) return `#${match[3]}`;
+                            return prop.defaultValue;
+                        };
+                        break;
+                    case 'select':
+                        // Match enum values
+                        const options = prop.options.map(opt => opt.replace(/\./g, '\\.'));
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
+                        break;
+                    default:
+                        // For other types, try a generic approach
+                        propRegex = new RegExp(`${prop.name}\\s*:\\s*([^,}]+)`, 'i');
+                        valueExtractor = (match) => match[1].trim();
+                }
+
+                // Try to extract the property value
+                const match = propRegex.exec(widgetContent);
+                if (match) {
+                    props[prop.name] = valueExtractor(match);
+                }
+            });
+
+            // Special case for Text widget - extract the text content
+            if (widgetDefinition.type === 'Text') {
+                const textMatch = /Text\s*\(\s*['"]([^'"]*)['"]/i.exec(widgetContent);
+                if (textMatch) {
+                    props['data'] = textMatch[1];
+                }
             }
 
-            // Try to extract the property value
-            const match = propRegex.exec(widgetContent);
-            if (match) {
-                props[prop.name] = valueExtractor(match);
-            }
-        });
-
-        // Special case for Text widget - extract the text content
-        if (widgetDefinition.type === 'Text') {
-            const textMatch = /Text\s*\(\s*['"]([^'"]*)['"]/i.exec(widgetContent);
-            if (textMatch) {
-                props['data'] = textMatch[1];
-            }
-        }
-
-        return props;
-    };
-
-    // Helper function to convert color name to hex
-    const colorNameToHex = (colorName) => {
-        const colorMap = {
-            'red': 'FF0000',
-            'blue': '0000FF',
-            'green': '00FF00',
-            'yellow': 'FFFF00',
-            'black': '000000',
-            'white': 'FFFFFF',
-            'grey': '808080',
-            'purple': '800080',
-            'orange': 'FFA500',
-            'pink': 'FFC0CB',
-            'brown': 'A52A2A',
-            'cyan': '00FFFF',
-            'teal': '008080',
-            'indigo': '4B0082',
-            'amber': 'FFBF00',
-            'lime': '00FF00'
+            return props;
         };
 
-        return colorMap[colorName.toLowerCase()] || '000000';
-    };
-
-    // First pass: identify all widgets and their content
-    const widgetDefinitions = [];
-    let widgetMatch;
-
-    while ((widgetMatch = widgetWithContentRegex.exec(inputCode)) !== null) {
-        const widgetType = widgetMatch[1];
-        const widgetContent = widgetMatch[2];
-
-        // Check if this widget definition exists in availableWidgets
-        const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
-        if (widgetDefinition) {
-            // Create a new widget object
-            const newWidget: FlutterWidget = {
-                id: `widget-${widgetIdCounter++}`,
-                type: widgetDefinition.type,
-                props: extractProperties(widgetContent, widgetDefinition),
-                children: []
+        // Helper function to convert color name to hex
+        const colorNameToHex = (colorName) => {
+            const colorMap = {
+                'red': 'FF0000',
+                'blue': '0000FF',
+                'green': '00FF00',
+                'yellow': 'FFFF00',
+                'black': '000000',
+                'white': 'FFFFFF',
+                'grey': '808080',
+                'purple': '800080',
+                'orange': 'FFA500',
+                'pink': 'FFC0CB',
+                'brown': 'A52A2A',
+                'cyan': '00FFFF',
+                'teal': '008080',
+                'indigo': '4B0082',
+                'amber': 'FFBF00',
+                'lime': '00FF00'
             };
 
-            // Extract child widget if present
-            const childMatch = childRegex.exec(widgetContent);
-            if (childMatch) {
-                // Mark this widget as having a child that needs to be resolved
-                newWidget.pendingChild = childMatch[1];
-            }
+            return colorMap[colorName.toLowerCase()] || '000000';
+        };
 
-            // Extract children array if present
-            const childrenMatch = childrenRegex.exec(widgetContent);
-            if (childrenMatch) {
-                // Mark this widget as having children that need to be resolved
-                newWidget.pendingChildren = childrenMatch[1];
-            }
+        // First pass: identify all widgets and their content
+        const widgetDefinitions = [];
+        let widgetMatch;
 
-            // Store the widget definition for further processing
-            widgetDefinitions.push(newWidget);
+        while ((widgetMatch = widgetWithContentRegex.exec(inputCode)) !== null) {
+            const widgetType = widgetMatch[1];
+            const widgetContent = widgetMatch[2];
+
+            // Check if this widget definition exists in availableWidgets
+            const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+            if (widgetDefinition) {
+                // Create a new widget object
+                const newWidget: FlutterWidget = {
+                    id: `widget-${widgetIdCounter++}`,
+                    type: widgetDefinition.type,
+                    props: extractProperties(widgetContent, widgetDefinition),
+                    children: []
+                };
+
+                // Extract child widget if present
+                const childMatch = childRegex.exec(widgetContent);
+                if (childMatch) {
+                    // Mark this widget as having a child that needs to be resolved
+                    newWidget.pendingChild = childMatch[1];
+                }
+
+                // Extract children array if present
+                const childrenMatch = childrenRegex.exec(widgetContent);
+                if (childrenMatch) {
+                    // Mark this widget as having children that need to be resolved
+                    newWidget.pendingChildren = childrenMatch[1];
+                }
+
+                // Store the widget definition for further processing
+                widgetDefinitions.push(newWidget);
+            }
         }
-    }
 
-    // Second pass: create a hierarchy of widgets
-    const rootWidgets = [];
-    const processedWidgets = new Set();
+        // Second pass: create a hierarchy of widgets
+        const rootWidgets = [];
+        const processedWidgets = new Set();
 
-    // Process widgets with children first
-    widgetDefinitions.forEach(widget => {
-        if (widget.pendingChildren) {
-            // Reset the regex lastIndex to ensure we start from the beginning
-            childrenWidgetsRegex.lastIndex = 0;
+        // Process widgets with children first
+        widgetDefinitions.forEach(widget => {
+            if (widget.pendingChildren) {
+                // Reset the regex lastIndex to ensure we start from the beginning
+                childrenWidgetsRegex.lastIndex = 0;
 
-            // Find child widgets mentioned in the children array using our specialized regex
-            const childrenContent = widget.pendingChildren;
-            const childTypes = [];
-            let widgetMatch;
+                // Find child widgets mentioned in the children array using our specialized regex
+                const childrenContent = widget.pendingChildren;
+                const childTypes = [];
+                let widgetMatch;
 
-            while ((widgetMatch = childrenWidgetsRegex.exec(childrenContent)) !== null) {
-                childTypes.push(widgetMatch[1]);
+                while ((widgetMatch = childrenWidgetsRegex.exec(childrenContent)) !== null) {
+                    childTypes.push(widgetMatch[1]);
+                }
+
+                console.log(`Found ${childTypes.length} child widgets in children array for ${widget.type}:`, childTypes);
+
+                childTypes.forEach(childType => {
+                    // Find a widget of this type that hasn't been processed yet
+                    const childWidget = widgetDefinitions.find(w =>
+                        w.type === childType && !processedWidgets.has(w.id)
+                    );
+
+                    if (childWidget) {
+                        widget.children.push(childWidget);
+                        processedWidgets.add(childWidget.id);
+                    }
+                });
+
+                delete widget.pendingChildren;
             }
+        });
 
-            console.log(`Found ${childTypes.length} child widgets in children array for ${widget.type}:`, childTypes);
+        // Process widgets with a single child
+        widgetDefinitions.forEach(widget => {
+            if (widget.pendingChild) {
+                const childType = widget.pendingChild;
+                console.log(`Processing widget ${widget.type} with child type: ${childType}`);
 
-            childTypes.forEach(childType => {
                 // Find a widget of this type that hasn't been processed yet
                 const childWidget = widgetDefinitions.find(w =>
                     w.type === childType && !processedWidgets.has(w.id)
@@ -1525,108 +1160,87 @@ function parseFlutterWidgets(inputCode: string) {
                     widget.children.push(childWidget);
                     processedWidgets.add(childWidget.id);
                 }
+
+                delete widget.pendingChild;
+            }
+        });
+
+        // Add widgets that haven't been assigned as children to the root level
+        widgetDefinitions.forEach(widget => {
+            if (!processedWidgets.has(widget.id)) {
+                rootWidgets.push(widget);
+                console.log(`Adding ${widget.type} as a root widget`);
+            }
+        });
+
+        // Log the widget hierarchy for debugging
+        console.log(`Found ${rootWidgets.length} root widgets`);
+
+        // Helper function to print the widget tree
+        const printWidgetTree = (widget, depth = 0) => {
+            const indent = '  '.repeat(depth);
+            console.log(`${indent}${widget.type} (${widget.id})`);
+            if (widget.children && widget.children.length > 0) {
+                widget.children.forEach(child => printWidgetTree(child, depth + 1));
+            }
+        };
+
+        // Print the widget tree for each root widget
+        rootWidgets.forEach(widget => {
+            printWidgetTree(widget);
+        });
+
+        // Add root widgets to the canvas
+        rootWidgets.forEach(widget => {
+            flutterWidgets.value.push(widget);
+
+            // Emit event to socket
+            socket.emit('flutter-widget-added', {
+                roomId: roomId.value,
+                widget: widget,
+                userId: currentUser.value
             });
+        });
 
-            delete widget.pendingChildren;
-        }
-    });
+        // If no widgets were found or processed, fall back to the simple approach
+        if (rootWidgets.length === 0) {
+            const foundWidgets = new Set<string>();
+            let match;
 
-    // Process widgets with a single child
-    widgetDefinitions.forEach(widget => {
-        if (widget.pendingChild) {
-            const childType = widget.pendingChild;
-            console.log(`Processing widget ${widget.type} with child type: ${childType}`);
-
-            // Find a widget of this type that hasn't been processed yet
-            const childWidget = widgetDefinitions.find(w =>
-                w.type === childType && !processedWidgets.has(w.id)
-            );
-
-            if (childWidget) {
-                widget.children.push(childWidget);
-                processedWidgets.add(childWidget.id);
+            while ((match = widgetRegex.exec(inputCode)) !== null) {
+                foundWidgets.add(match[1]); // Add the widget name
             }
 
-            delete widget.pendingChild;
+            foundWidgets.forEach(widgetType => {
+                const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+                if (widgetDefinition) {
+                    const newWidget: FlutterWidget = {
+                        id: `widget-${widgetIdCounter++}`,
+                        type: widgetDefinition.type,
+                        props: {},
+                        children: []
+                    };
+
+                    // Initialize properties with default values
+                    widgetDefinition.properties.forEach(prop => {
+                        newWidget.props[prop.name] = prop.defaultValue;
+                    });
+
+                    flutterWidgets.value.push(newWidget);
+
+                    // Emit event to socket
+                    socket.emit('flutter-widget-added', {
+                        roomId: roomId.value,
+                        widget: newWidget,
+                        userId: currentUser.value
+                    });
+                } else {
+                    console.warn(`Widget no reconocido: ${widgetType}`);
+                }
+            });
         }
-    });
-
-    // Add widgets that haven't been assigned as children to the root level
-    widgetDefinitions.forEach(widget => {
-        if (!processedWidgets.has(widget.id)) {
-            rootWidgets.push(widget);
-            console.log(`Adding ${widget.type} as a root widget`);
-        }
-    });
-
-    // Log the widget hierarchy for debugging
-    console.log(`Found ${rootWidgets.length} root widgets`);
-
-    // Helper function to print the widget tree
-    const printWidgetTree = (widget, depth = 0) => {
-        const indent = '  '.repeat(depth);
-        console.log(`${indent}${widget.type} (${widget.id})`);
-        if (widget.children && widget.children.length > 0) {
-            widget.children.forEach(child => printWidgetTree(child, depth + 1));
-        }
-    };
-
-    // Print the widget tree for each root widget
-    rootWidgets.forEach(widget => {
-        printWidgetTree(widget);
-    });
-
-    // Add root widgets to the canvas
-    rootWidgets.forEach(widget => {
-        flutterWidgets.value.push(widget);
-
-        // Emit event to socket
-        socket.emit('flutter-widget-added', {
-            roomId: roomId.value,
-            widget: widget,
-            userId: currentUser.value
-        });
-    });
-
-    // If no widgets were found or processed, fall back to the simple approach
-    if (rootWidgets.length === 0) {
-        const foundWidgets = new Set<string>();
-        let match;
-
-        while ((match = widgetRegex.exec(inputCode)) !== null) {
-            foundWidgets.add(match[1]); // Add the widget name
-        }
-
-        foundWidgets.forEach(widgetType => {
-            const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
-            if (widgetDefinition) {
-                const newWidget: FlutterWidget = {
-                    id: `widget-${widgetIdCounter++}`,
-                    type: widgetDefinition.type,
-                    props: {},
-                    children: []
-                };
-
-                // Initialize properties with default values
-                widgetDefinition.properties.forEach(prop => {
-                    newWidget.props[prop.name] = prop.defaultValue;
-                });
-
-                flutterWidgets.value.push(newWidget);
-
-                // Emit event to socket
-                socket.emit('flutter-widget-added', {
-                    roomId: roomId.value,
-                    widget: newWidget,
-                    userId: currentUser.value
-                });
-            } else {
-                console.warn(`Widget no reconocido: ${widgetType}`);
-            }
-        });
-    }
     } catch (error) {
-        console.error("Error in parseFlutterWidgets:", error);
+        console.error('Error in parseFlutterWidgets:', error);
 
         // Fallback to simple widget detection in case of error
         const foundWidgets = new Set<string>();
@@ -1658,6 +1272,7 @@ function parseFlutterWidgets(inputCode: string) {
         });
     }
 }
+
 // Send a prompt to the AI
 const sendAIPrompt = async () => {
     if (!aiPrompt.value.trim() || isProcessingAI.value) return;
@@ -1677,9 +1292,9 @@ const sendAIPrompt = async () => {
     isProcessingAI.value = true;
 
     // Extraer configuración de Azure desde el .env
-    const azureApiUrl = "https://pinto-maype3p5-eastus2.cognitiveservices.azure.com/";//import.meta.env.AZURE_API_URL;
-    const azureApiKey = "54FCfTb8CIMMHT5W7T2pTNeicQNxssRuTYYHh1UJQ8BMUyLd4HPjJQQJ99BEACHYHv6XJ3w3AAAAACOGcky8";//import.meta.env.AZURE_API_KEY;
-    const azureModelName = "gpt-4.1";//import.meta.env.AZURE_MODEL_NAME;
+    const azureApiUrl = 'https://pinto-maype3p5-eastus2.cognitiveservices.azure.com/';//import.meta.env.AZURE_API_URL;
+    const azureApiKey = '54FCfTb8CIMMHT5W7T2pTNeicQNxssRuTYYHh1UJQ8BMUyLd4HPjJQQJ99BEACHYHv6XJ3w3AAAAACOGcky8';//import.meta.env.AZURE_API_KEY;
+    const azureModelName = 'gpt-4.1';//import.meta.env.AZURE_MODEL_NAME;
 
     try {
         // Validar que las variables de entorno estén definidas
@@ -1708,9 +1323,12 @@ const sendAIPrompt = async () => {
 
         if (response.data && response.data.choices) {
             const aiResponse = response.data.choices[0].message.content;
+            console.log('AI Response:', aiResponse);
+            /*
             const dart = extractFromFirstImport(aiResponse);
             console.log(dart);
             parseFlutterWidgets(dart);
+            */
             // Add the response to the chat
             aiMessages.value.push({
                 text: aiResponse,
@@ -1734,7 +1352,7 @@ const sendAIPrompt = async () => {
     } finally {
         isProcessingAI.value = false;
     }
-}
+};
 // Add AI-generated widgets to the canvas
 const addAIWidgetsToCanvas = (widgets: any) => {
     if (!widgets || !Array.isArray(widgets) || widgets.length === 0) {
@@ -1828,13 +1446,16 @@ const onChatInput = () => {
             </div>
 
             <!-- Image Upload Modal -->
-            <div v-if="showImageUpload" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div v-if="showImageUpload"
+                 class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div class="bg-white rounded-lg p-6 w-full max-w-md">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-bold">Subir Imagen</h2>
                         <button @click="closeImageUpload" class="text-gray-500 hover:text-gray-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                 stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
@@ -1858,10 +1479,14 @@ const onChatInput = () => {
                         <!-- Upload options -->
                         <div v-if="!previewImage" class="flex flex-col gap-3">
                             <!-- Camera option -->
-                            <label class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <label
+                                class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                                 <span>Tomar Foto</span>
                                 <input
@@ -1874,9 +1499,12 @@ const onChatInput = () => {
                             </label>
 
                             <!-- Gallery option -->
-                            <label class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <label
+                                class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none"
+                                     viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                                 <span>Seleccionar de Galería</span>
                                 <input
@@ -2428,8 +2056,9 @@ const onChatInput = () => {
                                                                  class="flutter-text-field">
                                                                 <div class="text-field-label"
                                                                      v-if="child.props.decoration">
-                                                                    {{ child.props.decoration.includes('labelText') ? 'Label' : '' }}
-                                                                    <span class="text-field-hint" v-if="child.props.decoration.includes('hintText')">
+                                                                    {{ child.props.decoration.includes('labelText') ? 'Label' : ''}}
+                                                                    <span class="text-field-hint"
+                                                                          v-if="child.props.decoration.includes('hintText')">
                                                                         (Hint: Enter text)
                                                                     </span>
                                                                 </div>
@@ -2444,21 +2073,25 @@ const onChatInput = () => {
                                                                  class="flutter-form droppable-container">
                                                                 <div class="form-header">Form</div>
                                                                 <div class="form-content">
-                                                                    <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                         class="form-placeholder">
+                                                                    <div
+                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                        class="form-placeholder">
                                                                         <div class="drop-here-indicator">
                                                                             <span>Form Fields Go Here</span>
                                                                         </div>
                                                                     </div>
                                                                     <div v-else class="form-fields">
-                                                                        <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                        <div v-for="grandchild in child.children"
+                                                                             :key="grandchild.id"
                                                                              class="form-field">
                                                                             <!-- Render form fields recursively -->
-                                                                            <div v-if="grandchild.type === 'TextFormField'"
-                                                                                 class="flutter-text-field">
+                                                                            <div
+                                                                                v-if="grandchild.type === 'TextFormField'"
+                                                                                class="flutter-text-field">
                                                                                 <div class="text-field-label"
                                                                                      v-if="grandchild.props.decoration">
-                                                                                    {{ grandchild.props.decoration.includes('labelText') ? 'Label' : '' }}
+                                                                                    {{ grandchild.props.decoration.includes('labelText') ? 'Label' : ''
+                                                                                    }}
                                                                                 </div>
                                                                                 <input type="text"
                                                                                        placeholder="Enter text"
@@ -2466,10 +2099,15 @@ const onChatInput = () => {
                                                                                        :disabled="grandchild.props.enabled === false">
                                                                             </div>
                                                                             <div v-else class="widget-properties">
-                                                                                <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                     class="widget-property">
-                                                                                    <span class="property-name">{{ key }}:</span>
-                                                                                    <span class="property-value">{{ value }}</span>
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property">
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -2483,26 +2121,36 @@ const onChatInput = () => {
                                                                  :style="{ backgroundColor: child.props.backgroundColor || '#FFFFFF' }">
                                                                 <div class="scaffold-header">Scaffold</div>
                                                                 <div class="scaffold-content">
-                                                                    <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                         class="scaffold-placeholder">
+                                                                    <div
+                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                        class="scaffold-placeholder">
                                                                         <div class="drop-here-indicator">
                                                                             <span>Scaffold Content Goes Here</span>
                                                                         </div>
                                                                     </div>
                                                                     <div v-else class="scaffold-children">
-                                                                        <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                        <div v-for="grandchild in child.children"
+                                                                             :key="grandchild.id"
                                                                              class="scaffold-child">
                                                                             <!-- Render scaffold children recursively -->
                                                                             <div v-if="grandchild.type === 'AppBar'"
                                                                                  class="flutter-app-bar"
                                                                                  :style="{ backgroundColor: grandchild.props.backgroundColor || '#2196F3' }">
-                                                                                <div class="app-bar-title">{{ grandchild.props.title || 'AppBar Title' }}</div>
+                                                                                <div class="app-bar-title">
+                                                                                    {{ grandchild.props.title || 'AppBar Title'
+                                                                                    }}
+                                                                                </div>
                                                                             </div>
                                                                             <div v-else class="widget-properties">
-                                                                                <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                     class="widget-property">
-                                                                                    <span class="property-name">{{ key }}:</span>
-                                                                                    <span class="property-value">{{ value }}</span>
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property">
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -2514,17 +2162,25 @@ const onChatInput = () => {
                                                             <div v-else-if="child.type === 'AppBar'"
                                                                  class="flutter-app-bar"
                                                                  :style="{ backgroundColor: child.props.backgroundColor || '#2196F3' }">
-                                                                <div class="app-bar-title">{{ child.props.title || 'AppBar Title' }}</div>
-                                                                <div v-if="child.children && Array.isArray(child.children) && child.children.length > 0"
-                                                                     class="app-bar-actions">
-                                                                    <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                <div class="app-bar-title">
+                                                                    {{ child.props.title || 'AppBar Title' }}
+                                                                </div>
+                                                                <div
+                                                                    v-if="child.children && Array.isArray(child.children) && child.children.length > 0"
+                                                                    class="app-bar-actions">
+                                                                    <div v-for="grandchild in child.children"
+                                                                         :key="grandchild.id"
                                                                          class="app-bar-action">
                                                                         <!-- Render app bar actions -->
                                                                         <div class="widget-properties">
-                                                                            <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                 class="widget-property">
-                                                                                <span class="property-name">{{ key }}:</span>
-                                                                                <span class="property-value">{{ value }}</span>
+                                                                            <div
+                                                                                v-for="(value, key) in grandchild.props"
+                                                                                :key="key"
+                                                                                class="widget-property">
+                                                                                <span class="property-name">{{ key
+                                                                                    }}:</span>
+                                                                                <span class="property-value">{{ value
+                                                                                    }}</span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2535,21 +2191,28 @@ const onChatInput = () => {
                                                             <div v-else-if="child.type === 'Center'"
                                                                  class="flutter-center droppable-container">
                                                                 <div class="center-content">
-                                                                    <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                         class="center-placeholder">
+                                                                    <div
+                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                        class="center-placeholder">
                                                                         <div class="drop-here-indicator">
                                                                             <span>Centered Content Goes Here</span>
                                                                         </div>
                                                                     </div>
                                                                     <div v-else class="center-children">
-                                                                        <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                        <div v-for="grandchild in child.children"
+                                                                             :key="grandchild.id"
                                                                              class="center-child">
                                                                             <!-- Render centered children -->
                                                                             <div class="widget-properties">
-                                                                                <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                     class="widget-property">
-                                                                                    <span class="property-name">{{ key }}:</span>
-                                                                                    <span class="property-value">{{ value }}</span>
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property">
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -2565,21 +2228,28 @@ const onChatInput = () => {
                                                                     height: (child.props.height || 100) + 'px',
                                                                     border: '1px dashed #ccc'
                                                                  }">
-                                                                <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                     class="sized-box-placeholder">
+                                                                <div
+                                                                    v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                    class="sized-box-placeholder">
                                                                     <div class="drop-here-indicator">
-                                                                        <span>SizedBox: {{ child.props.width || 100 }}x{{ child.props.height || 100 }}</span>
+                                                                        <span>SizedBox: {{ child.props.width || 100
+                                                                            }}x{{ child.props.height || 100 }}</span>
                                                                     </div>
                                                                 </div>
                                                                 <div v-else class="sized-box-children">
-                                                                    <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                    <div v-for="grandchild in child.children"
+                                                                         :key="grandchild.id"
                                                                          class="sized-box-child">
                                                                         <!-- Render sized box children -->
                                                                         <div class="widget-properties">
-                                                                            <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                 class="widget-property">
-                                                                                <span class="property-name">{{ key }}:</span>
-                                                                                <span class="property-value">{{ value }}</span>
+                                                                            <div
+                                                                                v-for="(value, key) in grandchild.props"
+                                                                                :key="key"
+                                                                                class="widget-property">
+                                                                                <span class="property-name">{{ key
+                                                                                    }}:</span>
+                                                                                <span class="property-value">{{ value
+                                                                                    }}</span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2596,21 +2266,28 @@ const onChatInput = () => {
                                                                  }">
                                                                 <div class="drawer-header">Drawer</div>
                                                                 <div class="drawer-content">
-                                                                    <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                         class="drawer-placeholder">
+                                                                    <div
+                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                        class="drawer-placeholder">
                                                                         <div class="drop-here-indicator">
                                                                             <span>Drawer Content Goes Here</span>
                                                                         </div>
                                                                     </div>
                                                                     <div v-else class="drawer-children">
-                                                                        <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                        <div v-for="grandchild in child.children"
+                                                                             :key="grandchild.id"
                                                                              class="drawer-child">
                                                                             <!-- Render drawer children recursively -->
                                                                             <div class="widget-properties">
-                                                                                <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                     class="widget-property">
-                                                                                    <span class="property-name">{{ key }}:</span>
-                                                                                    <span class="property-value">{{ value }}</span>
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property">
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -2627,21 +2304,27 @@ const onChatInput = () => {
                                                                     margin: child.props.margin || '8px',
                                                                     borderRadius: '4px'
                                                                  }">
-                                                                <div v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                     class="card-placeholder">
+                                                                <div
+                                                                    v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
+                                                                    class="card-placeholder">
                                                                     <div class="drop-here-indicator">
                                                                         <span>Card Content Goes Here</span>
                                                                     </div>
                                                                 </div>
                                                                 <div v-else class="card-children">
-                                                                    <div v-for="grandchild in child.children" :key="grandchild.id"
+                                                                    <div v-for="grandchild in child.children"
+                                                                         :key="grandchild.id"
                                                                          class="card-child">
                                                                         <!-- Render card children recursively -->
                                                                         <div class="widget-properties">
-                                                                            <div v-for="(value, key) in grandchild.props" :key="key"
-                                                                                 class="widget-property">
-                                                                                <span class="property-name">{{ key }}:</span>
-                                                                                <span class="property-value">{{ value }}</span>
+                                                                            <div
+                                                                                v-for="(value, key) in grandchild.props"
+                                                                                :key="key"
+                                                                                class="widget-property">
+                                                                                <span class="property-name">{{ key
+                                                                                    }}:</span>
+                                                                                <span class="property-value">{{ value
+                                                                                    }}</span>
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -2652,16 +2335,21 @@ const onChatInput = () => {
                                                             <div v-else-if="child.type === 'ListTile'"
                                                                  class="flutter-list-tile"
                                                                  :class="{ 'list-tile-disabled': child.props.enabled === false }">
-                                                                <div v-if="child.props.leading" class="list-tile-leading">
+                                                                <div v-if="child.props.leading"
+                                                                     class="list-tile-leading">
                                                                     <span>{{ child.props.leading }}</span>
                                                                 </div>
                                                                 <div class="list-tile-content">
-                                                                    <div class="list-tile-title">{{ child.props.title || 'List Tile Title' }}</div>
-                                                                    <div v-if="child.props.subtitle" class="list-tile-subtitle">
+                                                                    <div class="list-tile-title">
+                                                                        {{ child.props.title || 'List Tile Title' }}
+                                                                    </div>
+                                                                    <div v-if="child.props.subtitle"
+                                                                         class="list-tile-subtitle">
                                                                         {{ child.props.subtitle }}
                                                                     </div>
                                                                 </div>
-                                                                <div v-if="child.props.trailing" class="list-tile-trailing">
+                                                                <div v-if="child.props.trailing"
+                                                                     class="list-tile-trailing">
                                                                     <span>{{ child.props.trailing }}</span>
                                                                 </div>
                                                             </div>
@@ -2678,7 +2366,8 @@ const onChatInput = () => {
                                                                  }"
                                                                  :title="child.props.tooltip || 'Floating Action Button'">
                                                                 <div class="fab-icon">
-                                                                    <span>{{ child.props.child || 'Icon(Icons.add)' }}</span>
+                                                                    <span>{{ child.props.child || 'Icon(Icons.add)'
+                                                                        }}</span>
                                                                 </div>
                                                             </div>
 
@@ -3628,7 +3317,6 @@ const onChatInput = () => {
 
                 <!-- Regular Chat Button -->
                 <button
-                    v-if="showChatButton"
                     @click="toggleFloatingChat"
                     class="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg hover:bg-blue-600"
                     :class="{'animate-pulse': chatMessages.length > 0 && !showFloatingChat, 'bg-blue-600': showFloatingChat}"
@@ -3642,66 +3330,16 @@ const onChatInput = () => {
             </div>
 
             <!-- Floating Chat Window -->
-            <div v-if="showFloatingChat"
-                 class="fixed bottom-20 right-4 z-50 w-80 h-96 bg-white rounded-lg shadow-xl flex flex-col">
-                <!-- Chat Header -->
-                <div class="bg-blue-500 text-white px-4 py-2 rounded-t-lg flex justify-between items-center">
-                    <h3 class="font-semibold">Chat del Proyecto</h3>
-                    <button @click="toggleFloatingChat" class="text-white hover:text-gray-200 focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd"
-                                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                  clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Chat Messages -->
-                <div class="flex-1 overflow-y-auto p-4">
-                    <div v-if="chatMessages.length === 0" class="text-gray-500 text-center py-4">
-                        No hay mensajes aún
-                    </div>
-
-                    <div
-                        v-for="(msg, index) in chatMessages"
-                        :key="index"
-                        class="mb-3"
-                        :class="msg.user === currentUser ? 'text-right' : 'text-left'"
-                    >
-                        <div
-                            class="inline-block px-3 py-2 rounded-lg max-w-[80%]"
-                            :class="msg.user === currentUser ? 'bg-blue-100' : 'bg-gray-100'"
-                        >
-                            <div class="font-semibold text-xs text-gray-600">{{ msg.user }}</div>
-                            <div>{{ msg.text }}</div>
-                            <div class="text-xs text-gray-500 mt-1">{{ new Date(msg.timestamp).toLocaleTimeString() }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <p v-if="chatTyping.typing" class="text-sm text-gray-500 italic mt-2">
-                        {{ chatTyping.typing }}
-                    </p>
-                </div>
-
-                <!-- Chat Input -->
-                <form @submit.prevent="sendChatMessage" class="border-t border-gray-300 p-2 flex gap-2">
-                    <input
-                        v-model="chatMessage"
-                        type="text"
-                        placeholder="Escribe un mensaje..."
-                        class="flex-1 px-3 py-2 border rounded-md"
-                        @input="onChatInput"
-                    />
-                    <button
-                        type="submit"
-                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                    >
-                        Enviar
-                    </button>
-                </form>
-            </div>
-
+            <ChatColaborativo
+                :showFloatingChat="showFloatingChat"
+                :chatMessages="chatMessages"
+                :chatTyping="chatTyping"
+                :chatMessage="chatMessage"
+                :currentUser="currentUser"
+                @toggleFloatingChat="toggleFloatingChat"
+                @sendChatMessage="sendChatMessage"
+                @onChatInput="onChatInput"
+            />
             <!-- AI Chat Window -->
             <div v-if="showAIChat"
                  class="fixed bottom-20 right-4 z-50 w-96 h-[500px] bg-white rounded-lg shadow-xl flex flex-col">
