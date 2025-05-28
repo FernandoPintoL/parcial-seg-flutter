@@ -1,6 +1,73 @@
-import type { FlutterWidgetDefinition } from '@/types/Pizarra';
+import type { CategoriaWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
+
+export const categoriesWidget : CategoriaWidget[] = [
+    { category: 'widgets', label: 'Widgets Básicos' },
+    { category: 'layout', label: 'Layouts y Organización' },
+    { category: 'input', label: 'Entrada de Datos (Formularios)' },
+    { category: 'plataforma', label: 'Especificos de Plataforma' },
+    { category: 'containers', label: 'Contenedores y Decoración' },
+    // { category: 'animation', label: 'Animaciones' },
+    // { category: 'list', label: 'Listas Avanzadas' },
+    { category: 'navegation', label: 'Navegación y Rutas' },
+    { category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' }
+];
 
 export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
+    // Especificos de Plataforma
+    {
+        type: 'SafeArea',
+        category: 'plataforma',
+        label: 'SafeArea',
+        properties: [
+            { name: 'top', type: 'boolean', defaultValue: true },
+            { name: 'bottom', type: 'boolean', defaultValue: true },
+            { name: 'left', type: 'boolean', defaultValue: true },
+            { name: 'right', type: 'boolean', defaultValue: true }
+        ],
+        hasChildren: true
+    },
+    {
+        type: 'Scaffold',
+        category: 'plataforma',
+        label: 'Scaffold',
+        properties: [
+            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
+            { name: 'extendBody', type: 'boolean', defaultValue: false },
+            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false }
+        ],
+        hasChildren: true
+    },
+
+    //Material Design y Cupertino (iOS)
+    {
+        type: 'AppBar',
+        category: 'layout',
+        label: 'App Bar',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
+            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'elevation', type: 'number', defaultValue: 4 },
+            { name: 'centerTitle', type: 'boolean', defaultValue: false },
+            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true }
+        ],
+        hasChildren: true
+    },
+    {
+        type: 'FloatingActionButton',
+        category: 'material-cupertino',
+        label: 'Floating Action Button',
+        properties: [
+            { name: 'child', type: 'string', defaultValue: 'Icon(Icons.add)' },
+            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'foregroundColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'tooltip', type: 'string', defaultValue: 'Floating Action Button' },
+            { name: 'mini', type: 'boolean', defaultValue: false },
+            { name: 'elevation', type: 'number', defaultValue: 6 }
+        ],
+        hasChildren: false
+    },
+
     // Input widgets
     {
         type: 'TextField',
@@ -71,10 +138,11 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
-    // Layout widgets
+
+    // Widgets Basicos
     {
         type: 'Container',
-        category: 'container',
+        category: 'widgets',
         label: 'Container',
         properties: [
             { name: 'width', type: 'number', defaultValue: 200 },
@@ -91,6 +159,61 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: true
     },
+    {
+        type: 'Padding',
+        category: 'widgets',
+        label: 'Padding',
+        properties: [
+            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' }
+        ],
+        hasChildren: true
+    },
+    {
+        type: 'Text',
+        category: 'widgets',
+        label: 'Text',
+        properties: [
+            { name: 'data', type: 'string', defaultValue: 'Hello World' },
+            { name: 'style', type: 'string', defaultValue: 'TextStyle(fontSize: 16.0)' },
+            {
+                name: 'textAlign',
+                type: 'select',
+                defaultValue: 'TextAlign.left',
+                options: ['TextAlign.left', 'TextAlign.center', 'TextAlign.right', 'TextAlign.justify']
+            }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'Image',
+        category: 'widgets',
+        label: 'Image',
+        properties: [
+            { name: 'src', type: 'string', defaultValue: 'https://via.placeholder.com/150' },
+            { name: 'width', type: 'number', defaultValue: 150 },
+            { name: 'height', type: 'number', defaultValue: 150 },
+            {
+                name: 'fit',
+                type: 'select',
+                defaultValue: 'BoxFit.cover',
+                options: ['BoxFit.cover', 'BoxFit.contain', 'BoxFit.fill', 'BoxFit.fitWidth', 'BoxFit.fitHeight', 'BoxFit.none', 'BoxFit.scaleDown']
+            }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'Icon',
+        category: 'widgets',
+        label: 'Icon',
+        properties: [
+            { name: 'icon', type: 'string', defaultValue: 'Icons.star' },
+            { name: 'size', type: 'number', defaultValue: 24 },
+            { name: 'color', type: 'color', defaultValue: '#000000' }
+        ],
+        hasChildren: false
+    },
+
+    // Layout widgets
     {
         type: 'Row',
         category: 'layout',
@@ -132,54 +255,8 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         hasChildren: true
     },
     {
-        type: 'Padding',
-        category: 'layout',
-        label: 'Padding',
-        properties: [
-            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'SafeArea',
-        category: 'layout',
-        label: 'SafeArea',
-        properties: [
-            { name: 'top', type: 'boolean', defaultValue: true },
-            { name: 'bottom', type: 'boolean', defaultValue: true },
-            { name: 'left', type: 'boolean', defaultValue: true },
-            { name: 'right', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Scaffold',
-        category: 'layout',
-        label: 'Scaffold',
-        properties: [
-            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
-            { name: 'extendBody', type: 'boolean', defaultValue: false },
-            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'AppBar',
-        category: 'layout',
-        label: 'App Bar',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'elevation', type: 'number', defaultValue: 4 },
-            { name: 'centerTitle', type: 'boolean', defaultValue: false },
-            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
-    },
-    {
         type: 'Center',
-        category: 'layout',
+        category: 'widgets',
         label: 'Center',
         properties: [
             { name: 'widthFactor', type: 'number', defaultValue: null },
@@ -189,109 +266,13 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
     },
     {
         type: 'SizedBox',
-        category: 'layout',
+        category: 'widgets',
         label: 'Sized Box',
         properties: [
             { name: 'width', type: 'number', defaultValue: 100 },
             { name: 'height', type: 'number', defaultValue: 100 }
         ],
         hasChildren: true
-    },
-    {
-        type: 'Drawer',
-        category: 'layout',
-        label: 'Drawer',
-        properties: [
-            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'width', type: 'number', defaultValue: 300 },
-            { name: 'elevation', type: 'number', defaultValue: 16 }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Card',
-        category: 'layout',
-        label: 'Card',
-        properties: [
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'elevation', type: 'number', defaultValue: 1 },
-            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
-            { name: 'shape', type: 'string', defaultValue: 'RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))' }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'ListTile',
-        category: 'layout',
-        label: 'List Tile',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
-            { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
-            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
-            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
-            { name: 'dense', type: 'boolean', defaultValue: false },
-            { name: 'enabled', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'FloatingActionButton',
-        category: 'layout',
-        label: 'Floating Action Button',
-        properties: [
-            { name: 'child', type: 'string', defaultValue: 'Icon(Icons.add)' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'foregroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'tooltip', type: 'string', defaultValue: 'Floating Action Button' },
-            { name: 'mini', type: 'boolean', defaultValue: false },
-            { name: 'elevation', type: 'number', defaultValue: 6 }
-        ],
-        hasChildren: false
-    },
-    // Display widgets
-    {
-        type: 'Text',
-        category: 'display',
-        label: 'Text',
-        properties: [
-            { name: 'data', type: 'string', defaultValue: 'Hello World' },
-            { name: 'style', type: 'string', defaultValue: 'TextStyle(fontSize: 16.0)' },
-            {
-                name: 'textAlign',
-                type: 'select',
-                defaultValue: 'TextAlign.left',
-                options: ['TextAlign.left', 'TextAlign.center', 'TextAlign.right', 'TextAlign.justify']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Image',
-        category: 'display',
-        label: 'Image',
-        properties: [
-            { name: 'src', type: 'string', defaultValue: 'https://via.placeholder.com/150' },
-            { name: 'width', type: 'number', defaultValue: 150 },
-            { name: 'height', type: 'number', defaultValue: 150 },
-            {
-                name: 'fit',
-                type: 'select',
-                defaultValue: 'BoxFit.cover',
-                options: ['BoxFit.cover', 'BoxFit.contain', 'BoxFit.fill', 'BoxFit.fitWidth', 'BoxFit.fitHeight', 'BoxFit.none', 'BoxFit.scaleDown']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Icon',
-        category: 'display',
-        label: 'Icon',
-        properties: [
-            { name: 'icon', type: 'string', defaultValue: 'Icons.star' },
-            { name: 'size', type: 'number', defaultValue: 24 },
-            { name: 'color', type: 'color', defaultValue: '#000000' }
-        ],
-        hasChildren: false
     },
     {
         type: 'ScrollChildren',
@@ -316,7 +297,7 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
     },
     {
         type: 'TableList',
-        category: 'display',
+        category: 'layout',
         label: 'Table List',
         properties: [
             { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
@@ -326,9 +307,50 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
+
+    //Navegación y Rutas
+    {
+        type: 'Drawer',
+        category: 'navegation',
+        label: 'Drawer',
+        properties: [
+            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'width', type: 'number', defaultValue: 300 },
+            { name: 'elevation', type: 'number', defaultValue: 16 }
+        ],
+        hasChildren: true
+    },
+
+    // Containers and Decoration
+    {
+        type: 'Card',
+        category: 'layout',
+        label: 'Card',
+        properties: [
+            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'elevation', type: 'number', defaultValue: 1 },
+            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
+            { name: 'shape', type: 'string', defaultValue: 'RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))' }
+        ],
+        hasChildren: true
+    },
+    {
+        type: 'ListTitle',
+        category: 'containers',
+        label: 'List Title',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
+            { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
+            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
+            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
+            { name: 'dense', type: 'boolean', defaultValue: false },
+            { name: 'enabled', type: 'boolean', defaultValue: true }
+        ],
+        hasChildren: false
+    },
     {
         type: 'CardText',
-        category: 'display',
+        category: 'containers',
         label: 'Card Text',
         properties: [
             { name: 'title', type: 'string', defaultValue: 'Card Title' },

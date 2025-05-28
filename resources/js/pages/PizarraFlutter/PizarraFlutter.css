@@ -36,6 +36,12 @@
     flex-direction: column;
 }
 
+/* Dark mode for mobile phone frame */
+:root.dark .mobile-phone-frame {
+    background-color: #1f2937;
+    box-shadow: 0 0 0 10px #000, 0 0 0 11px #333, 0 20px 30px rgba(0, 0, 0, 0.5);
+}
+
 /* Phone status bar */
 .phone-status-bar {
     height: 30px;
@@ -43,6 +49,14 @@
     border-bottom: 1px solid #e0e0e0;
     color: #333;
     font-weight: 500;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+/* Dark mode for phone status bar */
+:root.dark .phone-status-bar {
+    background-color: #1f2937;
+    border-bottom: 1px solid #374151;
+    color: #e5e7eb;
 }
 
 /* Phone content area */
@@ -52,6 +66,12 @@
     padding: 10px;
     background-color: #f5f5f7;
     position: relative;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for phone content area */
+:root.dark .phone-content-area {
+    background-color: #111827;
 }
 
 /* Phone navigation bar */
@@ -81,9 +101,20 @@
     transition: all 0.2s ease;
 }
 
+/* Dark mode for mobile widget */
+:root.dark .mobile-widget {
+    background-color: #1f2937;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .selected-widget {
     box-shadow: 0 0 0 2px #007aff, 0 4px 8px rgba(0, 0, 0, 0.1);
     transform: scale(1.01);
+}
+
+/* Dark mode for selected widget */
+:root.dark .selected-widget {
+    box-shadow: 0 0 0 2px #3b82f6, 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .widget-header {
@@ -93,12 +124,25 @@
     padding: 8px 12px;
     background-color: #f8f8f8;
     border-bottom: 1px solid #e0e0e0;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+/* Dark mode for widget header */
+:root.dark .widget-header {
+    background-color: #111827;
+    border-bottom: 1px solid #374151;
 }
 
 .widget-type {
     font-weight: 600;
     font-size: 14px;
     color: #333;
+    transition: color 0.2s;
+}
+
+/* Dark mode for widget type */
+:root.dark .widget-type {
+    color: #e5e7eb;
 }
 
 .widget-remove-btn {
@@ -114,6 +158,12 @@
     line-height: 1;
     border: none;
     cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for widget remove button */
+:root.dark .widget-remove-btn {
+    background-color: #ef4444;
 }
 
 .widget-properties {
@@ -287,6 +337,13 @@
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+/* Dark mode for mobile widget selector */
+:root.dark .mobile-widget-selector {
+    background-color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .widget-selector-title {
@@ -297,6 +354,14 @@
     text-align: center;
     background-color: #fff;
     border-bottom: 1px solid #e0e0e0;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+/* Dark mode for widget selector title */
+:root.dark .widget-selector-title {
+    color: #e5e7eb;
+    background-color: #111827;
+    border-bottom: 1px solid #374151;
 }
 
 .widget-category-tabs {
@@ -305,6 +370,13 @@
     border-bottom: 1px solid #e0e0e0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+/* Dark mode for widget category tabs */
+:root.dark .widget-category-tabs {
+    background-color: #111827;
+    border-bottom: 1px solid #374151;
 }
 
 .widget-category-tab {
@@ -320,9 +392,20 @@
     white-space: nowrap;
 }
 
+/* Dark mode for widget category tab */
+:root.dark .widget-category-tab {
+    color: #9ca3af;
+}
+
 .active-tab {
     color: #007aff;
     border-bottom-color: #007aff;
+}
+
+/* Dark mode for active tab */
+:root.dark .active-tab {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
 }
 
 .widget-grid {
@@ -330,6 +413,12 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     padding: 16px;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for widget grid */
+:root.dark .widget-grid {
+    background-color: #1f2937;
 }
 
 .widget-button {
@@ -344,6 +433,12 @@
     transition: all 0.2s ease;
 }
 
+/* Dark mode for widget button */
+:root.dark .widget-button {
+    background-color: #111827;
+    border: 1px solid #374151;
+}
+
 .widget-button:active {
     transform: scale(0.95);
 }
@@ -354,6 +449,13 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
+/* Dark mode for widget button hover */
+:root.dark .widget-button:hover {
+    background-color: #2d3748;
+    border-color: #4b5563;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .widget-icon {
     display: flex;
     align-items: center;
@@ -362,6 +464,7 @@
     height: 40px;
     margin-bottom: 8px;
     border-radius: 8px;
+    transition: background-color 0.2s, color 0.2s;
 }
 
 .widget-label {
@@ -369,10 +472,22 @@
     font-weight: 500;
     color: #333;
     text-align: center;
+    transition: color 0.2s;
+}
+
+/* Dark mode for widget label */
+:root.dark .widget-label {
+    color: #e5e7eb;
 }
 
 .input-widget-btn .widget-icon {
     background-color: #fff8f0;
+    color: #ff9500;
+}
+
+/* Dark mode for input widget icon */
+:root.dark .input-widget-btn .widget-icon {
+    background-color: rgba(255, 149, 0, 0.2);
     color: #ff9500;
 }
 
@@ -381,13 +496,31 @@
     color: #ff2d55;
 }
 
+/* Dark mode for layout widget icon */
+:root.dark .layout-widget-btn .widget-icon {
+    background-color: rgba(255, 45, 85, 0.2);
+    color: #ff2d55;
+}
+
 .container-widget-btn .widget-icon {
     background-color: #f0fff8;
     color: #34c759;
 }
 
+/* Dark mode for container widget icon */
+:root.dark .container-widget-btn .widget-icon {
+    background-color: rgba(52, 199, 89, 0.2);
+    color: #34c759;
+}
+
 .display-widget-btn .widget-icon {
     background-color: #f8f0ff;
+    color: #af52de;
+}
+
+/* Dark mode for display widget icon */
+:root.dark .display-widget-btn .widget-icon {
+    background-color: rgba(175, 82, 222, 0.2);
     color: #af52de;
 }
 
@@ -424,11 +557,70 @@
     .widget-grid {
         grid-template-columns: repeat(3, 1fr);
     }
+
+    /* Improve widget button size on tablets */
+    .widget-button {
+        padding: 12px;
+    }
+
+    .widget-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .widget-label {
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 640px) {
+    /* Adjust layout for small tablets */
+    .mobile-phone-frame {
+        width: 280px;
+        height: 500px;
+    }
+
+    .widget-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        padding: 12px;
+    }
 }
 
 @media (max-width: 480px) {
+    /* Adjust layout for mobile phones */
+    .mobile-phone-frame {
+        width: 240px;
+        height: 440px;
+        border-radius: 20px;
+    }
+
     .widget-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        padding: 8px;
+    }
+
+    .widget-button {
+        padding: 8px;
+    }
+
+    .widget-icon {
+        width: 28px;
+        height: 28px;
+        margin-bottom: 4px;
+    }
+
+    .widget-label {
+        font-size: 10px;
+    }
+
+    .phone-status-bar {
+        height: 24px;
+    }
+
+    .phone-content-area {
+        padding: 6px;
     }
 }
 
@@ -436,6 +628,12 @@
 .flutter-widget-preview {
     padding: 8px;
     margin-bottom: 8px;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for flutter widget preview */
+:root.dark .flutter-widget-preview {
+    background-color: rgba(31, 41, 55, 0.5);
 }
 
 /* Droppable container styles */
@@ -451,10 +649,23 @@
     background-color: rgba(0, 122, 255, 0.05);
 }
 
+/* Dark mode for droppable container hover */
+:root.dark .droppable-container:hover {
+    border-color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
 .droppable-container.dragover {
     border-color: #2196F3;
     background-color: rgba(33, 150, 243, 0.1);
     box-shadow: inset 0 0 10px rgba(33, 150, 243, 0.2);
+}
+
+/* Dark mode for droppable container dragover */
+:root.dark .droppable-container.dragover {
+    border-color: #60a5fa;
+    background-color: rgba(96, 165, 250, 0.2);
+    box-shadow: inset 0 0 10px rgba(96, 165, 250, 0.3);
 }
 
 .drop-here-indicator {
@@ -465,16 +676,34 @@
     color: #666;
     padding: 16px;
     text-align: center;
+    transition: color 0.2s;
+}
+
+/* Dark mode for drop here indicator */
+:root.dark .drop-here-indicator {
+    color: #9ca3af;
 }
 
 .drop-here-indicator svg {
     margin-bottom: 8px;
     color: #007aff;
+    transition: color 0.2s;
+}
+
+/* Dark mode for drop here indicator svg */
+:root.dark .drop-here-indicator svg {
+    color: #3b82f6;
 }
 
 .drop-here-indicator span {
     font-size: 14px;
     font-weight: 500;
+    transition: color 0.2s;
+}
+
+/* Dark mode for drop here indicator span */
+:root.dark .drop-here-indicator span {
+    color: #e5e7eb;
 }
 
 /* Text Widget */
@@ -483,6 +712,12 @@
     line-height: 1.5;
     padding: 4px 0;
     overflow-wrap: break-word;
+    transition: color 0.2s;
+}
+
+/* Dark mode for flutter text */
+:root.dark .flutter-text {
+    color: #e5e7eb;
 }
 
 /* TextField Widget */
@@ -500,6 +735,13 @@
     background-color: white;
     padding: 0 4px;
     z-index: 1;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+/* Dark mode for text field label */
+:root.dark .text-field-label {
+    color: #a78bfa;
+    background-color: #1f2937;
 }
 
 .flutter-text-field input {
@@ -508,12 +750,24 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 16px;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+/* Dark mode for text field input */
+:root.dark .flutter-text-field input {
+    border-color: #4b5563;
+    background-color: #374151;
+    color: #e5e7eb;
 }
 
 .flutter-text-field input:focus {
     border-color: #6200ee;
     outline: none;
+}
+
+/* Dark mode for text field input focus */
+:root.dark .flutter-text-field input:focus {
+    border-color: #a78bfa;
 }
 
 .text-field-obscured {
@@ -530,12 +784,23 @@
     justify-content: flex-start;
     align-items: center;
     overflow: visible;
-    transition: box-shadow 0.3s;
+    transition: box-shadow 0.3s, background-color 0.2s;
+}
+
+/* Dark mode for flutter container */
+:root.dark .flutter-container {
+    background-color: #1f2937;
 }
 
 .container-placeholder {
     color: #757575;
     font-style: italic;
+    transition: color 0.2s;
+}
+
+/* Dark mode for container placeholder */
+:root.dark .container-placeholder {
+    color: #9ca3af;
 }
 
 .container-children {
@@ -562,11 +827,23 @@
     background-color: rgba(0, 0, 0, 0.03);
     border-radius: 4px;
     padding: 8px;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for flutter row */
+:root.dark .flutter-row {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .row-placeholder {
     color: #757575;
     font-style: italic;
+    transition: color 0.2s;
+}
+
+/* Dark mode for row placeholder */
+:root.dark .row-placeholder {
+    color: #9ca3af;
 }
 
 .row-children {
@@ -585,6 +862,13 @@
     background-color: rgba(255, 255, 255, 0.8);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     margin: 2px;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+/* Dark mode for row child */
+:root.dark .row-child {
+    background-color: rgba(31, 41, 55, 0.8);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Column Widget */
@@ -596,11 +880,23 @@
     background-color: rgba(0, 0, 0, 0.03);
     border-radius: 4px;
     padding: 8px;
+    transition: background-color 0.2s;
+}
+
+/* Dark mode for flutter column */
+:root.dark .flutter-column {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .column-placeholder {
     color: #757575;
     font-style: italic;
+    transition: color 0.2s;
+}
+
+/* Dark mode for column placeholder */
+:root.dark .column-placeholder {
+    color: #9ca3af;
 }
 
 .column-children {
@@ -617,6 +913,13 @@
     background-color: rgba(255, 255, 255, 0.8);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     margin: 2px 0;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+/* Dark mode for column child */
+:root.dark .column-child {
+    background-color: rgba(31, 41, 55, 0.8);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Image Widget */

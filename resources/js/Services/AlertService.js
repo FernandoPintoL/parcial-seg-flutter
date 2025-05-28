@@ -8,6 +8,7 @@ export class AlertService{
     success(title = this.success_text, message, time = 3000){
         return Swal.fire({
             icon: 'success',
+            position: 'top-end',
             title: title,
             text: message,
             timer: time,
@@ -37,6 +38,7 @@ export class AlertService{
     info(title = this.info_text, message, timer = 3000){
         return Swal.fire({
             icon: 'info',
+            position: 'top-end',
             title: title,
             text: message,
             timer: timer,

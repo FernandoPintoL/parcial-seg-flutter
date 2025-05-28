@@ -24,8 +24,10 @@ class Pizarra extends Model
         'name',
         'room_id',
         'elements',
+        'screens',
         'user_id',
         'users',
+        'pizarra_id'
     ];
 
     /**
@@ -35,6 +37,7 @@ class Pizarra extends Model
      */
     protected $casts = [
         'elements' => 'array',
+        'screens' => 'array',
     ];
 
     /**
@@ -49,17 +52,20 @@ class Pizarra extends Model
      */
     public function collaborators(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'pizarra_collaborators')
+        return $this->belongsToMany(User::class, 'pizarra_collaborators', 'pizarra_id', 'user_id')
             ->withPivot('status')
-            ->wherePivot('status', 'accept');
+            ->withTimestamps();
     }
     public function isCollaboratingOrPropietario($userId): bool
     {
         return $this->collaborators()->where('user_id', $userId)->exists() || $this->user_id === $userId;
     }
-
     public function chatMessages()
     {
         return $this->hasMany(Chat::class);
+    }
+    public function pizarraPadre(): BelongsTo
+    {
+        return $this->belongsTo(Pizarra::class, 'pizarra_id', 'id');
     }
 }

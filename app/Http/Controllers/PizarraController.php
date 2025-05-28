@@ -358,9 +358,17 @@ class PizarraController extends Controller
     public function update(UpdatePizarraRequest $request, Pizarra $pizarra)
     {
         $pizarra->name = $request->name;
+
+        // Update elements (legacy support)
         if ($request->has('elements')) {
             $pizarra->elements = $request->elements;
         }
+
+        // Update screens if provided
+        if ($request->has('screens')) {
+            $pizarra->screens = $request->screens;
+        }
+
         $pizarra->save();
 
         return response()->json($pizarra);

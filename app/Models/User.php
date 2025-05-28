@@ -53,7 +53,7 @@ class User extends Authenticatable
      */
     public function collaborating(): BelongsToMany
     {
-        return $this->belongsToMany(Pizarra::class, 'pizarra_collaborators')
+        return $this->belongsToMany(Pizarra::class, 'pizarra_collaborators', 'user_id', 'pizarra_id')
             ->withPivot('status')
             ->withTimestamps();
     }
@@ -61,7 +61,7 @@ class User extends Authenticatable
     public function isColaborator($pizarraId): bool
     {
         return $this->collaborating()
-            ->where('pizarra_id', $pizarraId)
+            ->where('pizarras.id', $pizarraId)
             ->exists();
     }
 }

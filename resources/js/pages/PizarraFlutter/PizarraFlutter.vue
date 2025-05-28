@@ -10,11 +10,14 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/Services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget } from '@/types/Pizarra';
-import { availableFlutterWidgets } from '@/types/availableFlutterWidgets';
+import type { Pizarra, PizarraCollaborators, FlutterWidget, PizarraScreen, CategoriaWidget } from '@/types/Pizarra';
+import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/Services/SocketService';
 import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
+import ChatAI from '@/pages/Chat/ChatAI.vue';
+import WidgetPalette from '@/pages/PizarraFlutter/WidgetPalette.vue';
+import PhoneStatusBar from '@/pages/PizarraFlutter/PhoneStatusBar.vue';
 
 // Props
 const props = defineProps({
@@ -76,7 +79,7 @@ const inviteLink = ref<string>('');
 const showFloatingChat = ref<boolean>(false);
 const chatMessages = ref<{ text: string; user: string; timestamp: number }[]>([]);
 const chatMessage = ref<string>('');
-const chatTyping = reactive<{ typing: string, timeout: number | null }>({
+const chatTyping = reactive<{ typing: string; timeout: number | null }>({
     typing: '',
     timeout: null
 });
@@ -98,13 +101,136 @@ let widgetIdCounter = 1;
 // Project name ref
 const projectName = ref<string>(props.pizarra?.name || 'Nueva Pizarra Flutter');
 
+// Dark mode state
+const isDarkMode = ref<boolean>(localStorage.getItem('darkMode') === 'true');
+// Apply dark mode class to html element
+const applyDarkMode = () => {
+    if (isDarkMode.value) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+};
+// Toggle dark mode
+const toggleDarkMode = () => {
+    isDarkMode.value = !isDarkMode.value;
+    localStorage.setItem('darkMode', isDarkMode.value.toString());
+    applyDarkMode();
+};
+
+// Screens management
+const screens = ref<PizarraScreen[]>(props.pizarra?.screens || []);
+const currentScreenIndex = ref<number>(0);
+const showScreenManager = ref<boolean>(false);
+const newScreenName = ref<string>('');
+
+// Initialize screens if empty
+const initializeScreens = () => {
+    if (screens.value.length === 0) {
+        // Create a default home screen
+        screens.value.push({
+            id: `screen-${Date.now()}`,
+            name: 'Home',
+            elements: Array.isArray(props.pizarra?.elements) ? props.pizarra.elements : [],
+            isHome: true
+        });
+    } else {
+        // Ensure all screens have unique IDs
+        screens.value.forEach((screen, index) => {
+            if (!screen.id) {
+                screen.id = `screen-${Date.now()}-${index}`;
+            }
+        });
+    }
+};
+
+// Get current screen
+const currentScreen = computed(() => {
+    // Handle case when screens array is empty
+    if (screens.value.length === 0) {
+        initializeScreens();
+    }
+    return screens.value[currentScreenIndex.value] || screens.value[0] || { elements: [] };
+});
+
+// Add a new screen
+const addScreen = () => {
+    if (!newScreenName.value.trim()) {
+        AlertService.prototype.error('Error', 'El nombre de la pantalla no puede estar vacío');
+        return;
+    }
+
+    screens.value.push({
+        id: `screen-${Date.now()}`,
+        name: newScreenName.value,
+        elements: [],
+        isHome: screens.value.length === 0
+    });
+
+    // Select the new screen
+    currentScreenIndex.value = screens.value.length - 1;
+
+    // Clear the input
+    newScreenName.value = '';
+
+    // Close the screen manager
+    showScreenManager.value = false;
+
+    // Save changes
+    debouncedSave();
+};
+
+// Delete a screen
+const deleteScreen = (index: number) => {
+    if (screens.value.length <= 1) {
+        AlertService.prototype.error('Error', 'No puedes eliminar la única pantalla');
+        return;
+    }
+
+    // Confirm deletion
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Remove the screen
+            screens.value.splice(index, 1);
+
+            // Adjust current screen index if needed
+            if (currentScreenIndex.value >= screens.value.length) {
+                currentScreenIndex.value = screens.value.length - 1;
+            }
+
+            // Save changes
+            debouncedSave();
+        }
+    });
+};
+
+// Set a screen as home
+const setHomeScreen = (index: number) => {
+    screens.value.forEach((screen, i) => {
+        screen.isHome = i === index;
+    });
+
+    // Save changes
+    debouncedSave();
+};
+
+// Select a screen
+const selectScreen = (index: number) => {
+    currentScreenIndex.value = index;
+};
 
 // Selected widget for editing
 const selectedWidget = ref<FlutterWidget | null>(null);
 
 // Available Flutter widgets
 const availableWidgets = ref(availableFlutterWidgets);
-
 
 // Flutter widgets on the canvas
 // Initialize with a properly computed value
@@ -126,7 +252,7 @@ const addIdsToWidgets = (widgetList: any) => {
 
         return widget;
     });
-}
+};
 const getInitialFlutterWidgets = (): FlutterWidget[] => {
     let widgets = [];
 
@@ -145,11 +271,18 @@ const getInitialFlutterWidgets = (): FlutterWidget[] => {
         }
     }
     return addIdsToWidgets(widgets);
-}
-const flutterWidgets = ref<FlutterWidget[]>(getInitialFlutterWidgets());
+};
+const flutterWidgets = computed(() => {
+    // If we have screens, use the current screen's elements
+    if (screens.value.length > 0 && currentScreen.value) {
+        return currentScreen.value.elements;
+    }
+    // Otherwise, use the legacy elements array
+    return getInitialFlutterWidgets();
+});
 // Function to add a widget to the canvas
 const addWidget = (widgetType: string) => {
-    const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+    const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
 
     if (!widgetDefinition) return;
 
@@ -161,17 +294,30 @@ const addWidget = (widgetType: string) => {
     };
 
     // Initialize properties with default values
-    widgetDefinition.properties.forEach(prop => {
+    widgetDefinition.properties.forEach((prop) => {
         newWidget.props[prop.name] = prop.defaultValue;
     });
 
-    flutterWidgets.value.push(newWidget);
+    // Add widget to the current screen
+    if (screens.value.length > 0 && currentScreen.value) {
+        if (!currentScreen.value.elements) {
+            currentScreen.value.elements = [];
+        }
+        currentScreen.value.elements.push(newWidget);
+    } else {
+        // Legacy support - create a default screen with the widgets
+        initializeScreens();
+        if (screens.value.length > 0 && screens.value[0].elements) {
+            screens.value[0].elements.push(newWidget);
+        }
+    }
 
     // Emit widget added event to socket
     socket.emit('flutter-widget-added', {
         roomId: roomId.value,
         widget: newWidget,
-        userId: currentUser.value
+        userId: currentUser.value,
+        screenId: currentScreen.value?.id
     });
 };
 
@@ -190,26 +336,158 @@ const updateWidgetProperty = (propertyName: string, value: any) => {
     socket.emit('flutter-widget-updated', {
         roomId: roomId.value,
         widget: selectedWidget.value,
-        userId: currentUser.value
+        userId: currentUser.value,
+        screenId: currentScreen.value?.id
     });
+};
+
+// Function to update a color property
+const updateColorProperty = (propertyName: string, value: string) => {
+    if (!selectedWidget.value) return;
+
+    // Ensure the value is a valid hex color
+    const hexColor = getHexColor(value);
+    selectedWidget.value.props[propertyName] = hexColor;
+
+    // Emit widget updated event to socket
+    socket.emit('flutter-widget-updated', {
+        roomId: roomId.value,
+        widget: selectedWidget.value,
+        userId: currentUser.value,
+        screenId: currentScreen.value?.id
+    });
+};
+
+// Helper function to convert any color format to HEX
+const getHexColor = (color: string): string => {
+    // If already a valid hex color, return it
+    if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color)) {
+        return color.toUpperCase();
+    }
+
+    // Try to parse as RGB
+    const rgbMatch = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (rgbMatch) {
+        const r = parseInt(rgbMatch[1]);
+        const g = parseInt(rgbMatch[2]);
+        const b = parseInt(rgbMatch[3]);
+        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+    }
+
+    // Try to parse as HSL
+    const hslMatch = color.match(/^hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/i);
+    if (hslMatch) {
+        const h = parseInt(hslMatch[1]) / 360;
+        const s = parseInt(hslMatch[2]) / 100;
+        const l = parseInt(hslMatch[3]) / 100;
+
+        // Convert HSL to RGB
+        let r, g, b;
+        if (s === 0) {
+            r = g = b = l;
+        } else {
+            const hue2rgb = (p: number, q: number, t: number) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1 / 3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1 / 3);
+        }
+
+        // Convert RGB to HEX
+        const toHex = (x: number) => {
+            const hex = Math.round(x * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+    }
+
+    // Default to black if invalid color
+    return '#000000';
+};
+
+// Helper function to convert HEX to RGB
+const getRgbColor = (color: string): string => {
+    // Ensure we have a valid hex color
+    const hex = getHexColor(color);
+
+    // Parse the hex color
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+
+    return `rgb(${r}, ${g}, ${b})`;
+};
+
+// Helper function to convert HEX to HSL
+const getHslColor = (color: string): string => {
+    // Ensure we have a valid hex color
+    const hex = getHexColor(color);
+
+    // Parse the hex color
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+        switch (max) {
+            case r:
+                h = (g - b) / d + (g < b ? 6 : 0);
+                break;
+            case g:
+                h = (b - r) / d + 2;
+                break;
+            case b:
+                h = (r - g) / d + 4;
+                break;
+        }
+
+        h /= 6;
+    }
+
+    // Convert to degrees, percentage, percentage
+    h = Math.round(h * 360);
+    s = Math.round(s * 100);
+    l = Math.round(l * 100);
+
+    return `hsl(${h}, ${s}%, ${l}%)`;
 };
 
 // Function to remove a widget from the canvas
 const removeWidget = (widget: FlutterWidget) => {
-    const index = flutterWidgets.value.indexOf(widget);
-    if (index !== -1) {
-        flutterWidgets.value.splice(index, 1);
+    if (screens.value.length > 0 && currentScreen.value && currentScreen.value.elements) {
+        const index = currentScreen.value.elements.indexOf(widget);
+        if (index !== -1) {
+            currentScreen.value.elements.splice(index, 1);
 
-        // Emit widget removed event to socket
-        socket.emit('flutter-widget-removed', {
-            roomId: roomId.value,
-            widgetIndex: index,
-            userId: currentUser.value
-        });
+            // Emit widget removed event to socket
+            socket.emit('flutter-widget-removed', {
+                roomId: roomId.value,
+                widgetIndex: index,
+                userId: currentUser.value,
+                screenId: currentScreen.value.id
+            });
 
-        // Clear selection if the removed widget was selected
-        if (selectedWidget.value === widget) {
-            selectedWidget.value = null;
+            // Clear selection if the removed widget was selected
+            if (selectedWidget.value === widget) {
+                selectedWidget.value = null;
+            }
         }
     }
 };
@@ -223,7 +501,42 @@ const generateFlutterCode = () => {
 
         // Add properties
         Object.entries(widget.props).forEach(([key, value]) => {
-            if (typeof value === 'string' && !value.includes('(')) {
+            // Check if this is a color property
+            const isColorProperty = availableWidgets.value
+                .find((w) => w.type === widget.type)?.properties
+                .find((p: any) => p.name === key)?.type === 'color';
+
+            if (isColorProperty && typeof value === 'string') {
+                // Convert HEX color to Flutter Color
+                if (value.startsWith('#')) {
+                    // Remove # and convert to uppercase
+                    const hexColor = value.substring(1).toUpperCase();
+                    // If it's a 6-digit hex color
+                    if (hexColor.length === 6) {
+                        code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                    } else {
+                        // Fallback for invalid hex colors
+                        code += `${indent}  ${key}: Colors.black,\n`;
+                    }
+                } else if (value.startsWith('rgb')) {
+                    // Convert RGB to HEX and then to Flutter Color
+                    const hexColor = getHexColor(value).substring(1).toUpperCase();
+                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                } else if (value.startsWith('hsl')) {
+                    // Convert HSL to HEX and then to Flutter Color
+                    const hexColor = getHexColor(value).substring(1).toUpperCase();
+                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                } else {
+                    // Try to use predefined Flutter colors
+                    const lowerCaseValue = value.toLowerCase();
+                    if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
+                        code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
+                    } else {
+                        // Fallback to black
+                        code += `${indent}  ${key}: Colors.black,\n`;
+                    }
+                }
+            } else if (typeof value === 'string' && !value.includes('(')) {
                 code += `${indent}  ${key}: '${value}',\n`;
             } else {
                 code += `${indent}  ${key}: ${value},\n`;
@@ -233,7 +546,7 @@ const generateFlutterCode = () => {
         // Add children if any
         if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
             code += `${indent}  children: [\n`;
-            widget.children.forEach(child => {
+            widget.children.forEach((child) => {
                 code += generateWidgetCode(child, `${indent}    `) + ',\n';
             });
             code += `${indent}  ],\n`;
@@ -243,36 +556,141 @@ const generateFlutterCode = () => {
         return code;
     };
 
-    // Generate code for each widget
-    let widgetsCode = '';
-    flutterWidgets.value.forEach(widget => {
-        widgetsCode += generateWidgetCode(widget) + ',\n';
-    });
+    // Generate screen classes
+    let screenClasses = '';
+    let routeDefinitions = '';
+    let homeScreenName = '';
 
-    // Wrap the widgets in a StatelessWidget
-    flutterCode = `
-import 'package:flutter/material.dart';
+    screens.value.forEach((screen, index) => {
+        // Find the home screen
+        if (screen.isHome) {
+            homeScreenName = `Screen${index}`;
+        }
 
-class MyFlutterApp extends StatelessWidget {
-  const MyFlutterApp({Key? key}) : super(key: key);
+        // Generate code for each widget in this screen
+        let screenWidgetsCode = '';
+        if (screen.elements && Array.isArray(screen.elements)) {
+            screen.elements.forEach((widget) => {
+                screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
+            });
+        }
+
+        // Create a screen class
+        screenClasses += `
+class Screen${index} extends StatelessWidget {
+  const Screen${index}({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('${projectName.value}'),
+        title: const Text('${screen.name}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              // Show navigation drawer
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ],
       ),
+      drawer: NavigationDrawer(),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ${widgetsCode}
+            ${screenWidgetsCode}
           ],
         ),
       ),
     );
   }
 }
+`;
+
+        // Add route definition
+        routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const Screen${index}(),\n`;
+    });
+
+    // If no home screen is defined, use the first screen
+    if (!homeScreenName && screens.value.length > 0) {
+        homeScreenName = 'Screen0';
+    }
+
+    // Create navigation drawer
+    const navigationDrawer = `
+class NavigationDrawer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+            ),
+            child: Text(
+              '${projectName.value}',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          ${screens.value
+        .map(
+            (screen) => `
+          ListTile(
+            title: Text('${screen.name}'),
+            onTap: () {
+              Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+            },
+          ),`
+        )
+        .join('\n')}
+        ],
+      ),
+    );
+  }
+}
+`;
+
+    // Wrap everything in a Flutter app with navigation
+    flutterCode = `
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyFlutterApp());
+}
+
+class MyFlutterApp extends StatelessWidget {
+  const MyFlutterApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '${projectName.value}',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      initialRoute: '/${
+        screens.value
+            .find((s) => s.isHome)
+            ?.name.toLowerCase()
+            .replace(/\s+/g, '_') || 'home'
+    }',
+      routes: {
+${routeDefinitions}
+      },
+    );
+  }
+}
+
+${navigationDrawer}
+
+${screenClasses}
 `;
 
     return flutterCode;
@@ -298,7 +716,7 @@ const onPaletteDragEnd = () => {
 
 // Función para agregar un widget hijo a un widget padre (por id)
 const addChildWidget = (parentId: string, widgetType: string) => {
-    const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+    const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
     if (!widgetDefinition) return;
     const newWidget: FlutterWidget = {
         id: `widget-${widgetIdCounter++}`,
@@ -306,7 +724,7 @@ const addChildWidget = (parentId: string, widgetType: string) => {
         props: {},
         children: []
     };
-    widgetDefinition.properties.forEach(prop => {
+    widgetDefinition.properties.forEach((prop) => {
         newWidget.props[prop.name] = prop.defaultValue;
     });
     // Buscar el widget padre recursivamente y agregar el hijo
@@ -354,6 +772,8 @@ const toggleSocketServer = () => {
 onMounted(() => {
     console.log('Mounted PizarraFlutter');
     console.log(props.pizarra);
+    applyDarkMode();
+    initializeScreens();
     socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
     // Connect to socket
     socketService.on('connect', () => {
@@ -409,7 +829,7 @@ onMounted(() => {
             if (!data.widget.children || !Array.isArray(data.widget.children)) {
                 data.widget.children = [];
             }
-            const index = flutterWidgets.value.findIndex(w => w.id === data.widget.id);
+            const index = flutterWidgets.value.findIndex((w) => w.id === data.widget.id);
             if (index !== -1) {
                 flutterWidgets.value[index] = data.widget;
             }
@@ -512,7 +932,12 @@ onUnmounted(() => {
 });
 
 // Computed properties for filtering widgets by category
-const inputWidgets = computed(() =>
+const widgetsByActiveCategory = computed(() => {
+    const category = categoriesWidget[activeWidgetCategory.value]?.category;
+    if (!category) return [];
+    return availableWidgets.value.filter((widget) => widget.category === category);
+});
+/*const inputWidgets = computed(() =>
     availableWidgets.value.filter(widget => widget.category === 'input')
 );
 
@@ -526,7 +951,7 @@ const containerWidgets = computed(() =>
 
 const displayWidgets = computed(() =>
     availableWidgets.value.filter(widget => widget.category === 'display')
-);
+);*/
 
 // Flutter code display
 const showFlutterCode = ref<boolean>(false);
@@ -552,15 +977,19 @@ const downloadFlutterProject = async () => {
         AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
 
         // Send request to backend to generate and download the project
-        const response = await axios.post('/pizarra/download-flutter-project', {
-            name: projectName.value || 'FlutterProject',
-            elements: flutterWidgets.value, // Enviar como array, no como string
-            code: flutterCode.value,
-            project_name: projectName.value || 'FlutterProject',
-            id: props.pizarra?.id || null,
-        }, {
-            responseType: 'blob' // Important to set response type for file download
-        });
+        const response = await axios.post(
+            '/pizarra/download-flutter-project',
+            {
+                name: projectName.value || 'FlutterProject',
+                elements: flutterWidgets.value, // Enviar como array, no como string
+                code: flutterCode.value,
+                project_name: projectName.value || 'FlutterProject',
+                id: props.pizarra?.id || null
+            },
+            {
+                responseType: 'blob' // Important to set response type for file download
+            }
+        );
 
         // Create a blob URL from the response
         const blob = new Blob([response.data], { type: 'application/zip' });
@@ -669,7 +1098,6 @@ const savePizarraFlutter = async () => {
 
     try {
         // Ensure ID is a valid number
-        // const id = parseInt(props.pizarra.id);
         if (isNaN(props.pizarra.id)) {
             console.error('Invalid pizarra ID:', props.pizarra.id);
             AlertService.prototype.error('Error', 'ID de pizarra inválido');
@@ -695,12 +1123,26 @@ const savePizarraFlutter = async () => {
             projectName.value = newName;
         }
 
-        await axios.put(`/pizarra/${props.pizarra.id}/edit`, {
-            name: projectName.value,
-            elements: flutterWidgets.value // Enviar como array, no como string
-        });
+        // Ensure we have at least one screen
+        if (screens.value.length === 0) {
+            initializeScreens();
+        }
 
-        AlertService.prototype.success('Éxito', 'Cambios guardados correctamente');
+        // Make sure at least one screen is marked as home
+        if (!screens.value.some((screen) => screen.isHome)) {
+            screens.value[0].isHome = true;
+        }
+
+        // Save both the legacy elements array (for backward compatibility)
+        // and the new screens array
+        const response = await axios.put(`/pizarra/${props.pizarra.id}`, {
+            name: projectName.value,
+            elements: currentScreen.value?.elements || [],
+            screens: screens.value
+        });
+        console.log('Pizarra saved:', response.data);
+
+        // AlertService.prototype.success('Éxito', 'Cambios guardados correctamente');
     } catch (error) {
         console.error('Error saving pizarra flutter:', error);
         AlertService.prototype.error('Error', 'No se pudieron guardar los cambios');
@@ -726,10 +1168,13 @@ const debouncedSave = debounce(() => {
     }
 }, 1000); // 1 second debounce
 // Watch for changes in flutterWidgets and save them
-watch(flutterWidgets, () => {
-    debouncedSave();
-}, { deep: true, flush: 'post' });
-
+watch(
+    flutterWidgets,
+    () => {
+        debouncedSave();
+    },
+    { deep: true, flush: 'post' }
+);
 // Load collaborators
 const loadCollaborators = async () => {
     if (!props.pizarra?.id) return;
@@ -780,14 +1225,16 @@ const generateInviteLink = () => {
 };
 // Copy text to clipboard
 const copyToClipboard = (text: string, successMessage: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-        AlertService.prototype.success(successMessage);
-    }).catch(err => {
-        console.error('Error copying to clipboard:', err);
-        AlertService.prototype.error('Error', 'No se pudo copiar al portapapeles');
-    });
+    navigator.clipboard
+        .writeText(text)
+        .then(() => {
+            AlertService.prototype.success(successMessage);
+        })
+        .catch((err) => {
+            console.error('Error copying to clipboard:', err);
+            AlertService.prototype.error('Error', 'No se pudo copiar al portapapeles');
+        });
 };
-
 // Copy invite link to clipboard
 const copyInviteLink = () => {
     copyToClipboard(inviteLink.value, '¡Enlace copiado al portapapeles!');
@@ -808,6 +1255,7 @@ const toggleFloatingChat = () => {
 };
 // Toggle AI chat visibility
 const toggleAIChat = () => {
+    console.log('Toggling AI chat visibility desde Pizarra Flutter ');
     showAIChat.value = !showAIChat.value;
 
     // Close regular chat if opening AI chat
@@ -961,11 +1409,13 @@ function parseFlutterWidgets(inputCode: string) {
 
     try {
         // Define regex patterns for different widget structures
-        const widgetRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\b/g;
+        const widgetRegex =
+            /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\b/g;
 
         // This regex captures widget definitions with their content between parentheses
         // It handles nested parentheses by using a non-greedy approach
-        const widgetWithContentRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(([\s\S]*?)(?:\)\s*,|\)$|\);)/g;
+        const widgetWithContentRegex =
+            /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(([\s\S]*?)(?:\)\s*,|\)$|\);)/g;
 
         // These regex patterns capture child and children properties
         // Improved to handle more complex child widget references
@@ -975,19 +1425,20 @@ function parseFlutterWidgets(inputCode: string) {
         const childrenRegex = /children\s*:\s*\[\s*([\s\S]*?)\s*\]\s*(?:,|$)/;
 
         // This regex helps identify widget types within a children array
-        const childrenWidgetsRegex = /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(/g;
+        const childrenWidgetsRegex =
+            /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\s*\(/g;
 
         // Helper function to extract property values from widget content
         const extractProperties = (widgetContent: string, widgetDefinition: any) => {
             const props = {};
 
             // Initialize with default values first
-            widgetDefinition.properties.forEach(prop => {
+            widgetDefinition.properties.forEach((prop) => {
                 props[prop.name] = prop.defaultValue;
             });
 
             // Try to extract actual values for common properties
-            widgetDefinition.properties.forEach(prop => {
+            widgetDefinition.properties.forEach((prop) => {
                 // Different regex patterns based on property type
                 let propRegex;
                 let valueExtractor = (match) => match[1];
@@ -1019,7 +1470,7 @@ function parseFlutterWidgets(inputCode: string) {
                         break;
                     case 'select':
                         // Match enum values
-                        const options = prop.options.map(opt => opt.replace(/\./g, '\\.'));
+                        const options = prop.options.map((opt) => opt.replace(/\./g, '\\.'));
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
                         break;
                     default:
@@ -1049,22 +1500,22 @@ function parseFlutterWidgets(inputCode: string) {
         // Helper function to convert color name to hex
         const colorNameToHex = (colorName) => {
             const colorMap = {
-                'red': 'FF0000',
-                'blue': '0000FF',
-                'green': '00FF00',
-                'yellow': 'FFFF00',
-                'black': '000000',
-                'white': 'FFFFFF',
-                'grey': '808080',
-                'purple': '800080',
-                'orange': 'FFA500',
-                'pink': 'FFC0CB',
-                'brown': 'A52A2A',
-                'cyan': '00FFFF',
-                'teal': '008080',
-                'indigo': '4B0082',
-                'amber': 'FFBF00',
-                'lime': '00FF00'
+                red: 'FF0000',
+                blue: '0000FF',
+                green: '00FF00',
+                yellow: 'FFFF00',
+                black: '000000',
+                white: 'FFFFFF',
+                grey: '808080',
+                purple: '800080',
+                orange: 'FFA500',
+                pink: 'FFC0CB',
+                brown: 'A52A2A',
+                cyan: '00FFFF',
+                teal: '008080',
+                indigo: '4B0082',
+                amber: 'FFBF00',
+                lime: '00FF00'
             };
 
             return colorMap[colorName.toLowerCase()] || '000000';
@@ -1079,7 +1530,7 @@ function parseFlutterWidgets(inputCode: string) {
             const widgetContent = widgetMatch[2];
 
             // Check if this widget definition exists in availableWidgets
-            const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+            const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
             if (widgetDefinition) {
                 // Create a new widget object
                 const newWidget: FlutterWidget = {
@@ -1113,7 +1564,7 @@ function parseFlutterWidgets(inputCode: string) {
         const processedWidgets = new Set();
 
         // Process widgets with children first
-        widgetDefinitions.forEach(widget => {
+        widgetDefinitions.forEach((widget) => {
             if (widget.pendingChildren) {
                 // Reset the regex lastIndex to ensure we start from the beginning
                 childrenWidgetsRegex.lastIndex = 0;
@@ -1129,11 +1580,9 @@ function parseFlutterWidgets(inputCode: string) {
 
                 console.log(`Found ${childTypes.length} child widgets in children array for ${widget.type}:`, childTypes);
 
-                childTypes.forEach(childType => {
+                childTypes.forEach((childType) => {
                     // Find a widget of this type that hasn't been processed yet
-                    const childWidget = widgetDefinitions.find(w =>
-                        w.type === childType && !processedWidgets.has(w.id)
-                    );
+                    const childWidget = widgetDefinitions.find((w) => w.type === childType && !processedWidgets.has(w.id));
 
                     if (childWidget) {
                         widget.children.push(childWidget);
@@ -1146,15 +1595,13 @@ function parseFlutterWidgets(inputCode: string) {
         });
 
         // Process widgets with a single child
-        widgetDefinitions.forEach(widget => {
+        widgetDefinitions.forEach((widget) => {
             if (widget.pendingChild) {
                 const childType = widget.pendingChild;
                 console.log(`Processing widget ${widget.type} with child type: ${childType}`);
 
                 // Find a widget of this type that hasn't been processed yet
-                const childWidget = widgetDefinitions.find(w =>
-                    w.type === childType && !processedWidgets.has(w.id)
-                );
+                const childWidget = widgetDefinitions.find((w) => w.type === childType && !processedWidgets.has(w.id));
 
                 if (childWidget) {
                     widget.children.push(childWidget);
@@ -1166,7 +1613,7 @@ function parseFlutterWidgets(inputCode: string) {
         });
 
         // Add widgets that haven't been assigned as children to the root level
-        widgetDefinitions.forEach(widget => {
+        widgetDefinitions.forEach((widget) => {
             if (!processedWidgets.has(widget.id)) {
                 rootWidgets.push(widget);
                 console.log(`Adding ${widget.type} as a root widget`);
@@ -1181,17 +1628,17 @@ function parseFlutterWidgets(inputCode: string) {
             const indent = '  '.repeat(depth);
             console.log(`${indent}${widget.type} (${widget.id})`);
             if (widget.children && widget.children.length > 0) {
-                widget.children.forEach(child => printWidgetTree(child, depth + 1));
+                widget.children.forEach((child) => printWidgetTree(child, depth + 1));
             }
         };
 
         // Print the widget tree for each root widget
-        rootWidgets.forEach(widget => {
+        rootWidgets.forEach((widget) => {
             printWidgetTree(widget);
         });
 
         // Add root widgets to the canvas
-        rootWidgets.forEach(widget => {
+        rootWidgets.forEach((widget) => {
             flutterWidgets.value.push(widget);
 
             // Emit event to socket
@@ -1211,8 +1658,8 @@ function parseFlutterWidgets(inputCode: string) {
                 foundWidgets.add(match[1]); // Add the widget name
             }
 
-            foundWidgets.forEach(widgetType => {
-                const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+            foundWidgets.forEach((widgetType) => {
+                const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
                 if (widgetDefinition) {
                     const newWidget: FlutterWidget = {
                         id: `widget-${widgetIdCounter++}`,
@@ -1222,7 +1669,7 @@ function parseFlutterWidgets(inputCode: string) {
                     };
 
                     // Initialize properties with default values
-                    widgetDefinition.properties.forEach(prop => {
+                    widgetDefinition.properties.forEach((prop) => {
                         newWidget.props[prop.name] = prop.defaultValue;
                     });
 
@@ -1250,8 +1697,8 @@ function parseFlutterWidgets(inputCode: string) {
             foundWidgets.add(match[1]); // Add the widget name
         }
 
-        foundWidgets.forEach(widgetType => {
-            const widgetDefinition = availableWidgets.value.find(w => w.type === widgetType);
+        foundWidgets.forEach((widgetType) => {
+            const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
             if (widgetDefinition) {
                 const newWidget: FlutterWidget = {
                     id: `widget-${widgetIdCounter++}`,
@@ -1261,7 +1708,7 @@ function parseFlutterWidgets(inputCode: string) {
                 };
 
                 // Initialize properties with default values
-                widgetDefinition.properties.forEach(prop => {
+                widgetDefinition.properties.forEach((prop) => {
                     newWidget.props[prop.name] = prop.defaultValue;
                 });
 
@@ -1275,6 +1722,7 @@ function parseFlutterWidgets(inputCode: string) {
 
 // Send a prompt to the AI
 const sendAIPrompt = async () => {
+    console.log('Sending AI prompt Pizarra Flutter:', aiPrompt.value);
     if (!aiPrompt.value.trim() || isProcessingAI.value) return;
 
     // Add user message to chat
@@ -1292,9 +1740,9 @@ const sendAIPrompt = async () => {
     isProcessingAI.value = true;
 
     // Extraer configuración de Azure desde el .env
-    const azureApiUrl = 'https://pinto-maype3p5-eastus2.cognitiveservices.azure.com/';//import.meta.env.AZURE_API_URL;
-    const azureApiKey = '54FCfTb8CIMMHT5W7T2pTNeicQNxssRuTYYHh1UJQ8BMUyLd4HPjJQQJ99BEACHYHv6XJ3w3AAAAACOGcky8';//import.meta.env.AZURE_API_KEY;
-    const azureModelName = 'gpt-4.1';//import.meta.env.AZURE_MODEL_NAME;
+    const azureApiUrl = 'https://pinto-maype3p5-eastus2.cognitiveservices.azure.com/'; //import.meta.env.AZURE_API_URL;
+    const azureApiKey = '54FCfTb8CIMMHT5W7T2pTNeicQNxssRuTYYHh1UJQ8BMUyLd4HPjJQQJ99BEACHYHv6XJ3w3AAAAACOGcky8'; //import.meta.env.AZURE_API_KEY;
+    const azureModelName = 'gpt-4.1'; //import.meta.env.AZURE_MODEL_NAME;
 
     try {
         // Validar que las variables de entorno estén definidas
@@ -1362,7 +1810,7 @@ const addAIWidgetsToCanvas = (widgets: any) => {
 
     try {
         // Add each widget to the canvas
-        widgets.forEach(widget => {
+        widgets.forEach((widget) => {
             // Ensure the widget has a unique ID
             if (!widget.id) {
                 widget.id = `widget-${widgetIdCounter++}`;
@@ -1381,7 +1829,7 @@ const addAIWidgetsToCanvas = (widgets: any) => {
         // AlertService.prototype.success('Éxito', 'Widgets generados por la IA añadidos a la pizarra');
 
         // Emit widget added event to socket for each widget
-        widgets.forEach(widget => {
+        widgets.forEach((widget) => {
             socket.emit('flutter-widget-added', {
                 roomId: roomId.value,
                 widget: widget,
@@ -1401,57 +1849,59 @@ const onChatInput = () => {
         user: currentUser.value
     });
 };
+
+const onChatInputAI = () => {
+    // Emit typing event for AI chat
+    socket.emit('typingAI', {
+        roomId: roomId.value,
+        user: currentUser.value
+    });
+};
 </script>
 
 <template>
     <Head title="Pizarra Flutter" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-            <h1 class="text-2xl font-bold">Pizarra Flutter</h1>
-            <div class="flex justify-between items-center">
+        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 transition-colors duration-200 dark:bg-gray-800">
+            <div class="flex flex-col items-center justify-between gap-4 md:flex-row">
                 <input
                     v-model="projectName"
                     type="text"
                     placeholder="Nombre del proyecto"
-                    class="px-3 py-2 border rounded-md w-1/2"
+                    class="w-full rounded-md border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white md:w-1/2"
                     @keyup.enter="savePizarraFlutter"
                 />
-                <div class="flex gap-2 ml-2">
-                    <button
-                        @click="toggleSocketServer"
-                        class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
-                    >
-                        Cambiar Socket ({{ useLocalSocket ? 'Local' : 'Producción' }})
-                    </button>
+                <div class="flex w-full flex-wrap justify-center gap-2 md:w-auto md:justify-end">
                     <button
                         @click="showImageUpload = !showImageUpload"
-                        class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
+                        class="rounded-md bg-purple-500 px-4 py-2 text-white transition-colors hover:bg-purple-600"
                     >
                         Subir Imagen
                     </button>
-                    <button
-                        @click="showFlutterCode = !showFlutterCode"
-                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                    >
-                        {{ showFlutterCode ? 'Ocultar Código' : 'Mostrar Código' }}
+                    <button @click="savePizarraFlutter"
+                            class="rounded-md bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600">
+                        Guardar Cambios
                     </button>
                     <button
-                        @click="savePizarraFlutter"
-                        class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                        @click="showScreenManager = !showScreenManager"
+                        class="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
                     >
-                        Guardar Cambios
+                        {{ showScreenManager ? 'Cerrar Pantallas' : 'Gestionar Pantallas' }}
                     </button>
                 </div>
             </div>
 
             <!-- Image Upload Modal -->
             <div v-if="showImageUpload"
-                 class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold">Subir Imagen</h2>
-                        <button @click="closeImageUpload" class="text-gray-500 hover:text-gray-700">
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                <div class="w-full max-w-md rounded-lg bg-white p-4 transition-colors dark:bg-gray-800 sm:p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <h2 class="text-xl font-bold dark:text-white">Subir Imagen</h2>
+                        <button
+                            @click="closeImageUpload"
+                            class="text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                        >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                                  stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1461,75 +1911,85 @@ const onChatInput = () => {
                     </div>
 
                     <div class="mb-4">
-                        <p class="text-sm text-gray-600 mb-2">
+                        <p class="mb-2 text-sm text-gray-600 dark:text-gray-300">
                             Sube una imagen de un boceto o diseño para que la IA lo convierta en código Flutter.
                         </p>
 
                         <!-- Image preview -->
                         <div v-if="previewImage" class="mb-4">
-                            <img :src="previewImage" alt="Preview" class="max-h-60 mx-auto rounded border" />
-                            <button
-                                @click="clearSelectedImage"
-                                class="mt-2 px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-                            >
-                                Eliminar
-                            </button>
+                            <img :src="previewImage" alt="Preview"
+                                 class="mx-auto max-h-60 rounded border dark:border-gray-600" />
+                            <div class="mt-2 flex justify-center">
+                                <button
+                                    @click="clearSelectedImage"
+                                    class="rounded bg-red-500 px-3 py-1 text-sm text-white transition-colors hover:bg-red-600"
+                                >
+                                    Eliminar
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Upload options -->
                         <div v-if="!previewImage" class="flex flex-col gap-3">
                             <!-- Camera option -->
                             <label
-                                class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none"
-                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-6 w-6 text-gray-500 dark:text-gray-300"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                                    />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                           d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                <span>Tomar Foto</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    class="hidden"
-                                    @change="handleImageUpload"
-                                />
+                                <span class="dark:text-white">Tomar Foto</span>
+                                <input type="file" accept="image/*" capture="environment" class="hidden"
+                                       @change="handleImageUpload" />
                             </label>
 
                             <!-- Gallery option -->
                             <label
-                                class="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500" fill="none"
-                                     viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-6 w-6 text-gray-500 dark:text-gray-300"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                    />
                                 </svg>
-                                <span>Seleccionar de Galería</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    class="hidden"
-                                    @change="handleImageUpload"
-                                />
+                                <span class="dark:text-white">Seleccionar de Galería</span>
+                                <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
                             </label>
                         </div>
                     </div>
 
                     <!-- Action buttons -->
                     <div class="flex justify-end gap-2">
-                        <button
-                            @click="closeImageUpload"
-                            class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
-                        >
+                        <button @click="closeImageUpload" class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300">
                             Cancelar
                         </button>
                         <button
                             @click="processImage"
-                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                            class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
                             :disabled="!selectedImage || isProcessingImage"
-                            :class="{ 'opacity-50 cursor-not-allowed': !selectedImage || isProcessingImage }"
+                            :class="{ 'cursor-not-allowed opacity-50': !selectedImage || isProcessingImage }"
                         >
                             {{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}
                         </button>
@@ -1537,1671 +1997,1889 @@ const onChatInput = () => {
                 </div>
             </div>
 
-            <!-- Mobile widget selector (visible on small screens) -->
-            <div class="md:hidden mb-4">
-                <div class="mobile-widget-selector">
-                    <h2 class="widget-selector-title">Flutter Widgets</h2>
+            <!-- Screen Manager -->
+            <div class="mb-1">
+                <div class="mb-2 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold">Pantallas</h3>
+                </div>
 
-                    <!-- Widget category tabs -->
-                    <div class="widget-category-tabs">
-                        <button
-                            v-for="(category, index) in ['Inputs', 'Layouts', 'Containers', 'Display']"
-                            :key="category"
-                            class="widget-category-tab"
-                            :class="{ 'active-tab': activeWidgetCategory === index }"
-                            @click="activeWidgetCategory = index"
-                        >
-                            {{ category }}
+                <!-- Screen tabs -->
+                <div class="screen-tabs mb-2 flex overflow-x-auto pb-2">
+                    <button
+                        v-for="(screen, index) in screens"
+                        :key="screen.id"
+                        @click="selectScreen(index)"
+                        class="mr-1 flex items-center whitespace-nowrap rounded-t-lg border px-4 py-2 transition-colors dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        :class="
+                            currentScreenIndex === index
+                                ? 'border-b-0 border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900 dark:bg-opacity-30'
+                                : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700'
+                        "
+                    >
+                        <span>{{ screen.name }}</span>
+                        <span v-if="screen.isHome" class="ml-1 rounded bg-green-500 px-1 text-xs text-white">Home</span>
+                    </button>
+                    <button
+                        @click="showFlutterCode = !showFlutterCode"
+                        class="rounded-t-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600"
+                    >
+                        {{ showFlutterCode ? 'Ocultar Código' : 'Mostrar Código' }}
+                    </button>
+                </div>
+
+                <!-- Screen Manager Panel Gestion de Pantallas -->
+                <div
+                    v-if="showScreenManager"
+                    class="mb-4 rounded-lg border bg-white p-4 shadow transition-colors dark:border-gray-600 dark:bg-gray-800"
+                >
+                    <h4 class="mb-2 font-semibold dark:text-white">Gestionar Pantallas</h4>
+
+                    <!-- Add new screen -->
+                    <div class="mb-4 flex">
+                        <input
+                            v-model="newScreenName"
+                            type="text"
+                            placeholder="Nombre de la nueva pantalla"
+                            class="flex-1 rounded-l border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                        />
+                        <button @click="addScreen"
+                                class="rounded-r bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600">
+                            Añadir
                         </button>
                     </div>
 
-                    <!-- Widget grid for each category -->
-                    <div class="widget-grid" v-if="activeWidgetCategory === 0">
-                        <button
-                            v-for="widget in inputWidgets"
-                            :key="widget.type"
-                            class="widget-button input-widget-btn"
-                            @click="addWidget(widget.type)"
-                            draggable="true"
-                            @dragstart="onPaletteDragStart(widget.type)"
-                            @dragend="onPaletteDragEnd"
+                    <!-- Screen list -->
+                    <div class="max-h-60 overflow-y-auto">
+                        <div
+                            v-for="(screen, index) in screens"
+                            :key="screen.id"
+                            class="flex items-center justify-between border-b p-2 dark:border-gray-600"
                         >
-                            <span class="widget-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                     fill="currentColor">
-                                    <path fill-rule="evenodd"
-                                          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
-                                          clip-rule="evenodd" />
-                                </svg>
-                            </span>
-                            <span class="widget-label">{{ widget.label }}</span>
-                        </button>
-                    </div>
-
-                    <div class="widget-grid" v-if="activeWidgetCategory === 1">
-                        <button
-                            v-for="widget in layoutWidgets"
-                            :key="widget.type"
-                            class="widget-button layout-widget-btn"
-                            @click="addWidget(widget.type)"
-                            draggable="true"
-                            @dragstart="onPaletteDragStart(widget.type)"
-                            @dragend="onPaletteDragEnd"
-                        >
-                            <span class="widget-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                     fill="currentColor">
-                                    <path
-                                        d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                                </svg>
-                            </span>
-                            <span class="widget-label">{{ widget.label }}</span>
-                        </button>
-                    </div>
-
-                    <div class="widget-grid" v-if="activeWidgetCategory === 2">
-                        <button
-                            v-for="widget in containerWidgets"
-                            :key="widget.type"
-                            class="widget-button container-widget-btn"
-                            @click="addWidget(widget.type)"
-                            draggable="true"
-                            @dragstart="onPaletteDragStart(widget.type)"
-                            @dragend="onPaletteDragEnd"
-                        >
-                            <span class="widget-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                     fill="currentColor">
-                                    <path
-                                        d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                                </svg>
-                            </span>
-                            <span class="widget-label">{{ widget.label }}</span>
-                        </button>
-                    </div>
-
-                    <div class="widget-grid" v-if="activeWidgetCategory === 3">
-                        <button
-                            v-for="widget in displayWidgets"
-                            :key="widget.type"
-                            class="widget-button display-widget-btn"
-                            @click="addWidget(widget.type)"
-                            draggable="true"
-                            @dragstart="onPaletteDragStart(widget.type)"
-                            @dragend="onPaletteDragEnd"
-                        >
-                            <span class="widget-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                     fill="currentColor">
-                                    <path fill-rule="evenodd"
-                                          d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
-                                          clip-rule="evenodd" />
-                                </svg>
-                            </span>
-                            <span class="widget-label">{{ widget.label }}</span>
-                        </button>
+                            <div class="flex items-center">
+                                <span class="mr-2 dark:text-white">{{ screen.name }}</span>
+                                <span v-if="screen.isHome"
+                                      class="rounded bg-green-500 px-1 text-xs text-white">Home</span>
+                            </div>
+                            <div class="flex">
+                                <button
+                                    @click="setHomeScreen(index)"
+                                    class="mr-1 rounded bg-green-500 px-2 py-1 text-xs text-white transition-colors hover:bg-green-600"
+                                    :disabled="screen.isHome"
+                                    :class="{ 'cursor-not-allowed opacity-50': screen.isHome }"
+                                >
+                                    Set Home
+                                </button>
+                                <button
+                                    @click="deleteScreen(index)"
+                                    class="rounded bg-red-500 px-2 py-1 text-xs text-white transition-colors hover:bg-red-600"
+                                    :disabled="screens.length <= 1"
+                                    :class="{ 'cursor-not-allowed opacity-50': screens.length <= 1 }"
+                                >
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <div class="flex flex-col md:flex-row gap-4 h-full">
-                <!-- Widget palette (desktop version with mobile-like style) -->
-                <div class="hidden md:block w-64 bg-gray-100 rounded-md overflow-hidden">
-                    <div class="mobile-widget-selector desktop-widget-selector">
-                        <h2 class="widget-selector-title">Flutter Widgets</h2>
-
-                        <!-- Widget category tabs -->
-                        <div class="widget-category-tabs">
-                            <button
-                                v-for="(category, index) in ['Inputs', 'Layouts', 'Containers', 'Display']"
-                                :key="category"
-                                class="widget-category-tab"
-                                :class="{ 'active-tab': activeWidgetCategory === index }"
-                                @click="activeWidgetCategory = index"
-                            >
-                                {{ category }}
-                            </button>
-                        </div>
-
-                        <!-- Widget grid for each category -->
-                        <div class="widget-grid" v-if="activeWidgetCategory === 0">
-                            <button
-                                v-for="widget in inputWidgets"
-                                :key="widget.type"
-                                class="widget-button input-widget-btn"
-                                @click="addWidget(widget.type)"
-                                draggable="true"
-                                @dragstart="onPaletteDragStart(widget.type)"
-                                @dragend="onPaletteDragEnd"
-                            >
-                                <span class="widget-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                         fill="currentColor">
-                                        <path fill-rule="evenodd"
-                                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
-                                              clip-rule="evenodd" />
-                                    </svg>
-                                </span>
-                                <span class="widget-label">{{ widget.label }}</span>
-                            </button>
-                        </div>
-
-                        <div class="widget-grid" v-if="activeWidgetCategory === 1">
-                            <button
-                                v-for="widget in layoutWidgets"
-                                :key="widget.type"
-                                class="widget-button layout-widget-btn"
-                                @click="addWidget(widget.type)"
-                                draggable="true"
-                                @dragstart="onPaletteDragStart(widget.type)"
-                                @dragend="onPaletteDragEnd"
-                            >
-                                <span class="widget-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                         fill="currentColor">
-                                        <path
-                                            d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                                    </svg>
-                                </span>
-                                <span class="widget-label">{{ widget.label }}</span>
-                            </button>
-                        </div>
-
-                        <div class="widget-grid" v-if="activeWidgetCategory === 2">
-                            <button
-                                v-for="widget in containerWidgets"
-                                :key="widget.type"
-                                class="widget-button container-widget-btn"
-                                @click="addWidget(widget.type)"
-                                draggable="true"
-                                @dragstart="onPaletteDragStart(widget.type)"
-                                @dragend="onPaletteDragEnd"
-                            >
-                                <span class="widget-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                         fill="currentColor">
-                                        <path
-                                            d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                                    </svg>
-                                </span>
-                                <span class="widget-label">{{ widget.label }}</span>
-                            </button>
-                        </div>
-
-                        <div class="widget-grid" v-if="activeWidgetCategory === 3">
-                            <button
-                                v-for="widget in displayWidgets"
-                                :key="widget.type"
-                                class="widget-button display-widget-btn"
-                                @click="addWidget(widget.type)"
-                                draggable="true"
-                                @dragstart="onPaletteDragStart(widget.type)"
-                                @dragend="onPaletteDragEnd"
-                            >
-                                <span class="widget-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
-                                         fill="currentColor">
-                                        <path fill-rule="evenodd"
-                                              d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
-                                              clip-rule="evenodd" />
-                                    </svg>
-                                </span>
-                                <span class="widget-label">{{ widget.label }}</span>
-                            </button>
-                        </div>
+            <!-- Flutter code display -->
+            <div v-if="showFlutterCode" class="rounded-md bg-gray-800 p-4 text-white">
+                <div class="mb-2 flex items-center justify-between">
+                    <h3 class="font-medium">Código Flutter</h3>
+                    <div class="flex gap-2">
+                        <button @click="downloadFlutterProject"
+                                class="rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700">
+                            Descargar Proyecto
+                        </button>
+                        <button @click="copyFlutterCode"
+                                class="rounded bg-gray-700 px-2 py-1 text-sm hover:bg-gray-600">Copiar
+                        </button>
                     </div>
                 </div>
+                <pre class="max-h-96 overflow-auto text-sm">{{ flutterCode }}</pre>
+            </div>
+            <div v-else>
+                <!-- Mobile widget selector (visible on small screens) -->
+                <div class="mb-4 md:hidden">
+                    <WidgetPalette
+                        :categoriesWidget="categoriesWidget"
+                        :activeWidgetCategory="activeWidgetCategory"
+                        :widgetsByActiveCategory="widgetsByActiveCategory"
+                        @update:activeWidgetCategory="val => activeWidgetCategory = val"
+                        @addWidget="addWidget"
+                        @onPaletteDragStart="onPaletteDragStart"
+                        @onPaletteDragEnd="onPaletteDragEnd"
+                    />
+                </div>
 
-                <!-- Canvas with Mobile Phone Frame -->
-                <div class="flex-1 flex flex-col gap-4">
-                    <!-- Mobile phone frame container -->
-                    <div class="flex justify-center items-start">
-                        <div class="mobile-phone-frame">
-                            <!-- Phone status bar -->
-                            <div class="phone-status-bar">
-                                <div class="flex justify-between items-center px-4 py-1">
-                                    <span class="text-xs">9:41 AM</span>
-                                    <div class="flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20"
-                                             fill="currentColor">
-                                            <path
-                                                d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                                        </svg>
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20"
-                                             fill="currentColor">
-                                            <path fill-rule="evenodd"
-                                                  d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 100-2 1 1 0 000 2z"
-                                                  clip-rule="evenodd" />
-                                        </svg>
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20"
-                                             fill="currentColor">
-                                            <path
-                                                d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                                            <path
-                                                d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1v-5h2a2 2 0 012 2v3a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1v-2a4 4 0 00-4-4h-3V6a1 1 0 00-1-1H3z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
+                <div class="flex h-full flex-col gap-4 md:flex-row">
+                    <!-- Widget palette (desktop version with mobile-like style) -->
+                    <WidgetPalette
+                        :categoriesWidget="categoriesWidget"
+                        :activeWidgetCategory="activeWidgetCategory"
+                        :widgetsByActiveCategory="widgetsByActiveCategory"
+                        @update:activeWidgetCategory="val => activeWidgetCategory = val"
+                        @addWidget="addWidget"
+                        @onPaletteDragStart="onPaletteDragStart"
+                        @onPaletteDragEnd="onPaletteDragEnd"
+                    />
 
-                            <!-- Phone content area (draggable canvas) -->
-                            <div class="phone-content-area">
-                                <draggable
-                                    v-model="flutterWidgets"
-                                    group="widgets"
-                                    item-key="id"
-                                    class="min-h-full w-full"
-                                    :animation="150"
-                                    ghost-class="ghost-widget"
-                                    chosen-class="chosen-widget"
-                                >
-                                    <template #item="{ element }">
+                    <!-- Canvas with Mobile Phone Frame -->
+                    <div class="flex flex-1 flex-col gap-4">
+                        <!-- Mobile phone frame container -->
+                        <div class="flex items-start justify-center">
+                            <div
+                                class="mobile-phone-frame transition-colors dark:bg-gray-900 dark:shadow-[0_0_0_10px_#000,0_0_0_11px_#333,0_20px_30px_rgba(0,0,0,0.5)]"
+                            >
+                                <!-- Phone status bar -->
+                                <PhoneStatusBar />
+
+                                <!-- Phone content area (draggable canvas) -->
+                                <div class="phone-content-area transition-colors dark:bg-gray-800">
+                                    <div
+                                        v-if="!currentScreen || !Array.isArray(currentScreen.elements)"
+                                        class="flex min-h-full w-full items-center justify-center"
+                                    >
                                         <div
-                                            class="mobile-widget cursor-move relative"
-                                            :class="{
-                                                'selected-widget': selectedWidget?.id === element.id,
-                                                'text-widget': ['Text', 'h1', 'h2', 'h3'].includes(element.type),
-                                                'input-widget': ['TextField', 'Checkbox', 'DropdownButton'].includes(element.type),
-                                                'container-widget': ['Container', 'SafeArea'].includes(element.type),
-                                                'layout-widget': ['Row', 'Column', 'Padding'].includes(element.type),
-                                                'display-widget': ['Image', 'Icon'].includes(element.type)
-                                            }"
-                                            @click.stop="selectWidget(element)"
-                                        >
-                                            <div class="widget-header">
-                                                <span class="widget-type">{{ element.type }}</span>
-                                                <button
-                                                    @click.stop="removeWidget(element)"
-                                                    class="widget-remove-btn"
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-
-                                            <!-- Realistic Flutter Widget Rendering -->
-                                            <div class="flutter-widget-preview">
-                                                <!-- Text Widget -->
-                                                <div v-if="element.type === 'Text'" class="flutter-text"
-                                                     :style="{
-                                                        fontSize: '16px',
-                                                        fontWeight: 'normal',
-                                                        color: '#000000',
-                                                        textAlign: 'left'
-                                                    }">
-                                                    {{ element.props.data || 'Text' }}
-                                                </div>
-
-                                                <!-- TextField Widget -->
-                                                <div v-else-if="element.type === 'TextField'"
-                                                     class="flutter-text-field">
-                                                    <div class="text-field-label" v-if="element.props.decoration">
-                                                        Label
-                                                    </div>
-                                                    <input type="text"
-                                                           placeholder="Enter text"
-                                                           :class="{'text-field-obscured': element.props.obscureText === true}"
-                                                           :disabled="element.props.enabled === false">
-                                                </div>
-
-                                                <!-- Container Widget -->
-                                                <div v-else-if="element.type === 'Container'"
-                                                     class="flutter-container droppable-container"
-                                                     :style="{
-                                                        width: (element.props.width || 200) + 'px',
-                                                        minHeight: (element.props.height || 200) + 'px',
-                                                        backgroundColor: element.props.color || '#FFFFFF',
-                                                        padding: '16px',
-                                                        margin: '8px',
-                                                        borderRadius: '4px',
-                                                        boxShadow: element.props.decoration?.includes('boxShadow') ? '0 2px 5px rgba(0,0,0,0.2)' : 'none',
-                                                        overflowY: 'auto',
-                                                        maxHeight: '400px'
-                                                    }"
-                                                     @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                     @drop.prevent="$event.currentTarget?.classList.remove('dragover')">
-                                                    <div
-                                                        v-if="!element.children || !Array.isArray(element.children) || element.children.length === 0"
-                                                        class="container-placeholder">
-                                                        <div class="drop-here-indicator">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6"
-                                                                 fill="none" viewBox="0 0 24 24"
-                                                                 stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                                      stroke-width="2"
-                                                                      d="M12 4v16m8-8H4" />
-                                                            </svg>
-                                                            <span>Arrastra componentes aquí</span>
-                                                        </div>
-                                                        <div class="add-child-widget-container">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div v-else-if="Array.isArray(element.children)"
-                                                         class="container-children">
-                                                        <div class="add-child-widget-container children-container-btn">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                + Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div v-for="child in element.children" :key="child.id"
-                                                             class="container-child">
-                                                            <!-- Text Widget -->
-                                                            <div v-if="child.type === 'Text'" class="flutter-text"
-                                                                 :style="{
-                                                                    fontSize: '16px',
-                                                                    fontWeight: 'normal',
-                                                                    color: '#000000',
-                                                                    textAlign: 'left'
-                                                                }">
-                                                                {{ child.props.data || 'Text' }}
-                                                            </div>
-
-                                                            <!-- TextField Widget -->
-                                                            <div v-else-if="child.type === 'TextField'"
-                                                                 class="flutter-text-field">
-                                                                <div class="text-field-label"
-                                                                     v-if="child.props.decoration">
-                                                                    Label
-                                                                </div>
-                                                                <input type="text"
-                                                                       placeholder="Enter text"
-                                                                       :class="{'text-field-obscured': child.props.obscureText === true}"
-                                                                       :disabled="child.props.enabled === false">
-                                                            </div>
-
-                                                            <!-- Checkbox Widget -->
-                                                            <div v-else-if="child.type === 'Checkbox'"
-                                                                 class="flutter-checkbox">
-                                                                <input type="checkbox"
-                                                                       :checked="child.props.value === true">
-                                                                <div class="checkbox-active-color"
-                                                                     :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"></div>
-                                                            </div>
-
-                                                            <!-- DropdownButton Widget -->
-                                                            <div v-else-if="child.type === 'DropdownButton'"
-                                                                 class="flutter-dropdown">
-                                                                <select>
-                                                                    <option v-for="(item, index) in child.props.items"
-                                                                            :key="index"
-                                                                            :selected="item === child.props.value">
-                                                                        {{ item }}
-                                                                    </option>
-                                                                </select>
-                                                            </div>
-
-                                                            <!-- Image Widget -->
-                                                            <div v-else-if="child.type === 'Image'"
-                                                                 class="flutter-image">
-                                                                <img :src="child.props.src"
-                                                                     :style="{
-                                                                        width: (child.props.width || 150) + 'px',
-                                                                        height: (child.props.height || 150) + 'px',
-                                                                        objectFit: 'cover'
-                                                                    }"
-                                                                     alt="Flutter Image">
-                                                            </div>
-
-                                                            <!-- Icon Widget -->
-                                                            <div v-else-if="child.type === 'Icon'" class="flutter-icon"
-                                                                 :style="{
-                                                                    color: child.props.color || '#000000',
-                                                                    fontSize: (child.props.size || 24) + 'px'
-                                                                }">
-                                                                <i class="material-icons">star</i>
-                                                            </div>
-
-                                                            <!-- TextFormField Widget -->
-                                                            <div v-else-if="child.type === 'TextFormField'"
-                                                                 class="flutter-text-field">
-                                                                <div class="text-field-label"
-                                                                     v-if="child.props.decoration">
-                                                                    {{ child.props.decoration.includes('labelText') ? 'Label' : ''}}
-                                                                    <span class="text-field-hint"
-                                                                          v-if="child.props.decoration.includes('hintText')">
-                                                                        (Hint: Enter text)
-                                                                    </span>
-                                                                </div>
-                                                                <input type="text"
-                                                                       placeholder="Enter text"
-                                                                       :class="{'text-field-obscured': child.props.obscureText === true}"
-                                                                       :disabled="child.props.enabled === false">
-                                                            </div>
-
-                                                            <!-- Form Widget -->
-                                                            <div v-else-if="child.type === 'Form'"
-                                                                 class="flutter-form droppable-container">
-                                                                <div class="form-header">Form</div>
-                                                                <div class="form-content">
-                                                                    <div
-                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                        class="form-placeholder">
-                                                                        <div class="drop-here-indicator">
-                                                                            <span>Form Fields Go Here</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div v-else class="form-fields">
-                                                                        <div v-for="grandchild in child.children"
-                                                                             :key="grandchild.id"
-                                                                             class="form-field">
-                                                                            <!-- Render form fields recursively -->
-                                                                            <div
-                                                                                v-if="grandchild.type === 'TextFormField'"
-                                                                                class="flutter-text-field">
-                                                                                <div class="text-field-label"
-                                                                                     v-if="grandchild.props.decoration">
-                                                                                    {{ grandchild.props.decoration.includes('labelText') ? 'Label' : ''
-                                                                                    }}
-                                                                                </div>
-                                                                                <input type="text"
-                                                                                       placeholder="Enter text"
-                                                                                       :class="{'text-field-obscured': grandchild.props.obscureText === true}"
-                                                                                       :disabled="grandchild.props.enabled === false">
-                                                                            </div>
-                                                                            <div v-else class="widget-properties">
-                                                                                <div
-                                                                                    v-for="(value, key) in grandchild.props"
-                                                                                    :key="key"
-                                                                                    class="widget-property">
-                                                                                    <span class="property-name">{{ key
-                                                                                        }}:</span>
-                                                                                    <span
-                                                                                        class="property-value">{{ value
-                                                                                        }}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- Scaffold Widget -->
-                                                            <div v-else-if="child.type === 'Scaffold'"
-                                                                 class="flutter-scaffold droppable-container"
-                                                                 :style="{ backgroundColor: child.props.backgroundColor || '#FFFFFF' }">
-                                                                <div class="scaffold-header">Scaffold</div>
-                                                                <div class="scaffold-content">
-                                                                    <div
-                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                        class="scaffold-placeholder">
-                                                                        <div class="drop-here-indicator">
-                                                                            <span>Scaffold Content Goes Here</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div v-else class="scaffold-children">
-                                                                        <div v-for="grandchild in child.children"
-                                                                             :key="grandchild.id"
-                                                                             class="scaffold-child">
-                                                                            <!-- Render scaffold children recursively -->
-                                                                            <div v-if="grandchild.type === 'AppBar'"
-                                                                                 class="flutter-app-bar"
-                                                                                 :style="{ backgroundColor: grandchild.props.backgroundColor || '#2196F3' }">
-                                                                                <div class="app-bar-title">
-                                                                                    {{ grandchild.props.title || 'AppBar Title'
-                                                                                    }}
-                                                                                </div>
-                                                                            </div>
-                                                                            <div v-else class="widget-properties">
-                                                                                <div
-                                                                                    v-for="(value, key) in grandchild.props"
-                                                                                    :key="key"
-                                                                                    class="widget-property">
-                                                                                    <span class="property-name">{{ key
-                                                                                        }}:</span>
-                                                                                    <span
-                                                                                        class="property-value">{{ value
-                                                                                        }}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- AppBar Widget -->
-                                                            <div v-else-if="child.type === 'AppBar'"
-                                                                 class="flutter-app-bar"
-                                                                 :style="{ backgroundColor: child.props.backgroundColor || '#2196F3' }">
-                                                                <div class="app-bar-title">
-                                                                    {{ child.props.title || 'AppBar Title' }}
-                                                                </div>
-                                                                <div
-                                                                    v-if="child.children && Array.isArray(child.children) && child.children.length > 0"
-                                                                    class="app-bar-actions">
-                                                                    <div v-for="grandchild in child.children"
-                                                                         :key="grandchild.id"
-                                                                         class="app-bar-action">
-                                                                        <!-- Render app bar actions -->
-                                                                        <div class="widget-properties">
-                                                                            <div
-                                                                                v-for="(value, key) in grandchild.props"
-                                                                                :key="key"
-                                                                                class="widget-property">
-                                                                                <span class="property-name">{{ key
-                                                                                    }}:</span>
-                                                                                <span class="property-value">{{ value
-                                                                                    }}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- Center Widget -->
-                                                            <div v-else-if="child.type === 'Center'"
-                                                                 class="flutter-center droppable-container">
-                                                                <div class="center-content">
-                                                                    <div
-                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                        class="center-placeholder">
-                                                                        <div class="drop-here-indicator">
-                                                                            <span>Centered Content Goes Here</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div v-else class="center-children">
-                                                                        <div v-for="grandchild in child.children"
-                                                                             :key="grandchild.id"
-                                                                             class="center-child">
-                                                                            <!-- Render centered children -->
-                                                                            <div class="widget-properties">
-                                                                                <div
-                                                                                    v-for="(value, key) in grandchild.props"
-                                                                                    :key="key"
-                                                                                    class="widget-property">
-                                                                                    <span class="property-name">{{ key
-                                                                                        }}:</span>
-                                                                                    <span
-                                                                                        class="property-value">{{ value
-                                                                                        }}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- SizedBox Widget -->
-                                                            <div v-else-if="child.type === 'SizedBox'"
-                                                                 class="flutter-sized-box droppable-container"
-                                                                 :style="{
-                                                                    width: (child.props.width || 100) + 'px',
-                                                                    height: (child.props.height || 100) + 'px',
-                                                                    border: '1px dashed #ccc'
-                                                                 }">
-                                                                <div
-                                                                    v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                    class="sized-box-placeholder">
-                                                                    <div class="drop-here-indicator">
-                                                                        <span>SizedBox: {{ child.props.width || 100
-                                                                            }}x{{ child.props.height || 100 }}</span>
-                                                                    </div>
-                                                                </div>
-                                                                <div v-else class="sized-box-children">
-                                                                    <div v-for="grandchild in child.children"
-                                                                         :key="grandchild.id"
-                                                                         class="sized-box-child">
-                                                                        <!-- Render sized box children -->
-                                                                        <div class="widget-properties">
-                                                                            <div
-                                                                                v-for="(value, key) in grandchild.props"
-                                                                                :key="key"
-                                                                                class="widget-property">
-                                                                                <span class="property-name">{{ key
-                                                                                    }}:</span>
-                                                                                <span class="property-value">{{ value
-                                                                                    }}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- Drawer Widget -->
-                                                            <div v-else-if="child.type === 'Drawer'"
-                                                                 class="flutter-drawer droppable-container"
-                                                                 :style="{
-                                                                    backgroundColor: child.props.backgroundColor || '#FFFFFF',
-                                                                    width: (child.props.width || 300) + 'px',
-                                                                    boxShadow: `0 0 ${child.props.elevation || 16}px rgba(0,0,0,0.3)`
-                                                                 }">
-                                                                <div class="drawer-header">Drawer</div>
-                                                                <div class="drawer-content">
-                                                                    <div
-                                                                        v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                        class="drawer-placeholder">
-                                                                        <div class="drop-here-indicator">
-                                                                            <span>Drawer Content Goes Here</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div v-else class="drawer-children">
-                                                                        <div v-for="grandchild in child.children"
-                                                                             :key="grandchild.id"
-                                                                             class="drawer-child">
-                                                                            <!-- Render drawer children recursively -->
-                                                                            <div class="widget-properties">
-                                                                                <div
-                                                                                    v-for="(value, key) in grandchild.props"
-                                                                                    :key="key"
-                                                                                    class="widget-property">
-                                                                                    <span class="property-name">{{ key
-                                                                                        }}:</span>
-                                                                                    <span
-                                                                                        class="property-value">{{ value
-                                                                                        }}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- Card Widget -->
-                                                            <div v-else-if="child.type === 'Card'"
-                                                                 class="flutter-card droppable-container"
-                                                                 :style="{
-                                                                    backgroundColor: child.props.color || '#FFFFFF',
-                                                                    boxShadow: `0 0 ${child.props.elevation || 1}px rgba(0,0,0,0.3)`,
-                                                                    margin: child.props.margin || '8px',
-                                                                    borderRadius: '4px'
-                                                                 }">
-                                                                <div
-                                                                    v-if="!child.children || !Array.isArray(child.children) || child.children.length === 0"
-                                                                    class="card-placeholder">
-                                                                    <div class="drop-here-indicator">
-                                                                        <span>Card Content Goes Here</span>
-                                                                    </div>
-                                                                </div>
-                                                                <div v-else class="card-children">
-                                                                    <div v-for="grandchild in child.children"
-                                                                         :key="grandchild.id"
-                                                                         class="card-child">
-                                                                        <!-- Render card children recursively -->
-                                                                        <div class="widget-properties">
-                                                                            <div
-                                                                                v-for="(value, key) in grandchild.props"
-                                                                                :key="key"
-                                                                                class="widget-property">
-                                                                                <span class="property-name">{{ key
-                                                                                    }}:</span>
-                                                                                <span class="property-value">{{ value
-                                                                                    }}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- ListTile Widget -->
-                                                            <div v-else-if="child.type === 'ListTile'"
-                                                                 class="flutter-list-tile"
-                                                                 :class="{ 'list-tile-disabled': child.props.enabled === false }">
-                                                                <div v-if="child.props.leading"
-                                                                     class="list-tile-leading">
-                                                                    <span>{{ child.props.leading }}</span>
-                                                                </div>
-                                                                <div class="list-tile-content">
-                                                                    <div class="list-tile-title">
-                                                                        {{ child.props.title || 'List Tile Title' }}
-                                                                    </div>
-                                                                    <div v-if="child.props.subtitle"
-                                                                         class="list-tile-subtitle">
-                                                                        {{ child.props.subtitle }}
-                                                                    </div>
-                                                                </div>
-                                                                <div v-if="child.props.trailing"
-                                                                     class="list-tile-trailing">
-                                                                    <span>{{ child.props.trailing }}</span>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- FloatingActionButton Widget -->
-                                                            <div v-else-if="child.type === 'FloatingActionButton'"
-                                                                 class="flutter-fab"
-                                                                 :style="{
-                                                                    backgroundColor: child.props.backgroundColor || '#2196F3',
-                                                                    color: child.props.foregroundColor || '#FFFFFF',
-                                                                    boxShadow: `0 0 ${child.props.elevation || 6}px rgba(0,0,0,0.3)`,
-                                                                    width: child.props.mini ? '40px' : '56px',
-                                                                    height: child.props.mini ? '40px' : '56px'
-                                                                 }"
-                                                                 :title="child.props.tooltip || 'Floating Action Button'">
-                                                                <div class="fab-icon">
-                                                                    <span>{{ child.props.child || 'Icon(Icons.add)'
-                                                                        }}</span>
-                                                                </div>
-                                                            </div>
-
-                                                            <!-- Default Widget Display -->
-                                                            <div v-else class="widget-properties">
-                                                                <div v-for="(value, key) in child.props" :key="key"
-                                                                     class="widget-property">
-                                                                    <span class="property-name">{{ key }}:</span>
-                                                                    <span class="property-value">{{ value }}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Row Widget -->
-                                                <div v-else-if="element.type === 'Row'"
-                                                     class="flutter-row droppable-container"
-                                                     :style="{
-                                                        justifyContent: 'flex-start',
-                                                        alignItems: 'center'
-                                                    }"
-                                                     @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                     @drop.prevent="$event.currentTarget?.classList.remove('dragover')">
-                                                    <div
-                                                        v-if="!element.children || !Array.isArray(element.children) || element.children.length === 0"
-                                                        class="row-placeholder">
-                                                        <div class="drop-here-indicator">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6"
-                                                                 fill="none" viewBox="0 0 24 24"
-                                                                 stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                                      stroke-width="2" d="M9 5l7 7-7 7" />
-                                                            </svg>
-                                                            <span>Arrastra componentes aquí</span>
-                                                        </div>
-                                                        <div class="add-child-widget-container">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div v-else-if="Array.isArray(element.children)"
-                                                         class="row-children">
-                                                        <div class="add-child-widget-container children-container-btn">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                + Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div v-for="child in element.children" :key="child.id"
-                                                             class="row-child">
-                                                            <!-- Text Widget -->
-                                                            <div v-if="child.type === 'Text'" class="flutter-text"
-                                                                 :style="{
-                                                                    fontSize: '16px',
-                                                                    fontWeight: 'normal',
-                                                                    color: '#000000',
-                                                                    textAlign: 'left'
-                                                                }">
-                                                                {{ child.props.data || 'Text' }}
-                                                            </div>
-
-                                                            <!-- TextField Widget -->
-                                                            <div v-else-if="child.type === 'TextField'"
-                                                                 class="flutter-text-field">
-                                                                <div class="text-field-label"
-                                                                     v-if="child.props.decoration">
-                                                                    Label
-                                                                </div>
-                                                                <input type="text"
-                                                                       placeholder="Enter text"
-                                                                       :class="{'text-field-obscured': child.props.obscureText === true}"
-                                                                       :disabled="child.props.enabled === false">
-                                                            </div>
-
-                                                            <!-- Checkbox Widget -->
-                                                            <div v-else-if="child.type === 'Checkbox'"
-                                                                 class="flutter-checkbox">
-                                                                <input type="checkbox"
-                                                                       :checked="child.props.value === true">
-                                                                <div class="checkbox-active-color"
-                                                                     :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"></div>
-                                                            </div>
-
-                                                            <!-- DropdownButton Widget -->
-                                                            <div v-else-if="child.type === 'DropdownButton'"
-                                                                 class="flutter-dropdown">
-                                                                <select>
-                                                                    <option v-for="(item, index) in child.props.items"
-                                                                            :key="index"
-                                                                            :selected="item === child.props.value">
-                                                                        {{ item }}
-                                                                    </option>
-                                                                </select>
-                                                            </div>
-
-                                                            <!-- Image Widget -->
-                                                            <div v-else-if="child.type === 'Image'"
-                                                                 class="flutter-image">
-                                                                <img :src="child.props.src"
-                                                                     :style="{
-                                                                        width: (child.props.width || 150) + 'px',
-                                                                        height: (child.props.height || 150) + 'px',
-                                                                        objectFit: 'cover'
-                                                                    }"
-                                                                     alt="Flutter Image">
-                                                            </div>
-
-                                                            <!-- Icon Widget -->
-                                                            <div v-else-if="child.type === 'Icon'" class="flutter-icon"
-                                                                 :style="{
-                                                                    color: child.props.color || '#000000',
-                                                                    fontSize: (child.props.size || 24) + 'px'
-                                                                }">
-                                                                <i class="material-icons">star</i>
-                                                            </div>
-
-                                                            <!-- Default Widget Display -->
-                                                            <div v-else class="widget-properties">
-                                                                <div v-for="(value, key) in child.props" :key="key"
-                                                                     class="widget-property">
-                                                                    <span class="property-name">{{ key }}:</span>
-                                                                    <span class="property-value">{{ value }}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Column Widget -->
-                                                <div v-else-if="element.type === 'Column'"
-                                                     class="flutter-column droppable-container"
-                                                     :style="{
-                                                        justifyContent: 'flex-start',
-                                                        alignItems: 'center'
-                                                    }"
-                                                     @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                     @drop.prevent="$event.currentTarget?.classList.remove('dragover')">
-                                                    <div
-                                                        v-if="!element.children || !Array.isArray(element.children) || element.children.length === 0"
-                                                        class="column-placeholder">
-                                                        <div class="drop-here-indicator">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6"
-                                                                 fill="none" viewBox="0 0 24 24"
-                                                                 stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                                      stroke-width="2"
-                                                                      d="M19 9l-7 7-7-7" />
-                                                            </svg>
-                                                            <span>Arrastra componentes aquí</span>
-                                                        </div>
-                                                        <div class="add-child-widget-container">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div v-else-if="Array.isArray(element.children)"
-                                                         class="column-children">
-                                                        <div class="add-child-widget-container children-container-btn">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                + Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div v-for="child in element.children" :key="child.id"
-                                                             class="column-child">
-                                                            <!-- Text Widget -->
-                                                            <div v-if="child.type === 'Text'" class="flutter-text"
-                                                                 :style="{
-                                                                    fontSize: '16px',
-                                                                    fontWeight: 'normal',
-                                                                    color: '#000000',
-                                                                    textAlign: 'left'
-                                                                }">
-                                                                {{ child.props.data || 'Text' }}
-                                                            </div>
-
-                                                            <!-- TextField Widget -->
-                                                            <div v-else-if="child.type === 'TextField'"
-                                                                 class="flutter-text-field">
-                                                                <div class="text-field-label"
-                                                                     v-if="child.props.decoration">
-                                                                    Label
-                                                                </div>
-                                                                <input type="text"
-                                                                       placeholder="Enter text"
-                                                                       :class="{'text-field-obscured': child.props.obscureText === true}"
-                                                                       :disabled="child.props.enabled === false">
-                                                            </div>
-
-                                                            <!-- Checkbox Widget -->
-                                                            <div v-else-if="child.type === 'Checkbox'"
-                                                                 class="flutter-checkbox">
-                                                                <input type="checkbox"
-                                                                       :checked="child.props.value === true">
-                                                                <div class="checkbox-active-color"
-                                                                     :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"></div>
-                                                            </div>
-
-                                                            <!-- DropdownButton Widget -->
-                                                            <div v-else-if="child.type === 'DropdownButton'"
-                                                                 class="flutter-dropdown">
-                                                                <select>
-                                                                    <option v-for="(item, index) in child.props.items"
-                                                                            :key="index"
-                                                                            :selected="item === child.props.value">
-                                                                        {{ item }}
-                                                                    </option>
-                                                                </select>
-                                                            </div>
-
-                                                            <!-- Image Widget -->
-                                                            <div v-else-if="child.type === 'Image'"
-                                                                 class="flutter-image">
-                                                                <img :src="child.props.src"
-                                                                     :style="{
-                                                                        width: (child.props.width || 150) + 'px',
-                                                                        height: (child.props.height || 150) + 'px',
-                                                                        objectFit: 'cover'
-                                                                    }"
-                                                                     alt="Flutter Image">
-                                                            </div>
-
-                                                            <!-- Icon Widget -->
-                                                            <div v-else-if="child.type === 'Icon'" class="flutter-icon"
-                                                                 :style="{
-                                                                    color: child.props.color || '#000000',
-                                                                    fontSize: (child.props.size || 24) + 'px'
-                                                                }">
-                                                                <i class="material-icons">star</i>
-                                                            </div>
-
-                                                            <!-- Default Widget Display -->
-                                                            <div v-else class="widget-properties">
-                                                                <div v-for="(value, key) in child.props" :key="key"
-                                                                     class="widget-property">
-                                                                    <span class="property-name">{{ key }}:</span>
-                                                                    <span class="property-value">{{ value }}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Image Widget -->
-                                                <div v-else-if="element.type === 'Image'" class="flutter-image">
-                                                    <img :src="element.props.src"
-                                                         :style="{
-                                                            width: (element.props.width || 150) + 'px',
-                                                            height: (element.props.height || 150) + 'px',
-                                                            objectFit: 'cover'
-                                                        }"
-                                                         alt="Flutter Image">
-                                                </div>
-
-                                                <!-- Icon Widget -->
-                                                <div v-else-if="element.type === 'Icon'" class="flutter-icon"
-                                                     :style="{
-                                                        color: element.props.color || '#000000',
-                                                        fontSize: (element.props.size || 24) + 'px'
-                                                    }">
-                                                    <i class="material-icons">star</i>
-                                                </div>
-
-                                                <!-- Checkbox Widget -->
-                                                <div v-else-if="element.type === 'Checkbox'" class="flutter-checkbox">
-                                                    <input type="checkbox" :checked="element.props.value === true">
-                                                    <div class="checkbox-active-color"
-                                                         :style="{ backgroundColor: element.props.activeColor || '#2196F3' }"></div>
-                                                </div>
-
-                                                <!-- DropdownButton Widget -->
-                                                <div v-else-if="element.type === 'DropdownButton'"
-                                                     class="flutter-dropdown">
-                                                    <select>
-                                                        <option v-for="(item, index) in element.props.items"
-                                                                :key="index"
-                                                                :selected="item === element.props.value">
-                                                            {{ item }}
-                                                        </option>
-                                                    </select>
-                                                </div>
-
-                                                <!-- ScrollChildren Widget -->
-                                                <div v-else-if="element.type === 'ScrollChildren'"
-                                                     class="flutter-scroll-children droppable-container"
-                                                     :style="{
-                                                        width: '100%',
-                                                        minHeight: '200px',
-                                                        maxHeight: '400px',
-                                                        overflowX: element.props.scrollDirection === 'Axis.horizontal' ? 'auto' : 'hidden',
-                                                        overflowY: 'auto',
-                                                        padding: '8px',
-                                                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                                                        borderRadius: '4px'
-                                                    }"
-                                                     @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                     @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                     @drop.prevent="$event.currentTarget?.classList.remove('dragover')">
-                                                    <div
-                                                        v-if="!element.children || !Array.isArray(element.children) || element.children.length === 0"
-                                                        class="scroll-placeholder">
-                                                        <div class="drop-here-indicator">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6"
-                                                                 fill="none" viewBox="0 0 24 24"
-                                                                 stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round"
-                                                                      stroke-width="2"
-                                                                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                                            </svg>
-                                                            <span>Arrastra componentes aquí para crear una lista desplazable</span>
-                                                        </div>
-                                                        <div class="add-child-widget-container">
-                                                            <button @click.stop="showAddChildMenu = element.id"
-                                                                    class="add-child-widget-btn">
-                                                                Agregar Widget Hijo
-                                                            </button>
-                                                            <div v-if="showAddChildMenu === element.id"
-                                                                 class="add-child-widget-menu">
-                                                                <div class="widget-category-tabs">
-                                                                    <button
-                                                                        v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
-                                                                        :key="category"
-                                                                        class="widget-category-tab"
-                                                                        :class="{ 'active-tab': activeAddChildCategory === index }"
-                                                                        @click.stop="activeAddChildCategory = index"
-                                                                    >
-                                                                        {{ category }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 0">
-                                                                    <button
-                                                                        v-for="widget in inputWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button input-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 1">
-                                                                    <button
-                                                                        v-for="widget in layoutWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button layout-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                                <div class="widget-grid"
-                                                                     v-if="activeAddChildCategory === 2">
-                                                                    <button
-                                                                        v-for="widget in displayWidgets"
-                                                                        :key="widget.type"
-                                                                        class="widget-button display-widget-btn"
-                                                                        @click.stop="addChildWidget(element.id, widget.type); showAddChildMenu = null"
-                                                                    >
-                                                                        {{ widget.label }}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <!-- TableList Widget -->
-                                                <div v-else-if="element.type === 'TableList'"
-                                                     class="flutter-table-list">
-                                                    <table class="w-full border-collapse">
-                                                        <thead>
-                                                        <tr :style="{ backgroundColor: element.props.headerColor || '#E0E0E0' }">
-                                                            <th v-for="(column, index) in element.props.columns"
-                                                                :key="index"
-                                                                class="p-2 text-left"
-                                                                :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }">
-                                                                {{ column }}
-                                                            </th>
-                                                        </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                        <tr v-for="row in parseInt(element.props.rows)" :key="row">
-                                                            <td v-for="(column, index) in element.props.columns"
-                                                                :key="index"
-                                                                class="p-2"
-                                                                :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }">
-                                                                Cell {{ row }}-{{ index + 1 }}
-                                                            </td>
-                                                        </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                <!-- CardText Widget -->
-                                                <div v-else-if="element.type === 'CardText'" class="flutter-card-text"
-                                                     :style="{
-                                                        backgroundColor: element.props.color || '#FFFFFF',
-                                                        borderRadius: (element.props.borderRadius || 8) + 'px',
-                                                        boxShadow: `0 ${element.props.elevation || 2}px ${(element.props.elevation || 2) * 2}px rgba(0,0,0,0.1)`,
-                                                        overflow: 'hidden',
-                                                        width: '100%'
-                                                    }">
-                                                    <div class="card-header p-3 border-b border-gray-200">
-                                                        <h3 class="text-lg font-semibold">
-                                                            {{ element.props.title || 'Card Title' }}</h3>
-                                                        <p class="text-sm text-gray-600">
-                                                            {{ element.props.subtitle || 'Card Subtitle' }}</p>
-                                                    </div>
-                                                    <div class="card-content p-3">
-                                                        <p>{{
-                                                                element.props.content || 'Card content goes here with more details about the item.'
-                                                            }}</p>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Default Widget Display -->
-                                                <div v-else class="widget-properties">
-                                                    <div v-for="(value, key) in element.props" :key="key"
-                                                         class="widget-property">
-                                                        <span class="property-name">{{ key }}:</span>
-                                                        <span class="property-value">{{ value }}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <!-- Nested children if any -->
+                                            class="rounded-lg bg-gray-100 p-4 text-center transition-colors dark:bg-gray-700">
+                                            <p class="text-gray-600 dark:text-gray-300">Cargando pantalla...</p>
+                                            <button
+                                                @click="initializeScreens"
+                                                class="mt-2 rounded bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600"
+                                            >
+                                                Reiniciar pantalla
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <draggable
+                                        v-else
+                                        v-model="currentScreen.elements"
+                                        group="widgets"
+                                        item-key="id"
+                                        class="min-h-full w-full"
+                                        :animation="150"
+                                        ghost-class="ghost-widget"
+                                        chosen-class="chosen-widget"
+                                    >
+                                        <template #item="{ element }">
                                             <div
-                                                v-if="element.children && Array.isArray(element.children) && element.children.length > 0"
-                                                class="widget-children">
-                                                <h4 class="nested-widgets-title">Componentes anidados</h4>
-                                                <draggable
-                                                    v-model="element.children"
-                                                    group="widgets"
-                                                    item-key="id"
-                                                    class="nested-widgets-container"
-                                                    :animation="150"
-                                                    ghost-class="ghost-widget"
-                                                    chosen-class="chosen-widget"
-                                                >
-                                                    <template #item="{ element: child }">
+                                                class="mobile-widget relative cursor-move transition-colors dark:bg-gray-700 dark:shadow-gray-900"
+                                                :class="{
+                                                    'selected-widget': selectedWidget?.id === element.id,
+                                                    'text-widget dark:bg-blue-900 dark:bg-opacity-20': ['Text', 'h1', 'h2', 'h3'].includes(
+                                                        element.type,
+                                                    ),
+                                                    'input-widget dark:bg-orange-900 dark:bg-opacity-20': [
+                                                        'TextField',
+                                                        'Checkbox',
+                                                        'DropdownButton',
+                                                    ].includes(element.type),
+                                                    'container-widget dark:bg-green-900 dark:bg-opacity-20': ['Container', 'SafeArea'].includes(
+                                                        element.type,
+                                                    ),
+                                                    'layout-widget dark:bg-pink-900 dark:bg-opacity-20': ['Row', 'Column', 'Padding'].includes(
+                                                        element.type,
+                                                    ),
+                                                    'display-widget dark:bg-purple-900 dark:bg-opacity-20': ['Image', 'Icon'].includes(element.type),
+                                                }"
+                                                @click.stop="selectWidget(element)"
+                                            >
+                                                <div class="widget-header dark:border-gray-600 dark:bg-gray-800">
+                                                    <span class="widget-type dark:text-white">Widget: {{ element.type }}</span>
+                                                    <button @click.stop="removeWidget(element)"
+                                                            class="widget-remove-btn">×
+                                                    </button>
+                                                </div>
+
+                                                <!-- Realistic Flutter Widget Rendering -->
+                                                <div class="flutter-widget-preview">
+                                                    <!-- Text Widget -->
+                                                    <div
+                                                        v-if="element.type === 'Text'"
+                                                        class="flutter-text"
+                                                        :style="{
+                                                            fontSize: '16px',
+                                                            fontWeight: 'normal',
+                                                            color: '#000000',
+                                                            textAlign: 'left',
+                                                        }"
+                                                    >
+                                                        {{ element.props.data || 'Text' }}
+                                                    </div>
+
+                                                    <!-- TextField Widget -->
+                                                    <div v-else-if="element.type === 'TextField'"
+                                                         class="flutter-text-field">
+                                                        <div class="text-field-label" v-if="element.props.decoration">
+                                                            Label
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Enter text"
+                                                            :class="{ 'text-field-obscured': element.props.obscureText === true }"
+                                                            :disabled="element.props.enabled === false"
+                                                        />
+                                                    </div>
+
+                                                    <!-- Container Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'Container'"
+                                                        class="flutter-container droppable-container"
+                                                        :style="{
+                                                            width: (element.props.width || 200) + 'px',
+                                                            minHeight: (element.props.height || 200) + 'px',
+                                                            backgroundColor: element.props.color || '#FFFFFF',
+                                                            padding: '16px',
+                                                            margin: '8px',
+                                                            borderRadius: '4px',
+                                                            boxShadow: element.props.decoration?.includes('boxShadow')
+                                                                ? '0 2px 5px rgba(0,0,0,0.2)'
+                                                                : 'none',
+                                                            overflowY: 'auto',
+                                                            maxHeight: '400px',
+                                                        }"
+                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                    >
                                                         <div
-                                                            class="child-widget cursor-move"
-                                                            :class="{
-                                                                'selected-widget': selectedWidget?.id === child.id,
-                                                                'text-child-widget': ['Text', 'h1', 'h2', 'h3'].includes(child.type),
-                                                                'input-child-widget': ['TextField', 'Checkbox', 'DropdownButton'].includes(child.type),
-                                                                'container-child-widget': ['Container', 'SafeArea'].includes(child.type),
-                                                                'layout-child-widget': ['Row', 'Column', 'Padding'].includes(child.type),
-                                                                'display-child-widget': ['Image', 'Icon'].includes(child.type)
-                                                            }"
-                                                            @click.stop="selectWidget(child)"
+                                                            v-if="
+                                                                !element.children || !Array.isArray(element.children) || element.children.length === 0
+                                                            "
+                                                            class="container-placeholder"
                                                         >
-                                                            <div class="child-widget-header">
-                                                                <span class="child-widget-type">{{ child.type }}</span>
-                                                                <button
-                                                                    @click.stop="removeWidget(child)"
-                                                                    class="widget-remove-btn"
+                                                            <div class="drop-here-indicator">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    class="h-6 w-6"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
                                                                 >
-                                                                    ×
-                                                                </button>
+                                                                    <path
+                                                                        stroke-linecap="round"
+                                                                        stroke-linejoin="round"
+                                                                        stroke-width="2"
+                                                                        d="M12 4v16m8-8H4"
+                                                                    />
+                                                                </svg>
+                                                                <span>Arrastra componentes aquí</span>
                                                             </div>
-                                                            <div class="child-widget-preview">
-                                                                <!-- Text preview -->
-                                                                <div v-if="child.type === 'Text'"
-                                                                     class="child-widget-content">
+                                                            <div class="add-child-widget-container">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div v-else-if="Array.isArray(element.children)"
+                                                             class="container-children">
+                                                            <div
+                                                                class="add-child-widget-container children-container-btn">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    + Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div v-for="child in element.children" :key="child.id"
+                                                                 class="container-child">
+                                                                <!-- Text Widget -->
+                                                                <div
+                                                                    v-if="child.type === 'Text'"
+                                                                    class="flutter-text"
+                                                                    :style="{
+                                                                        fontSize: '16px',
+                                                                        fontWeight: 'normal',
+                                                                        color: '#000000',
+                                                                        textAlign: 'left',
+                                                                    }"
+                                                                >
                                                                     {{ child.props.data || 'Text' }}
                                                                 </div>
-                                                                <!-- TextField preview -->
+
+                                                                <!-- TextField Widget -->
                                                                 <div v-else-if="child.type === 'TextField'"
-                                                                     class="child-widget-content">
-                                                                    <div class="mini-input-preview">Input Field</div>
+                                                                     class="flutter-text-field">
+                                                                    <div class="text-field-label"
+                                                                         v-if="child.props.decoration">Label
+                                                                    </div>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Enter text"
+                                                                        :class="{ 'text-field-obscured': child.props.obscureText === true }"
+                                                                        :disabled="child.props.enabled === false"
+                                                                    />
                                                                 </div>
-                                                                <!-- Container preview -->
+
+                                                                <!-- Checkbox Widget -->
+                                                                <div v-else-if="child.type === 'Checkbox'"
+                                                                     class="flutter-checkbox">
+                                                                    <input type="checkbox"
+                                                                           :checked="child.props.value === true" />
+                                                                    <div
+                                                                        class="checkbox-active-color"
+                                                                        :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"
+                                                                    ></div>
+                                                                </div>
+
+                                                                <!-- DropdownButton Widget -->
+                                                                <div v-else-if="child.type === 'DropdownButton'"
+                                                                     class="flutter-dropdown">
+                                                                    <select>
+                                                                        <option
+                                                                            v-for="(item, index) in child.props.items"
+                                                                            :key="index"
+                                                                            :selected="item === child.props.value"
+                                                                        >
+                                                                            {{ item }}
+                                                                        </option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <!-- Image Widget -->
+                                                                <div v-else-if="child.type === 'Image'"
+                                                                     class="flutter-image">
+                                                                    <img
+                                                                        :src="child.props.src"
+                                                                        :style="{
+                                                                            width: (child.props.width || 150) + 'px',
+                                                                            height: (child.props.height || 150) + 'px',
+                                                                            objectFit: 'cover',
+                                                                        }"
+                                                                        alt="Flutter Image"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Icon Widget -->
                                                                 <div
-                                                                    v-else-if="['Container', 'Row', 'Column'].includes(child.type)"
-                                                                    class="child-widget-content">
-                                                                    <div class="mini-container-preview">{{ child.type }}
+                                                                    v-else-if="child.type === 'Icon'"
+                                                                    class="flutter-icon"
+                                                                    :style="{
+                                                                        color: child.props.color || '#000000',
+                                                                        fontSize: (child.props.size || 24) + 'px',
+                                                                    }"
+                                                                >
+                                                                    <i class="material-icons">star</i>
+                                                                </div>
+
+                                                                <!-- TextFormField Widget -->
+                                                                <div v-else-if="child.type === 'TextFormField'"
+                                                                     class="flutter-text-field">
+                                                                    <div class="text-field-label"
+                                                                         v-if="child.props.decoration">
+                                                                        {{ child.props.decoration.includes('labelText') ? 'Label' : ''
+                                                                        }}
+                                                                        <span
+                                                                            class="text-field-hint"
+                                                                            v-if="child.props.decoration.includes('hintText')"
+                                                                        >
+                                                                            (Hint: Enter text)
+                                                                        </span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Enter text"
+                                                                        :class="{ 'text-field-obscured': child.props.obscureText === true }"
+                                                                        :disabled="child.props.enabled === false"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Form Widget -->
+                                                                <div v-else-if="child.type === 'Form'"
+                                                                     class="flutter-form droppable-container">
+                                                                    <div class="form-header">Form</div>
+                                                                    <div class="form-content">
+                                                                        <div
+                                                                            v-if="
+                                                                                !child.children ||
+                                                                                !Array.isArray(child.children) ||
+                                                                                child.children.length === 0
+                                                                            "
+                                                                            class="form-placeholder"
+                                                                        >
+                                                                            <div class="drop-here-indicator">
+                                                                                <span>Form Fields Go Here</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div v-else class="form-fields">
+                                                                            <div
+                                                                                v-for="grandchild in child.children"
+                                                                                :key="grandchild.id"
+                                                                                class="form-field"
+                                                                            >
+                                                                                <!-- Render form fields recursively -->
+                                                                                <div
+                                                                                    v-if="grandchild.type === 'TextFormField'"
+                                                                                    class="flutter-text-field"
+                                                                                >
+                                                                                    <div class="text-field-label"
+                                                                                         v-if="grandchild.props.decoration">
+                                                                                        {{
+                                                                                            grandchild.props.decoration.includes('labelText')
+                                                                                                ? 'Label'
+                                                                                                : ''
+                                                                                        }}
+                                                                                    </div>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        placeholder="Enter text"
+                                                                                        :class="{
+                                                                                            'text-field-obscured':
+                                                                                                grandchild.props.obscureText === true,
+                                                                                        }"
+                                                                                        :disabled="grandchild.props.enabled === false"
+                                                                                    />
+                                                                                </div>
+                                                                                <div v-else class="widget-properties">
+                                                                                    <div
+                                                                                        v-for="(value, key) in grandchild.props"
+                                                                                        :key="key"
+                                                                                        class="widget-property"
+                                                                                    >
+                                                                                        <span
+                                                                                            class="property-name">{{ key
+                                                                                            }}:</span>
+                                                                                        <span
+                                                                                            class="property-value">{{ value
+                                                                                            }}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                                <!-- Image preview -->
-                                                                <div v-else-if="child.type === 'Image'"
-                                                                     class="child-widget-content">
-                                                                    <div class="mini-image-preview">Image</div>
+
+                                                                <!-- Scaffold Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'Scaffold'"
+                                                                    class="flutter-scaffold droppable-container"
+                                                                    :style="{ backgroundColor: child.props.backgroundColor || '#FFFFFF' }"
+                                                                >
+                                                                    <div class="scaffold-header">Scaffold</div>
+                                                                    <div class="scaffold-content">
+                                                                        <div
+                                                                            v-if="
+                                                                                !child.children ||
+                                                                                !Array.isArray(child.children) ||
+                                                                                child.children.length === 0
+                                                                            "
+                                                                            class="scaffold-placeholder"
+                                                                        >
+                                                                            <div class="drop-here-indicator">
+                                                                                <span>Scaffold Content Goes Here</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div v-else class="scaffold-children">
+                                                                            <div
+                                                                                v-for="grandchild in child.children"
+                                                                                :key="grandchild.id"
+                                                                                class="scaffold-child"
+                                                                            >
+                                                                                <!-- Render scaffold children recursively -->
+                                                                                <div
+                                                                                    v-if="grandchild.type === 'AppBar'"
+                                                                                    class="flutter-app-bar"
+                                                                                    :style="{
+                                                                                        backgroundColor:
+                                                                                            grandchild.props.backgroundColor || '#2196F3',
+                                                                                    }"
+                                                                                >
+                                                                                    <div class="app-bar-title">
+                                                                                        {{ grandchild.props.title || 'AppBar Title'
+                                                                                        }}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div v-else class="widget-properties">
+                                                                                    <div
+                                                                                        v-for="(value, key) in grandchild.props"
+                                                                                        :key="key"
+                                                                                        class="widget-property"
+                                                                                    >
+                                                                                        <span
+                                                                                            class="property-name">{{ key
+                                                                                            }}:</span>
+                                                                                        <span
+                                                                                            class="property-value">{{ value
+                                                                                            }}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
-                                                                <!-- Default preview -->
-                                                                <div v-else class="child-widget-content">
-                                                                    {{ child.type }}
+
+                                                                <!-- AppBar Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'AppBar'"
+                                                                    class="flutter-app-bar"
+                                                                    :style="{ backgroundColor: child.props.backgroundColor || '#2196F3' }"
+                                                                >
+                                                                    <div class="app-bar-title">
+                                                                        {{ child.props.title || 'AppBar Title' }}
+                                                                    </div>
+                                                                    <div
+                                                                        v-if="
+                                                                            child.children &&
+                                                                            Array.isArray(child.children) &&
+                                                                            child.children.length > 0
+                                                                        "
+                                                                        class="app-bar-actions"
+                                                                    >
+                                                                        <div
+                                                                            v-for="grandchild in child.children"
+                                                                            :key="grandchild.id"
+                                                                            class="app-bar-action"
+                                                                        >
+                                                                            <!-- Render app bar actions -->
+                                                                            <div class="widget-properties">
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property"
+                                                                                >
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Center Widget -->
+                                                                <div v-else-if="child.type === 'Center'"
+                                                                     class="flutter-center droppable-container">
+                                                                    <div class="center-content">
+                                                                        <div
+                                                                            v-if="
+                                                                                !child.children ||
+                                                                                !Array.isArray(child.children) ||
+                                                                                child.children.length === 0
+                                                                            "
+                                                                            class="center-placeholder"
+                                                                        >
+                                                                            <div class="drop-here-indicator">
+                                                                                <span>Centered Content Goes Here</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div v-else class="center-children">
+                                                                            <div
+                                                                                v-for="grandchild in child.children"
+                                                                                :key="grandchild.id"
+                                                                                class="center-child"
+                                                                            >
+                                                                                <!-- Render centered children -->
+                                                                                <div class="widget-properties">
+                                                                                    <div
+                                                                                        v-for="(value, key) in grandchild.props"
+                                                                                        :key="key"
+                                                                                        class="widget-property"
+                                                                                    >
+                                                                                        <span
+                                                                                            class="property-name">{{ key
+                                                                                            }}:</span>
+                                                                                        <span
+                                                                                            class="property-value">{{ value
+                                                                                            }}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- SizedBox Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'SizedBox'"
+                                                                    class="flutter-sized-box droppable-container"
+                                                                    :style="{
+                                                                        width: (child.props.width || 100) + 'px',
+                                                                        height: (child.props.height || 100) + 'px',
+                                                                        border: '1px dashed #ccc',
+                                                                    }"
+                                                                >
+                                                                    <div
+                                                                        v-if="
+                                                                            !child.children ||
+                                                                            !Array.isArray(child.children) ||
+                                                                            child.children.length === 0
+                                                                        "
+                                                                        class="sized-box-placeholder"
+                                                                    >
+                                                                        <div class="drop-here-indicator">
+                                                                            <span
+                                                                            >SizedBox: {{ child.props.width || 100 }}x{{
+                                                                                    child.props.height || 100
+                                                                                }}</span
+                                                                            >
+                                                                        </div>
+                                                                    </div>
+                                                                    <div v-else class="sized-box-children">
+                                                                        <div
+                                                                            v-for="grandchild in child.children"
+                                                                            :key="grandchild.id"
+                                                                            class="sized-box-child"
+                                                                        >
+                                                                            <!-- Render sized box children -->
+                                                                            <div class="widget-properties">
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property"
+                                                                                >
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Drawer Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'Drawer'"
+                                                                    class="flutter-drawer droppable-container"
+                                                                    :style="{
+                                                                        backgroundColor: child.props.backgroundColor || '#FFFFFF',
+                                                                        width: (child.props.width || 300) + 'px',
+                                                                        boxShadow: `0 0 ${child.props.elevation || 16}px rgba(0,0,0,0.3)`,
+                                                                    }"
+                                                                >
+                                                                    <div class="drawer-header">Drawer</div>
+                                                                    <div class="drawer-content">
+                                                                        <div
+                                                                            v-if="
+                                                                                !child.children ||
+                                                                                !Array.isArray(child.children) ||
+                                                                                child.children.length === 0
+                                                                            "
+                                                                            class="drawer-placeholder"
+                                                                        >
+                                                                            <div class="drop-here-indicator">
+                                                                                <span>Drawer Content Goes Here</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div v-else class="drawer-children">
+                                                                            <div
+                                                                                v-for="grandchild in child.children"
+                                                                                :key="grandchild.id"
+                                                                                class="drawer-child"
+                                                                            >
+                                                                                <!-- Render drawer children recursively -->
+                                                                                <div class="widget-properties">
+                                                                                    <div
+                                                                                        v-for="(value, key) in grandchild.props"
+                                                                                        :key="key"
+                                                                                        class="widget-property"
+                                                                                    >
+                                                                                        <span
+                                                                                            class="property-name">{{ key
+                                                                                            }}:</span>
+                                                                                        <span
+                                                                                            class="property-value">{{ value
+                                                                                            }}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Card Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'Card'"
+                                                                    class="flutter-card droppable-container"
+                                                                    :style="{
+                                                                        backgroundColor: child.props.color || '#FFFFFF',
+                                                                        boxShadow: `0 0 ${child.props.elevation || 1}px rgba(0,0,0,0.3)`,
+                                                                        margin: child.props.margin || '8px',
+                                                                        borderRadius: '4px',
+                                                                    }"
+                                                                >
+                                                                    <div
+                                                                        v-if="
+                                                                            !child.children ||
+                                                                            !Array.isArray(child.children) ||
+                                                                            child.children.length === 0
+                                                                        "
+                                                                        class="card-placeholder"
+                                                                    >
+                                                                        <div class="drop-here-indicator">
+                                                                            <span>Card Content Goes Here</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div v-else class="card-children">
+                                                                        <div
+                                                                            v-for="grandchild in child.children"
+                                                                            :key="grandchild.id"
+                                                                            class="card-child"
+                                                                        >
+                                                                            <!-- Render card children recursively -->
+                                                                            <div class="widget-properties">
+                                                                                <div
+                                                                                    v-for="(value, key) in grandchild.props"
+                                                                                    :key="key"
+                                                                                    class="widget-property"
+                                                                                >
+                                                                                    <span class="property-name">{{ key
+                                                                                        }}:</span>
+                                                                                    <span
+                                                                                        class="property-value">{{ value
+                                                                                        }}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- ListTile Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'ListTile'"
+                                                                    class="flutter-list-tile"
+                                                                    :class="{ 'list-tile-disabled': child.props.enabled === false }"
+                                                                >
+                                                                    <div v-if="child.props.leading"
+                                                                         class="list-tile-leading">
+                                                                        <span>{{ child.props.leading }}</span>
+                                                                    </div>
+                                                                    <div class="list-tile-content">
+                                                                        <div class="list-tile-title">
+                                                                            {{ child.props.title || 'List Tile Title' }}
+                                                                        </div>
+                                                                        <div v-if="child.props.subtitle"
+                                                                             class="list-tile-subtitle">
+                                                                            {{ child.props.subtitle }}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div v-if="child.props.trailing"
+                                                                         class="list-tile-trailing">
+                                                                        <span>{{ child.props.trailing }}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- FloatingActionButton Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'FloatingActionButton'"
+                                                                    class="flutter-fab"
+                                                                    :style="{
+                                                                        backgroundColor: child.props.backgroundColor || '#2196F3',
+                                                                        color: child.props.foregroundColor || '#FFFFFF',
+                                                                        boxShadow: `0 0 ${child.props.elevation || 6}px rgba(0,0,0,0.3)`,
+                                                                        width: child.props.mini ? '40px' : '56px',
+                                                                        height: child.props.mini ? '40px' : '56px',
+                                                                    }"
+                                                                    :title="child.props.tooltip || 'Floating Action Button'"
+                                                                >
+                                                                    <div class="fab-icon">
+                                                                        <span>{{ child.props.child || 'Icon(Icons.add)'
+                                                                            }}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <!-- Default Widget Display -->
+                                                                <div v-else class="widget-properties">
+                                                                    <div v-for="(value, key) in child.props" :key="key"
+                                                                         class="widget-property">
+                                                                        <span class="property-name">{{ key }}:</span>
+                                                                        <span class="property-value">{{ value }}</span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </template>
-                                                </draggable>
-                                                <div class="add-nested-widget-hint">
-                                                    <span>Arrastra más componentes aquí para añadirlos</span>
+                                                    </div>
+
+                                                    <!-- Row Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'Row'"
+                                                        class="flutter-row droppable-container"
+                                                        :style="{
+                                                            justifyContent: 'flex-start',
+                                                            alignItems: 'center',
+                                                        }"
+                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                    >
+                                                        <div
+                                                            v-if="
+                                                                !element.children || !Array.isArray(element.children) || element.children.length === 0
+                                                            "
+                                                            class="row-placeholder"
+                                                        >
+                                                            <div class="drop-here-indicator">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    class="h-6 w-6"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        stroke-linecap="round"
+                                                                        stroke-linejoin="round"
+                                                                        stroke-width="2"
+                                                                        d="M9 5l7 7-7 7"
+                                                                    />
+                                                                </svg>
+                                                                <span>Arrastra componentes aquí</span>
+                                                            </div>
+                                                            <div class="add-child-widget-container">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div v-else-if="Array.isArray(element.children)"
+                                                             class="row-children">
+                                                            <div
+                                                                class="add-child-widget-container children-container-btn">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    + Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div v-for="child in element.children" :key="child.id"
+                                                                 class="row-child">
+                                                                <!-- Text Widget -->
+                                                                <div
+                                                                    v-if="child.type === 'Text'"
+                                                                    class="flutter-text"
+                                                                    :style="{
+                                                                        fontSize: '16px',
+                                                                        fontWeight: 'normal',
+                                                                        color: '#000000',
+                                                                        textAlign: 'left',
+                                                                    }"
+                                                                >
+                                                                    {{ child.props.data || 'Text' }}
+                                                                </div>
+
+                                                                <!-- TextField Widget -->
+                                                                <div v-else-if="child.type === 'TextField'"
+                                                                     class="flutter-text-field">
+                                                                    <div class="text-field-label"
+                                                                         v-if="child.props.decoration">Label
+                                                                    </div>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Enter text"
+                                                                        :class="{ 'text-field-obscured': child.props.obscureText === true }"
+                                                                        :disabled="child.props.enabled === false"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Checkbox Widget -->
+                                                                <div v-else-if="child.type === 'Checkbox'"
+                                                                     class="flutter-checkbox">
+                                                                    <input type="checkbox"
+                                                                           :checked="child.props.value === true" />
+                                                                    <div
+                                                                        class="checkbox-active-color"
+                                                                        :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"
+                                                                    ></div>
+                                                                </div>
+
+                                                                <!-- DropdownButton Widget -->
+                                                                <div v-else-if="child.type === 'DropdownButton'"
+                                                                     class="flutter-dropdown">
+                                                                    <select>
+                                                                        <option
+                                                                            v-for="(item, index) in child.props.items"
+                                                                            :key="index"
+                                                                            :selected="item === child.props.value"
+                                                                        >
+                                                                            {{ item }}
+                                                                        </option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <!-- Image Widget -->
+                                                                <div v-else-if="child.type === 'Image'"
+                                                                     class="flutter-image">
+                                                                    <img
+                                                                        :src="child.props.src"
+                                                                        :style="{
+                                                                            width: (child.props.width || 150) + 'px',
+                                                                            height: (child.props.height || 150) + 'px',
+                                                                            objectFit: 'cover',
+                                                                        }"
+                                                                        alt="Flutter Image"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Icon Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'Icon'"
+                                                                    class="flutter-icon"
+                                                                    :style="{
+                                                                        color: child.props.color || '#000000',
+                                                                        fontSize: (child.props.size || 24) + 'px',
+                                                                    }"
+                                                                >
+                                                                    <i class="material-icons">star</i>
+                                                                </div>
+
+                                                                <!-- Default Widget Display -->
+                                                                <div v-else class="widget-properties">
+                                                                    <div v-for="(value, key) in child.props" :key="key"
+                                                                         class="widget-property">
+                                                                        <span class="property-name">{{ key }}:</span>
+                                                                        <span class="property-value">{{ value }}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Column Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'Column'"
+                                                        class="flutter-column droppable-container"
+                                                        :style="{
+                                                            justifyContent: 'flex-start',
+                                                            alignItems: 'center',
+                                                        }"
+                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                    >
+                                                        <div
+                                                            v-if="
+                                                                !element.children || !Array.isArray(element.children) || element.children.length === 0
+                                                            "
+                                                            class="column-placeholder"
+                                                        >
+                                                            <div class="drop-here-indicator">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    class="h-6 w-6"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        stroke-linecap="round"
+                                                                        stroke-linejoin="round"
+                                                                        stroke-width="2"
+                                                                        d="M19 9l-7 7-7-7"
+                                                                    />
+                                                                </svg>
+                                                                <span>Arrastra componentes aquí</span>
+                                                            </div>
+                                                            <div class="add-child-widget-container">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div v-else-if="Array.isArray(element.children)"
+                                                             class="column-children">
+                                                            <div
+                                                                class="add-child-widget-container children-container-btn">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    + Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div v-for="child in element.children" :key="child.id"
+                                                                 class="column-child">
+                                                                <!-- Text Widget -->
+                                                                <div
+                                                                    v-if="child.type === 'Text'"
+                                                                    class="flutter-text"
+                                                                    :style="{
+                                                                        fontSize: '16px',
+                                                                        fontWeight: 'normal',
+                                                                        color: '#000000',
+                                                                        textAlign: 'left',
+                                                                    }"
+                                                                >
+                                                                    {{ child.props.data || 'Text' }}
+                                                                </div>
+
+                                                                <!-- TextField Widget -->
+                                                                <div v-else-if="child.type === 'TextField'"
+                                                                     class="flutter-text-field">
+                                                                    <div class="text-field-label"
+                                                                         v-if="child.props.decoration">Label
+                                                                    </div>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Enter text"
+                                                                        :class="{ 'text-field-obscured': child.props.obscureText === true }"
+                                                                        :disabled="child.props.enabled === false"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Checkbox Widget -->
+                                                                <div v-else-if="child.type === 'Checkbox'"
+                                                                     class="flutter-checkbox">
+                                                                    <input type="checkbox"
+                                                                           :checked="child.props.value === true" />
+                                                                    <div
+                                                                        class="checkbox-active-color"
+                                                                        :style="{ backgroundColor: child.props.activeColor || '#2196F3' }"
+                                                                    ></div>
+                                                                </div>
+
+                                                                <!-- DropdownButton Widget -->
+                                                                <div v-else-if="child.type === 'DropdownButton'"
+                                                                     class="flutter-dropdown">
+                                                                    <select>
+                                                                        <option
+                                                                            v-for="(item, index) in child.props.items"
+                                                                            :key="index"
+                                                                            :selected="item === child.props.value"
+                                                                        >
+                                                                            {{ item }}
+                                                                        </option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <!-- Image Widget -->
+                                                                <div v-else-if="child.type === 'Image'"
+                                                                     class="flutter-image">
+                                                                    <img
+                                                                        :src="child.props.src"
+                                                                        :style="{
+                                                                            width: (child.props.width || 150) + 'px',
+                                                                            height: (child.props.height || 150) + 'px',
+                                                                            objectFit: 'cover',
+                                                                        }"
+                                                                        alt="Flutter Image"
+                                                                    />
+                                                                </div>
+
+                                                                <!-- Icon Widget -->
+                                                                <div
+                                                                    v-else-if="child.type === 'Icon'"
+                                                                    class="flutter-icon"
+                                                                    :style="{
+                                                                        color: child.props.color || '#000000',
+                                                                        fontSize: (child.props.size || 24) + 'px',
+                                                                    }"
+                                                                >
+                                                                    <i class="material-icons">star</i>
+                                                                </div>
+
+                                                                <!-- Default Widget Display -->
+                                                                <div v-else class="widget-properties">
+                                                                    <div v-for="(value, key) in child.props" :key="key"
+                                                                         class="widget-property">
+                                                                        <span class="property-name">{{ key }}:</span>
+                                                                        <span class="property-value">{{ value }}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Image Widget -->
+                                                    <div v-else-if="element.type === 'Image'" class="flutter-image">
+                                                        <img
+                                                            :src="element.props.src"
+                                                            :style="{
+                                                                width: (element.props.width || 150) + 'px',
+                                                                height: (element.props.height || 150) + 'px',
+                                                                objectFit: 'cover',
+                                                            }"
+                                                            alt="Flutter Image"
+                                                        />
+                                                    </div>
+
+                                                    <!-- Icon Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'Icon'"
+                                                        class="flutter-icon"
+                                                        :style="{
+                                                            color: element.props.color || '#000000',
+                                                            fontSize: (element.props.size || 24) + 'px',
+                                                        }"
+                                                    >
+                                                        <i class="material-icons">star</i>
+                                                    </div>
+
+                                                    <!-- Checkbox Widget -->
+                                                    <div v-else-if="element.type === 'Checkbox'"
+                                                         class="flutter-checkbox">
+                                                        <input type="checkbox"
+                                                               :checked="element.props.value === true" />
+                                                        <div
+                                                            class="checkbox-active-color"
+                                                            :style="{ backgroundColor: element.props.activeColor || '#2196F3' }"
+                                                        ></div>
+                                                    </div>
+
+                                                    <!-- DropdownButton Widget -->
+                                                    <div v-else-if="element.type === 'DropdownButton'"
+                                                         class="flutter-dropdown">
+                                                        <select>
+                                                            <option
+                                                                v-for="(item, index) in element.props.items"
+                                                                :key="index"
+                                                                :selected="item === element.props.value"
+                                                            >
+                                                                {{ item }}
+                                                            </option>
+                                                        </select>
+                                                    </div>
+
+                                                    <!-- ScrollChildren Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'ScrollChildren'"
+                                                        class="flutter-scroll-children droppable-container"
+                                                        :style="{
+                                                            width: '100%',
+                                                            minHeight: '200px',
+                                                            maxHeight: '400px',
+                                                            overflowX: element.props.scrollDirection === 'Axis.horizontal' ? 'auto' : 'hidden',
+                                                            overflowY: 'auto',
+                                                            padding: '8px',
+                                                            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                                                            borderRadius: '4px',
+                                                        }"
+                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
+                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                    >
+                                                        <div
+                                                            v-if="
+                                                                !element.children || !Array.isArray(element.children) || element.children.length === 0
+                                                            "
+                                                            class="scroll-placeholder"
+                                                        >
+                                                            <div class="drop-here-indicator">
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    class="h-6 w-6"
+                                                                    fill="none"
+                                                                    viewBox="0 0 24 24"
+                                                                    stroke="currentColor"
+                                                                >
+                                                                    <path
+                                                                        stroke-linecap="round"
+                                                                        stroke-linejoin="round"
+                                                                        stroke-width="2"
+                                                                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                                                                    />
+                                                                </svg>
+                                                                <span>Arrastra componentes aquí para crear una lista desplazable</span>
+                                                            </div>
+                                                            <div class="add-child-widget-container">
+                                                                <button @click.stop="showAddChildMenu = element.id"
+                                                                        class="add-child-widget-btn">
+                                                                    Agregar Widget Hijo
+                                                                </button>
+                                                                <div v-if="showAddChildMenu === element.id"
+                                                                     class="add-child-widget-menu">
+                                                                    <div class="widget-category-tabs">
+                                                                        <button
+                                                                            v-for="(category, index) in ['Inputs', 'Layouts', 'Display']"
+                                                                            :key="category"
+                                                                            class="widget-category-tab"
+                                                                            :class="{ 'active-tab': activeAddChildCategory === index }"
+                                                                            @click.stop="activeAddChildCategory = index"
+                                                                        >
+                                                                            {{ category }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 0">
+                                                                        <button
+                                                                            v-for="widget in inputWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button input-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 1">
+                                                                        <button
+                                                                            v-for="widget in layoutWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button layout-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                    <div class="widget-grid"
+                                                                         v-if="activeAddChildCategory === 2">
+                                                                        <button
+                                                                            v-for="widget in displayWidgets"
+                                                                            :key="widget.type"
+                                                                            class="widget-button display-widget-btn"
+                                                                            @click.stop="
+                                                                                addChildWidget(element.id, widget.type);
+                                                                                showAddChildMenu = null;
+                                                                            "
+                                                                        >
+                                                                            {{ widget.label }}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- TableList Widget -->
+                                                    <div v-else-if="element.type === 'TableList'"
+                                                         class="flutter-table-list">
+                                                        <table class="w-full border-collapse">
+                                                            <thead>
+                                                            <tr :style="{ backgroundColor: element.props.headerColor || '#E0E0E0' }">
+                                                                <th
+                                                                    v-for="(column, index) in element.props.columns"
+                                                                    :key="index"
+                                                                    class="p-2 text-left"
+                                                                    :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }"
+                                                                >
+                                                                    {{ column }}
+                                                                </th>
+                                                            </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                            <tr v-for="row in parseInt(element.props.rows)" :key="row">
+                                                                <td
+                                                                    v-for="(column, index) in element.props.columns"
+                                                                    :key="index"
+                                                                    class="p-2"
+                                                                    :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }"
+                                                                >
+                                                                    Cell {{ row }}-{{ index + 1 }}
+                                                                </td>
+                                                            </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    <!-- CardText Widget -->
+                                                    <div
+                                                        v-else-if="element.type === 'CardText'"
+                                                        class="flutter-card-text"
+                                                        :style="{
+                                                            backgroundColor: element.props.color || '#FFFFFF',
+                                                            borderRadius: (element.props.borderRadius || 8) + 'px',
+                                                            boxShadow: `0 ${element.props.elevation || 2}px ${(element.props.elevation || 2) * 2}px rgba(0,0,0,0.1)`,
+                                                            overflow: 'hidden',
+                                                            width: '100%',
+                                                        }"
+                                                    >
+                                                        <div class="card-header border-b border-gray-200 p-3">
+                                                            <h3 class="text-lg font-semibold">
+                                                                {{ element.props.title || 'Card Title' }}
+                                                            </h3>
+                                                            <p class="text-sm text-gray-600">
+                                                                {{ element.props.subtitle || 'Card Subtitle' }}
+                                                            </p>
+                                                        </div>
+                                                        <div class="card-content p-3">
+                                                            <p>
+                                                                {{
+                                                                    element.props.content ||
+                                                                    'Card content goes here with more details about the item.'
+                                                                }}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Default Widget Display -->
+                                                    <div v-else class="widget-properties">
+                                                        <div v-for="(value, key) in element.props" :key="key"
+                                                             class="widget-property">
+                                                            <span class="property-name">{{ key }}:</span>
+                                                            <span class="property-value">{{ value }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Nested children if any -->
+                                                <div
+                                                    v-if="element.children && Array.isArray(element.children) && element.children.length > 0"
+                                                    class="widget-children"
+                                                >
+                                                    <h4 class="nested-widgets-title">Componentes anidados</h4>
+                                                    <draggable
+                                                        v-model="element.children"
+                                                        group="widgets"
+                                                        item-key="id"
+                                                        class="nested-widgets-container"
+                                                        :animation="150"
+                                                        ghost-class="ghost-widget"
+                                                        chosen-class="chosen-widget"
+                                                    >
+                                                        <template #item="{ element: child }">
+                                                            <div
+                                                                class="child-widget cursor-move"
+                                                                :class="{
+                                                                    'selected-widget': selectedWidget?.id === child.id,
+                                                                    'text-child-widget': ['Text', 'h1', 'h2', 'h3'].includes(child.type),
+                                                                    'input-child-widget': ['TextField', 'Checkbox', 'DropdownButton'].includes(
+                                                                        child.type,
+                                                                    ),
+                                                                    'container-child-widget': ['Container', 'SafeArea'].includes(child.type),
+                                                                    'layout-child-widget': ['Row', 'Column', 'Padding'].includes(child.type),
+                                                                    'display-child-widget': ['Image', 'Icon'].includes(child.type),
+                                                                }"
+                                                                @click.stop="selectWidget(child)"
+                                                            >
+                                                                <div class="child-widget-header">
+                                                                    <span class="child-widget-type">{{ child.type
+                                                                        }}</span>
+                                                                    <button @click.stop="removeWidget(child)"
+                                                                            class="widget-remove-btn">×
+                                                                    </button>
+                                                                </div>
+                                                                <div class="child-widget-preview">
+                                                                    <!-- Text preview -->
+                                                                    <div v-if="child.type === 'Text'"
+                                                                         class="child-widget-content">
+                                                                        {{ child.props.data || 'Text' }}
+                                                                    </div>
+                                                                    <!-- TextField preview -->
+                                                                    <div v-else-if="child.type === 'TextField'"
+                                                                         class="child-widget-content">
+                                                                        <div class="mini-input-preview">Input Field
+                                                                        </div>
+                                                                    </div>
+                                                                    <!-- Container preview -->
+                                                                    <div
+                                                                        v-else-if="['Container', 'Row', 'Column'].includes(child.type)"
+                                                                        class="child-widget-content"
+                                                                    >
+                                                                        <div class="mini-container-preview">
+                                                                            {{ child.type }}
+                                                                        </div>
+                                                                    </div>
+                                                                    <!-- Image preview -->
+                                                                    <div v-else-if="child.type === 'Image'"
+                                                                         class="child-widget-content">
+                                                                        <div class="mini-image-preview">Image</div>
+                                                                    </div>
+                                                                    <!-- Default preview -->
+                                                                    <div v-else class="child-widget-content">
+                                                                        {{ child.type }}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </draggable>
+                                                    <div class="add-nested-widget-hint">
+                                                        <span>Arrastra más componentes aquí para añadirlos</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </template>
-                                </draggable>
-                            </div>
+                                        </template>
+                                    </draggable>
+                                </div>
 
-                            <!-- Phone home button/navigation bar -->
-                            <div class="phone-nav-bar">
-                                <div class="home-indicator"></div>
+                                <!-- Phone home button/navigation bar -->
+                                <div class="phone-nav-bar">
+                                    <div class="home-indicator"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Flutter code display -->
-                    <div v-if="showFlutterCode" class="bg-gray-800 text-white p-4 rounded-md">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="font-medium">Código Flutter</h3>
-                            <div class="flex gap-2">
-                                <button
-                                    @click="downloadFlutterProject"
-                                    class="px-2 py-1 bg-green-600 rounded hover:bg-green-700 text-sm text-white"
-                                >
-                                    Descargar Proyecto
-                                </button>
-                                <button
-                                    @click="copyFlutterCode"
-                                    class="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600 text-sm"
-                                >
-                                    Copiar
-                                </button>
-                            </div>
-                        </div>
-                        <pre class="text-sm overflow-auto max-h-60">{{ flutterCode }}</pre>
-                    </div>
-                </div>
+                    <!-- Properties panel -->
+                    <div v-if="selectedWidget" class="w-80 overflow-y-auto rounded-md bg-gray-100 p-4">
+                        <h2 class="mb-4 text-lg font-semibold">Propiedades</h2>
 
-                <!-- Properties panel -->
-                <div v-if="selectedWidget" class="w-80 bg-gray-100 p-4 rounded-md overflow-y-auto">
-                    <h2 class="text-lg font-semibold mb-4">Propiedades</h2>
+                        <div class="flex flex-col gap-4">
+                            <div v-for="(value, key) in selectedWidget.props" :key="key" class="flex flex-col gap-1">
+                                <label class="text-sm font-medium">{{ key }}</label>
 
-                    <div class="flex flex-col gap-4">
-                        <div v-for="(value, key) in selectedWidget.props" :key="key" class="flex flex-col gap-1">
-                            <label class="text-sm font-medium">{{ key }}</label>
-
-                            <!-- String input -->
-                            <input
-                                v-if="typeof value === 'string' && !(availableWidgets.find((w : any) => w.type === selectedWidget.type)?.properties.find((p : any) => p.name === key)?.type === 'select')"
-                                v-model="selectedWidget.props[key]"
-                                type="text"
-                                class="px-3 py-2 border rounded-md"
-                                @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                            />
-
-                            <!-- Number input -->
-                            <input
-                                v-else-if="typeof value === 'number'"
-                                v-model.number="selectedWidget.props[key]"
-                                type="number"
-                                class="px-3 py-2 border rounded-md"
-                                @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                            />
-
-                            <!-- Boolean input -->
-                            <div v-else-if="typeof value === 'boolean'" class="flex items-center">
+                                <!-- String input -->
                                 <input
-                                    :id="key"
-                                    v-model="selectedWidget.props[key]"
-                                    type="checkbox"
-                                    class="mr-2"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                />
-                                <label :for="key">{{ selectedWidget.props[key] ? 'Sí' : 'No' }}</label>
-                            </div>
-
-                            <!-- Color input -->
-                            <div
-                                v-else-if="availableWidgets.find((w : any) => w.type === selectedWidget.type)?.properties.find((p : any) => p.name === key)?.type === 'color'"
-                                class="flex items-center gap-2">
-                                <input
-                                    v-model="selectedWidget.props[key]"
-                                    type="color"
-                                    class="w-10 h-10 border rounded"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                />
-                                <input
+                                    v-if="
+                                        typeof value === 'string' &&
+                                        !(
+                                            availableWidgets
+                                                .find((w: any) => w.type === selectedWidget.type)
+                                                ?.properties.find((p: any) => p.name === key)?.type === 'select'
+                                        )
+                                    "
                                     v-model="selectedWidget.props[key]"
                                     type="text"
-                                    class="px-3 py-2 border rounded-md flex-1"
+                                    class="rounded-md border px-3 py-2"
+                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
+                                />
+
+                                <!-- Number input -->
+                                <input
+                                    v-else-if="typeof value === 'number'"
+                                    v-model.number="selectedWidget.props[key]"
+                                    type="number"
+                                    class="rounded-md border px-3 py-2"
+                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
+                                />
+
+                                <!-- Boolean input -->
+                                <div v-else-if="typeof value === 'boolean'" class="flex items-center">
+                                    <input
+                                        :id="key"
+                                        v-model="selectedWidget.props[key]"
+                                        type="checkbox"
+                                        class="mr-2"
+                                        @change="updateWidgetProperty(key, selectedWidget.props[key])"
+                                    />
+                                    <label :for="key">{{ selectedWidget.props[key] ? 'Sí' : 'No' }}</label>
+                                </div>
+
+                                <!-- Color input with advanced color picker -->
+                                <div
+                                    v-else-if="
+                                        availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)
+                                            ?.type === 'color'
+                                    "
+                                    class="flex flex-col gap-2"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <input
+                                            v-model="selectedWidget.props[key]"
+                                            type="color"
+                                            class="h-10 w-10 rounded border"
+                                            @change="updateColorProperty(key, selectedWidget.props[key])"
+                                        />
+                                        <input
+                                            v-model="selectedWidget.props[key]"
+                                            type="text"
+                                            class="flex-1 rounded-md border px-3 py-2"
+                                            @change="updateColorProperty(key, selectedWidget.props[key])"
+                                            placeholder="HEX: #RRGGBB"
+                                        />
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 text-xs">
+                                        <div class="rounded border p-1 dark:border-gray-600">
+                                            <span class="font-semibold">HEX:</span>
+                                            {{ getHexColor(selectedWidget.props[key]) }}
+                                        </div>
+                                        <div class="rounded border p-1 dark:border-gray-600">
+                                            <span class="font-semibold">RGB:</span>
+                                            {{ getRgbColor(selectedWidget.props[key]) }}
+                                        </div>
+                                        <div class="rounded border p-1 dark:border-gray-600">
+                                            <span class="font-semibold">HSL:</span>
+                                            {{ getHslColor(selectedWidget.props[key]) }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Select input -->
+                                <select
+                                    v-else-if="
+                                        availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)
+                                            ?.type === 'select'
+                                    "
+                                    v-model="selectedWidget.props[key]"
+                                    class="rounded-md border px-3 py-2"
+                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
+                                >
+                                    <option
+                                        v-for="option in availableWidgets
+                                            .find((w: any) => w.type === selectedWidget.type)
+                                            ?.properties.find((p: any) => p.name === key)?.options"
+                                        :key="option"
+                                        :value="option"
+                                    >
+                                        {{ option }}
+                                    </option>
+                                </select>
+
+                                <!-- Array input -->
+                                <div v-else-if="Array.isArray(value)" class="flex flex-col gap-2">
+                                    <div v-for="(item, index) in value" :key="index" class="flex gap-2">
+                                        <input
+                                            v-model="selectedWidget.props[key][index]"
+                                            type="text"
+                                            class="flex-1 rounded-md border px-3 py-2"
+                                            @change="updateWidgetProperty(key, [...selectedWidget.props[key]])"
+                                        />
+                                        <button
+                                            @click="
+                                                selectedWidget.props[key].splice(index, 1);
+                                                updateWidgetProperty(key, [...selectedWidget.props[key]]);
+                                            "
+                                            class="rounded-md bg-red-500 px-3 py-2 text-white hover:bg-red-600"
+                                        >
+                                            -
+                                        </button>
+                                    </div>
+                                    <button
+                                        @click="
+                                            selectedWidget.props[key].push('');
+                                            updateWidgetProperty(key, [...selectedWidget.props[key]]);
+                                        "
+                                        class="rounded-md bg-blue-500 px-3 py-2 text-white hover:bg-blue-600"
+                                    >
+                                        + Agregar
+                                    </button>
+                                </div>
+
+                                <!-- Default fallback -->
+                                <input
+                                    v-else
+                                    v-model="selectedWidget.props[key]"
+                                    type="text"
+                                    class="rounded-md border px-3 py-2"
                                     @change="updateWidgetProperty(key, selectedWidget.props[key])"
                                 />
                             </div>
-
-                            <!-- Select input -->
-                            <select
-                                v-else-if="availableWidgets.find((w : any) => w.type === selectedWidget.type)?.properties.find((p : any) => p.name === key)?.type === 'select'"
-                                v-model="selectedWidget.props[key]"
-                                class="px-3 py-2 border rounded-md"
-                                @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                            >
-                                <option
-                                    v-for="option in availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)?.options"
-                                    :key="option"
-                                    :value="option"
-                                >
-                                    {{ option }}
-                                </option>
-                            </select>
-
-                            <!-- Array input -->
-                            <div v-else-if="Array.isArray(value)" class="flex flex-col gap-2">
-                                <div v-for="(item, index) in value" :key="index" class="flex gap-2">
-                                    <input
-                                        v-model="selectedWidget.props[key][index]"
-                                        type="text"
-                                        class="px-3 py-2 border rounded-md flex-1"
-                                        @change="updateWidgetProperty(key, [...selectedWidget.props[key]])"
-                                    />
-                                    <button
-                                        @click="selectedWidget.props[key].splice(index, 1); updateWidgetProperty(key, [...selectedWidget.props[key]])"
-                                        class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-                                    >
-                                        -
-                                    </button>
-                                </div>
-                                <button
-                                    @click="selectedWidget.props[key].push(''); updateWidgetProperty(key, [...selectedWidget.props[key]])"
-                                    class="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                                >
-                                    + Agregar
-                                </button>
-                            </div>
-
-                            <!-- Default fallback -->
-                            <input
-                                v-else
-                                v-model="selectedWidget.props[key]"
-                                type="text"
-                                class="px-3 py-2 border rounded-md"
-                                @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                            />
                         </div>
                     </div>
                 </div>
@@ -3209,83 +3887,62 @@ const onChatInput = () => {
 
             <!-- Socket connection status -->
             <div class="flex items-center gap-2 text-sm">
-                <div
-                    class="w-3 h-3 rounded-full"
-                    :class="socketConnected ? 'bg-green-500' : 'bg-red-500'"
-                ></div>
+                <div class="h-3 w-3 rounded-full" :class="socketConnected ? 'bg-green-500' : 'bg-red-500'"></div>
                 <span>{{ socketConnected ? 'Conectado' : 'Desconectado' }}</span>
                 <span v-if="socketError" class="text-red-500">Error: {{ socketError }}</span>
             </div>
 
             <!-- Collaborator Management Section -->
-            <div v-if="isCreator" class="mt-4 p-4 bg-gray-100 rounded-md">
-                <h3 class="text-lg font-semibold mb-2">Gestión de Colaboradores</h3>
+            <div v-if="isCreator" class="mt-4 rounded-md bg-gray-100 p-4">
+                <h3 class="mb-2 text-lg font-semibold">Gestión de Colaboradores</h3>
 
                 <!-- Invite Button -->
-                <div class="flex gap-2 mb-4">
-                    <button
-                        @click="showInviteForm = !showInviteForm"
-                        class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-                    >
+                <div class="mb-4 flex gap-2">
+                    <button @click="showInviteForm = !showInviteForm"
+                            class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">
                         {{ showInviteForm ? 'Cancelar' : 'Invitar Colaborador' }}
                     </button>
 
-                    <button
-                        @click="generateInviteLink"
-                        class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
-                    >
+                    <button @click="generateInviteLink"
+                            class="rounded-md bg-purple-500 px-4 py-2 text-white hover:bg-purple-600">
                         {{ showInviteLink ? 'Ocultar Enlace' : 'Generar Enlace de Invitación' }}
                     </button>
                 </div>
 
                 <!-- Invite Form -->
-                <div v-if="showInviteForm" class="mb-4 p-4 bg-white rounded-md border border-gray-300">
+                <div v-if="showInviteForm" class="mb-4 rounded-md border border-gray-300 bg-white p-4">
                     <div class="flex gap-2">
-                        <input
-                            v-model="inviteEmail"
-                            type="email"
-                            placeholder="Correo electrónico"
-                            class="flex-1 px-3 py-2 border rounded-md"
-                        />
-                        <button
-                            @click="inviteCollaborator"
-                            class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-                        >
-                            Invitar
+                        <input v-model="inviteEmail" type="email" placeholder="Correo electrónico"
+                               class="flex-1 rounded-md border px-3 py-2" />
+                        <button @click="inviteCollaborator"
+                                class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">Invitar
                         </button>
                     </div>
                 </div>
 
                 <!-- Invite Link -->
-                <div v-if="showInviteLink" class="mb-4 p-4 bg-white rounded-md border border-gray-300">
+                <div v-if="showInviteLink" class="mb-4 rounded-md border border-gray-300 bg-white p-4">
                     <div class="flex gap-2">
-                        <input
-                            v-model="inviteLink"
-                            type="text"
-                            readonly
-                            class="flex-1 px-3 py-2 border rounded-md bg-gray-50"
-                        />
-                        <button
-                            @click="copyInviteLink"
-                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                        >
-                            Copiar
+                        <input v-model="inviteLink" type="text" readonly
+                               class="flex-1 rounded-md border bg-gray-50 px-3 py-2" />
+                        <button @click="copyInviteLink"
+                                class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">Copiar
                         </button>
                     </div>
                 </div>
 
                 <!-- Collaborators List -->
                 <div v-if="collaborators.length > 0" class="mt-4">
-                    <h4 class="font-medium mb-2">Colaboradores</h4>
+                    <h4 class="mb-2 font-medium">Colaboradores</h4>
                     <div class="space-y-2">
                         <div
                             v-for="collaborator in collaborators"
                             :key="collaborator.id || collaborator.email"
-                            class="p-2 bg-white rounded-md border border-gray-300 flex justify-between items-center"
+                            class="flex items-center justify-between rounded-md border border-gray-300 bg-white p-2"
                         >
                             <div class="flex items-center gap-2">
                                 <div
-                                    class="w-3 h-3 rounded-full"
+                                    class="h-3 w-3 rounded-full"
                                     :class="onlineCollaborators.includes(collaborator.name || collaborator.email) ? 'bg-green-500' : 'bg-gray-400'"
                                     :title="onlineCollaborators.includes(collaborator.name || collaborator.email) ? 'En línea' : 'Desconectado'"
                                 ></div>
@@ -3295,36 +3952,77 @@ const onChatInput = () => {
                     </div>
                 </div>
 
-                <div v-else class="mt-4 text-gray-500 text-center">
-                    No hay colaboradores aún
-                </div>
+                <div v-else class="mt-4 text-center text-gray-500">No hay colaboradores aún</div>
             </div>
 
             <!-- Chat Buttons -->
             <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+                <!-- THEMES -->
+                <button
+                    @click="toggleDarkMode"
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-600 text-white shadow-lg transition-colors hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800"
+                    aria-label="Toggle Socket Server"
+                >
+                    <svg v-if="isDarkMode" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                         fill="currentColor">
+                        <path
+                            fill-rule="evenodd"
+                            d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                            clip-rule="evenodd"
+                        />
+                    </svg>
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                         fill="currentColor">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                    </svg>
+                </button>
+                <!-- CHANGE SOCKETS -->
+                <button
+                    @click="toggleSocketServer"
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-600 text-white shadow-lg transition-colors hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800"
+                    aria-label="Toggle Socket Server"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
+                        <!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.-->
+                        <path
+                            fill="#ffffff"
+                            d="M54.2 202.9C123.2 136.7 216.8 96 320 96s196.8 40.7 265.8 106.9c12.8 12.2 33 11.8 45.2-.9s11.8-33-.9-45.2C549.7 79.5 440.4 32 320 32S90.3 79.5 9.8 156.7C-2.9 169-3.3 189.2 8.9 202s32.5 13.2 45.2 .9zM320 256c56.8 0 108.6 21.1 148.2 56c13.3 11.7 33.5 10.4 45.2-2.8s10.4-33.5-2.8-45.2C459.8 219.2 393 192 320 192s-139.8 27.2-190.5 72c-13.3 11.7-14.5 31.9-2.8 45.2s31.9 14.5 45.2 2.8c39.5-34.9 91.3-56 148.2-56zm64 160a64 64 0 1 0 -128 0 64 64 0 1 0 128 0z"
+                        />
+                    </svg>
+                </button>
                 <!-- AI Chat Button -->
                 <button
                     @click="toggleAIChat"
-                    class="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg hover:bg-purple-700"
-                    :class="{'bg-purple-700': showAIChat}"
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg transition-colors hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
+                    :class="{ 'bg-purple-700 dark:bg-purple-800': showAIChat }"
+                    aria-label="Toggle AI Chat"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                          stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 001.357 2.051l.311.093c1.135.34 2.345.34 3.48 0l.312-.093a2.25 2.25 0 001.357-2.051V3.104M18 14.5a2.25 2.25 0 012.25 2.25v1.5a2.25 2.25 0 01-2.25 2.25h-7.5a2.25 2.25 0 01-2.25-2.25v-1.5a2.25 2.25 0 012.25-2.25h7.5z" />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 001.357 2.051l.311.093c1.135.34 2.345.34 3.48 0l.312-.093a2.25 2.25 0 001.357-2.051V3.104M18 14.5a2.25 2.25 0 012.25 2.25v1.5a2.25 2.25 0 01-2.25 2.25h-7.5a2.25 2.25 0 01-2.25-2.25v-1.5a2.25 2.25 0 012.25-2.25h7.5z"
+                        />
                     </svg>
                 </button>
 
                 <!-- Regular Chat Button -->
                 <button
                     @click="toggleFloatingChat"
-                    class="w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg hover:bg-blue-600"
-                    :class="{'animate-pulse': chatMessages.length > 0 && !showFloatingChat, 'bg-blue-600': showFloatingChat}"
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                    :class="{ 'animate-pulse': chatMessages.length > 0 && !showFloatingChat, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
+                    aria-label="Toggle Chat"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                          stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
                     </svg>
                 </button>
             </div>
@@ -3341,88 +4039,18 @@ const onChatInput = () => {
                 @onChatInput="onChatInput"
             />
             <!-- AI Chat Window -->
-            <div v-if="showAIChat"
-                 class="fixed bottom-20 right-4 z-50 w-96 h-[500px] bg-white rounded-lg shadow-xl flex flex-col">
-                <!-- AI Chat Header -->
-                <div class="bg-purple-600 text-white px-4 py-2 rounded-t-lg flex justify-between items-center">
-                    <h3 class="font-semibold">Asistente IA para Flutter</h3>
-                    <button @click="toggleAIChat" class="text-white hover:text-gray-200 focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd"
-                                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                  clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- AI Chat Messages -->
-                <div class="flex-1 overflow-y-auto p-4">
-                    <div v-if="aiMessages.length === 0" class="text-gray-500 text-center py-4">
-                        <p>Bienvenido al asistente IA para Flutter.</p>
-                        <p class="mt-2">Describe la interfaz que deseas crear y la IA generará los widgets
-                            correspondientes.</p>
-                        <p class="mt-2 text-xs">Ejemplo: "Crea un formulario flutter para login con campos para email y
-                            contraseña, y un botón
-                            para iniciar sesión"</p>
-                    </div>
-
-                    <div
-                        v-for="(msg, index) in aiMessages"
-                        :key="index"
-                        class="mb-4"
-                        :class="{'text-right': msg.isUser, 'text-left': !msg.isUser}"
-                    >
-                        <div
-                            class="inline-block px-3 py-2 rounded-lg max-w-[90%]"
-                            :class="msg.isUser ? 'bg-purple-100' : 'bg-gray-100'"
-                        >
-                            <div class="font-semibold text-xs"
-                                 :class="msg.isUser ? 'text-purple-600' : 'text-gray-600'">
-                                {{ msg.isUser ? 'Tú' : 'Asistente IA' }}
-                            </div>
-                            <div class="whitespace-pre-wrap">{{ msg.text }}</div>
-
-                            <!-- Add to Canvas button for AI responses -->
-                            <div v-if="!msg.isUser && msg.widgets && msg.widgets.length > 0" class="mt-2">
-                                <button
-                                    @click="addAIWidgetsToCanvas(msg.widgets)"
-                                    class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
-                                >
-                                    Añadir a la Pizarra
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Loading indicator -->
-                    <div v-if="isProcessingAI" class="flex items-center justify-center py-4">
-                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-                        <span class="ml-2 text-purple-600">Generando respuesta...</span>
-                    </div>
-                </div>
-
-                <!-- AI Chat Input -->
-                <form @submit.prevent="sendAIPrompt" class="border-t border-gray-300 p-2 flex flex-col gap-2">
-                    <textarea
-                        v-model="aiPrompt"
-                        rows="3"
-                        placeholder="Describe la interfaz que deseas crear..."
-                        class="w-full px-3 py-2 border rounded-md resize-none"
-                        :disabled="isProcessingAI"
-                    ></textarea>
-                    <button
-                        type="submit"
-                        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="isProcessingAI || !aiPrompt.trim()"
-                    >
-                        {{ isProcessingAI ? 'Generando...' : 'Generar Widgets' }}
-                    </button>
-                </form>
-            </div>
+            <ChatAI
+                :showAIChat="showAIChat"
+                :aiMessages="aiMessages"
+                :aiPrompt="aiPrompt"
+                :isProcessingAI="isProcessingAI"
+                @toggleAIChat="toggleAIChat"
+                @sendAIPrompt="sendAIPrompt"
+                @onAIPromptInput="onChatInputAI"
+                @addAIWidgetsToCanvas="addAIWidgetsToCanvas"
+                @update:aiPrompt="(value) => (aiPrompt = value)"
+                @update:isProcessingAI="(value) => (isProcessingAI = value)"
+            />
         </div>
     </AppLayout>
 </template>
-
-<style scoped>
-
-</style>

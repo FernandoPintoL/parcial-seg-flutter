@@ -3,8 +3,17 @@ export interface Pizarra {
     name: string;
     room_id: string;
     elements: FlutterWidget[];
+    screens?: PizarraScreen[];
     user_id: number;
+    pizarra_id: number;
     created_at: string;
+}
+
+export interface PizarraScreen {
+    id: string;
+    name: string;
+    elements: FlutterWidget[];
+    isHome?: boolean;
 }
 export interface Chats{
     id: number;
@@ -41,8 +50,13 @@ export interface FlutterWidgetProperty {
 }
 export interface FlutterWidgetDefinition {
     type: string;
-    category: 'input' | 'layout' | 'container' | 'display';
+    category: 'widgets'| 'layout' |'input' | 'plataforma' | 'animation' | 'list' | 'navegation' | 'containers' | 'material-cupertino';
     label: string;
     properties: FlutterWidgetProperty[];
     hasChildren: boolean;
+}
+
+export interface CategoriaWidget{
+    category: string;
+    label: string;
 }
