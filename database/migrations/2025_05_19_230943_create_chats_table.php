@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('pizarra_id')->constrained('pizarras')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->string('user_name')->nullable();
             $table->text('message');
             $table->boolean('is_system_message')->default(false);
             $table->timestamps();

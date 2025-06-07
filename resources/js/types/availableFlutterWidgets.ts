@@ -34,7 +34,12 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
             { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
             { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
             { name: 'extendBody', type: 'boolean', defaultValue: false },
-            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false }
+            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false },
+            { name: 'drawer', type: 'string', defaultValue: 'Drawer()' },
+            { name: 'appBar', type: 'string', defaultValue: 'AppBar(title: Text("Scaffold App Bar"))' },
+            { name: 'body', type: 'string', defaultValue: 'Center(child: Text("Scaffold Body"))' },
+            { name: 'bottomNavigationBar', type: 'string', defaultValue: 'BottomNavigationBar(items: [BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home")])' }
+
         ],
         hasChildren: true
     },

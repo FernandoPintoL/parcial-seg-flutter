@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('name');
             $table->json('elements')->nullable();
             $table->json('users')->nullable();
+            $table->json('screens')->nullable()->after('elements');
             $table->foreignId('pizarra_id')->nullable()->constrained('pizarras')->nullOnDelete();
             $table->timestamps();
         });

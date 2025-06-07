@@ -22,8 +22,10 @@ class Chat extends Model
     protected $fillable = [
         'pizarra_id',
         'user_id',
+        'user_name',
         'message',
         'is_system_message',
+        'created_at',
     ];
 
     /**

@@ -14,14 +14,18 @@ export interface PizarraScreen {
     name: string;
     elements: FlutterWidget[];
     isHome?: boolean;
+    isDrawer?: boolean;
 }
 export interface Chats{
     id: number;
     pizarra_id: number;
-    userId: number;
+    user_id: number;
+    user_name: string;
     message: string;
     isSystemMessage: boolean;
+    created_at: string;
 }
+
 export interface PizarraCollaborators{
     id: number;
     pizarra_id: number;

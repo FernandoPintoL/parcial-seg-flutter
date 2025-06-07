@@ -3,12 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Chat;
-use App\Http\Requests\StoreChatRequest;
-use App\Http\Requests\UpdateChatRequest;
 use App\Models\Pizarra;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
 
 class ChatController extends Controller
 {
@@ -57,6 +54,7 @@ class ChatController extends Controller
         $message = Chat::create([
             'pizarra_id' => $validated['pizarra_id'],
             'user_id' => Auth::id(),
+            'user_name' => Auth::user()->name,
             'message' => $validated['message'],
             'is_system_message' => $validated['is_system_message'] ?? false,
         ]);

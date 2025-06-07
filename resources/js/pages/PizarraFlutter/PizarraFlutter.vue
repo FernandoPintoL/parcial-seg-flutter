@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/Services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget, PizarraScreen, CategoriaWidget } from '@/types/Pizarra';
+import type { Pizarra, PizarraCollaborators, FlutterWidget, PizarraScreen } from '@/types/Pizarra';
 import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/Services/SocketService';
@@ -18,6 +18,9 @@ import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
 import ChatAI from '@/pages/Chat/ChatAI.vue';
 import WidgetPalette from '@/pages/PizarraFlutter/WidgetPalette.vue';
 import PhoneStatusBar from '@/pages/PizarraFlutter/PhoneStatusBar.vue';
+import Colaboradores from '@/pages/ColaboradoresFlutter/Colaboradores.vue';
+import FlutterCodeViewer from '@/pages/PizarraFlutter/FlutterCodeViewer.vue';
+import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
 
 // Props
 const props = defineProps({
@@ -43,7 +46,6 @@ const props = defineProps({
         default: () => []
     }
 });
-
 // Breadcrumbs for navigation
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -51,15 +53,13 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/pizarra/' + props.pizarra?.id + '/edit'
     }
 ];
-
 // Socket.io connection
 const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
 const socketConfig = ref(getSocketConfig(useLocalSocket.value));
-const roomId = ref(props.pizarra ? props.pizarra.room_id : '');
+const roomId = ref<string>(props.pizarra ? props.pizarra.room_id : '');
 const currentUser = ref(props.user?.name || 'Usuario');
 
 // User ID for socket events
-const user_id = ref(props.user?.id);
 const socket = io(socketConfig.value.url, socketConfig.value.options);
 const socketConnected = ref<boolean>(false);
 const socketError = ref<string>('');
@@ -69,20 +69,142 @@ const collaborators = ref<any>(props.colaboradores || []);
 const onlineCollaborators = ref<any>([]);
 const isCreator = ref<boolean>(props.isCreador);
 
+
 // Invitation system
+/*
+const user_id = ref(props.user?.id);
 const inviteEmail = ref<string>('');
 const showInviteForm = ref<boolean>(false);
 const showInviteLink = ref<boolean>(false);
 const inviteLink = ref<string>('');
+// Load chat messages for the current form
+// Generate invite link
+const generateInviteLink = () => {
+    showInviteLink.value = !showInviteLink.value;
+    inviteLink.value = `${window.location.origin}/pizarra/${props.pizarra.id}/invite/flutter`;
+};
+// Copy text to clipboard
+const copyToClipboard = (text: string, successMessage: string) => {
+    navigator.clipboard
+        .writeText(text)
+        .then(() => {
+            AlertService.prototype.success(successMessage);
+        })
+        .catch((err) => {
+            console.error('Error copying to clipboard:', err);
+            AlertService.prototype.error('Error', 'No se pudo copiar al portapapeles');
+        });
+};
+const loadChatMessages = async () => {
+    if (!props.pizarra?.id) return;
 
-// Floating chat
+    try {
+        const response = await axios.get(`/chat/form/${props.pizarra.id}/messages`);
+        console.log('Chat messages loaded:', response.data);
+
+        // Format messages from the database
+        const dbMessages = response.data.map((msg: any) => ({
+            text: msg.message,
+            user: msg.user_name || msg.user_email || 'Usuario',
+            timestamp: new Date(msg.created_at).getTime()
+        }));
+
+        chatMessages.value = dbMessages;
+    } catch (error) {
+        console.error('Error loading chat messages:', error);
+        AlertService.prototype.error('Error', 'No se pudieron cargar los mensajes del chat');
+    }
+};
+// Send a chat message
+const sendChatMessage = async () => {
+    if (chatMessage.value.trim()) {
+        // Prepare message data
+        const messageData = {
+            roomId: roomId.value,
+            text: chatMessage.value,
+            user: currentUser.value,
+            userId: user_id.value,
+            timestamp: Date.now()
+        };
+
+        // Emit message to socket
+        socket.emit('chatMessage', messageData);
+
+        // Add message to local chat
+        chatMessages.value.push({
+            text: chatMessage.value,
+            user: currentUser.value,
+            timestamp: Date.now()
+        });
+
+        // Save message to database
+        try {
+            await axios.post('/chat/message', {
+                form_id: props.pizarra?.id,
+                message: chatMessage.value,
+                user_id: user_id.value
+            });
+        } catch (error) {
+            console.error('Error saving chat message:', error);
+            AlertService.prototype.error('Error', 'No se pudo guardar el mensaje en la base de datos');
+        }
+
+        // Clear input
+        chatMessage.value = '';
+    }
+};*/
+
+// Métodos para manejar eventos del chat
 const showFloatingChat = ref<boolean>(false);
-const chatMessages = ref<{ text: string; user: string; timestamp: number }[]>([]);
-const chatMessage = ref<string>('');
-const chatTyping = reactive<{ typing: string; timeout: number | null }>({
-    typing: '',
-    timeout: null
-});
+const handleChatMessage = async (message: string) => {
+    try {
+        const messageData = {
+            roomId: roomId.value,
+            message: message,
+            user_name: currentUser.value,
+            created_at: new Date().toISOString()
+        };
+
+        // Emitir el mensaje al socket
+        socketService.emit('chatMessage', messageData);
+
+        // También guardarlo en la base de datos
+        await axios.post('/chat/messages', messageData);
+    } catch (error) {
+        console.error('Error al enviar mensaje:', error);
+        AlertService.prototype.error('Error', 'No se pudo enviar el mensaje');
+    }
+};
+const handleTyping = () => {
+    socketService.emit('typing', {
+        roomId: roomId.value,
+        user: currentUser.value
+    });
+};
+const loadCollaborators = async () => {
+    if (!props.pizarra?.id) return;
+
+    try {
+        const response = await axios.get(`/pizarra/${props.pizarra.id}/collaborators/flutter`);
+        console.log(response);
+        // Add showActivities property to each collaborator for UI toggle
+        collaborators.value = response.data.map((collaborator: any) => ({
+            ...collaborator,
+            showActivities: false
+        }));
+    } catch (error) {
+        console.error('Error loading collaborators:', error);
+        AlertService.prototype.error('Error', 'No se pudo cargar los colaboradores');
+    }
+};
+const toggleFloatingChat = () => {
+    showFloatingChat.value = !showFloatingChat.value;
+    // Close AI chat if opening regular chat
+    if (showFloatingChat.value) {
+        showAIChat.value = false;
+    }
+};
+
 // AI chat
 const showAIChat = ref<boolean>(false);
 const aiMessages = ref<any>([]);
@@ -94,6 +216,10 @@ const showImageUpload = ref<boolean>(false);
 const selectedImage = ref<File | null>(null);
 const previewImage = ref<string | null>(null);
 const isProcessingImage = ref<boolean>(false);
+const originalImage = ref<string | null>(null);
+const processedImage = ref<string | null>(null);
+const roboflowData = ref<any>(null);
+const showResultsPanel = ref<boolean>(false);
 
 // Counter for generating unique widget IDs
 let widgetIdCounter = 1;
@@ -128,10 +254,43 @@ const newScreenName = ref<string>('');
 const initializeScreens = () => {
     if (screens.value.length === 0) {
         // Create a default home screen
+        const elements = Array.isArray(props.pizarra?.elements) && props.pizarra.elements.length > 0
+            ? props.pizarra.elements
+            : addDefaultWidgets([]);
+
+        // Create a default drawer screen
+        const drawerElements = [];
+        const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+        if (drawerDef) {
+            const drawerWidget = {
+                id: `widget-${widgetIdCounter++}`,
+                type: 'Drawer',
+                props: {},
+                children: []
+            };
+
+            // Initialize properties with default values
+            drawerDef.properties.forEach((prop) => {
+                drawerWidget.props[prop.name] = prop.defaultValue;
+            });
+
+            drawerElements.push(drawerWidget);
+        }
+
+        // Add drawer screen first
+        screens.value.push({
+            id: `screen-drawer-${Date.now()}`,
+            name: 'Drawer',
+            elements: drawerElements,
+            isHome: false,
+            isDrawer: true
+        });
+
+        // Add home screen
         screens.value.push({
             id: `screen-${Date.now()}`,
             name: 'Home',
-            elements: Array.isArray(props.pizarra?.elements) ? props.pizarra.elements : [],
+            elements: elements,
             isHome: true
         });
     } else {
@@ -141,7 +300,85 @@ const initializeScreens = () => {
                 screen.id = `screen-${Date.now()}-${index}`;
             }
         });
+
+        // Check if drawer screen exists, if not create it
+        if (!screens.value.some(screen => screen.isDrawer)) {
+            const drawerElements = [];
+            const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+            if (drawerDef) {
+                const drawerWidget = {
+                    id: `widget-${widgetIdCounter++}`,
+                    type: 'Drawer',
+                    props: {},
+                    children: []
+                };
+
+                // Initialize properties with default values
+                drawerDef.properties.forEach((prop) => {
+                    drawerWidget.props[prop.name] = prop.defaultValue;
+                });
+
+                drawerElements.push(drawerWidget);
+            }
+
+            // Add drawer screen
+            screens.value.unshift({
+                id: `screen-drawer-${Date.now()}`,
+                name: 'Drawer',
+                elements: drawerElements,
+                isHome: false,
+                isDrawer: true
+            });
+        }
     }
+};
+
+// Add default widgets (Scaffold and Drawer) to a screen
+const addDefaultWidgets = (existingElements = []) => {
+    if (existingElements.length > 0) {
+        return existingElements;
+    }
+
+    // Find widget definitions
+    const scaffoldDef = availableWidgets.value.find(w => w.type === 'Scaffold');
+    const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+
+    // Create default widgets
+    const defaultWidgets = [];
+
+    if (scaffoldDef) {
+        const scaffoldWidget = {
+            id: `widget-${widgetIdCounter++}`,
+            type: 'Scaffold',
+            props: {},
+            children: []
+        };
+
+        // Initialize properties with default values
+        scaffoldDef.properties.forEach((prop) => {
+            scaffoldWidget.props[prop.name] = prop.defaultValue;
+        });
+
+        defaultWidgets.push(scaffoldWidget);
+    }
+
+    if (drawerDef) {
+        const drawerWidget = {
+            id: `widget-${widgetIdCounter++}`,
+            type: 'Drawer',
+            props: {},
+            children: []
+        };
+
+        // Initialize properties with default values
+        drawerDef.properties.forEach((prop) => {
+            drawerWidget.props[prop.name] = prop.defaultValue;
+        });
+
+        defaultWidgets.push(drawerWidget);
+    }
+
+    return defaultWidgets;
 };
 
 // Get current screen
@@ -163,7 +400,7 @@ const addScreen = () => {
     screens.value.push({
         id: `screen-${Date.now()}`,
         name: newScreenName.value,
-        elements: [],
+        elements: addDefaultWidgets([]),
         isHome: screens.value.length === 0
     });
 
@@ -562,9 +799,20 @@ const generateFlutterCode = () => {
     let homeScreenName = '';
 
     screens.value.forEach((screen, index) => {
+        // Skip drawer screen as it's handled separately
+        if (screen.isDrawer) {
+            return;
+        }
+
+        // Format screen name for class name (remove spaces, special chars, capitalize)
+        const screenClassName = screen.name
+            .replace(/[^\w\s]/g, '')  // Remove special characters
+            .replace(/\s+/g, '')      // Remove spaces
+            .replace(/^./, match => match.toUpperCase()); // Capitalize first letter
+
         // Find the home screen
         if (screen.isHome) {
-            homeScreenName = `Screen${index}`;
+            homeScreenName = screenClassName;
         }
 
         // Generate code for each widget in this screen
@@ -577,8 +825,8 @@ const generateFlutterCode = () => {
 
         // Create a screen class
         screenClasses += `
-class Screen${index} extends StatelessWidget {
-  const Screen${index}({Key? key}) : super(key: key);
+class ${screenClassName} extends StatelessWidget {
+  const ${screenClassName}({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -609,8 +857,10 @@ class Screen${index} extends StatelessWidget {
 }
 `;
 
-        // Add route definition
-        routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const Screen${index}(),\n`;
+        // Add route definition (skip drawer screen)
+        if (!screen.isDrawer) {
+            routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const ${screenClassName}(),\n`;
+        }
     });
 
     // If no home screen is defined, use the first screen
@@ -768,12 +1018,14 @@ const toggleSocketServer = () => {
     // Show notification
     AlertService.prototype.info(`Ahora usando servidor socket ${useLocalSocket.value ? 'local' : 'de producción'}: ${socketConfig.value.url}`);
 };
+
 // Socket event handlers
 onMounted(() => {
     console.log('Mounted PizarraFlutter');
     console.log(props.pizarra);
     applyDarkMode();
     initializeScreens();
+    initNavigationDrawer();
     socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
     // Connect to socket
     socketService.on('connect', () => {
@@ -788,30 +1040,6 @@ onMounted(() => {
         userId: currentUser.value,
         userName: currentUser.value
     });
-
-    /* Only add formBuilderId if it exists and is not undefined
-    if (props.pizarraFlutter && props.pizarraFlutter.id) {
-      joinRoomData.formBuilderId = props.pizarraFlutter.id;
-    }
-
-    socket.emit('joinRoom', joinRoomData);
-
-    // Listen for socket events
-    socket.on('connect', () => {
-      socketConnected.value = true;
-      console.log(`Connected to socket server: ${socketConfig.value.url}`);
-    });
-
-    socket.on('disconnect', () => {
-      socketConnected.value = false;
-      console.log('Disconnected from socket server');
-    });
-
-    socket.on('connect_error', (error) => {
-      socketError.value = error.message;
-      console.error(`Socket connection error: ${error.message}`);
-      console.error(`Socket URL: ${socketConfig.value.url}`);
-    });*/
 
     socket.on('flutter-widget-added', (data) => {
         if (data.userId !== currentUser.value) {
@@ -867,7 +1095,7 @@ onMounted(() => {
     });
 
     // Listen for chat messages
-    socket.on('chatMessage', (data) => {
+    /*socket.on('chatMessage', (data) => {
         console.log('Received chat message:', data);
 
         // Add message to chat if from another user
@@ -883,10 +1111,10 @@ onMounted(() => {
                 AlertService.prototype.info('Nuevo Mensajes', `Nuevo mensaje de ${data.user}: ${data.text}`);
             }
         }
-    });
+    });*/
 
     // Listen for typing events
-    socket.on('typing', (data) => {
+    /*socket.on('typing', (data) => {
         if (data.user !== currentUser.value) {
             chatTyping.typing = data.user + ' está escribiendo...';
 
@@ -896,7 +1124,7 @@ onMounted(() => {
                 chatTyping.typing = '';
             }, 2000);
         }
-    });
+    });*/
 
     // Listen for collaborator acceptance events
     socket.on('collaboratorAccepted', (data) => {
@@ -915,20 +1143,6 @@ onMounted(() => {
 onUnmounted(() => {
     // Disconnect from socket
     socketService.disconnect();
-
-    // Clear all socket listeners
-    /*socket.off('connect');
-    socket.off('disconnect');
-    socket.off('connect_error');
-    socket.off('flutter-widget-added');
-    socket.off('flutter-widget-updated');
-    socket.off('flutter-widget-removed');
-    socket.off('userJoined');
-    socket.off('userLeft');
-    socket.off('roomUsers');
-    socket.off('chatMessage');
-    socket.off('typing');
-    socket.off('collaboratorAccepted');*/
 });
 
 // Computed properties for filtering widgets by category
@@ -937,25 +1151,269 @@ const widgetsByActiveCategory = computed(() => {
     if (!category) return [];
     return availableWidgets.value.filter((widget) => widget.category === category);
 });
-/*const inputWidgets = computed(() =>
-    availableWidgets.value.filter(widget => widget.category === 'input')
-);
-
-const layoutWidgets = computed(() =>
-    availableWidgets.value.filter(widget => widget.category === 'layout')
-);
-
-const containerWidgets = computed(() =>
-    availableWidgets.value.filter(widget => widget.category === 'container')
-);
-
-const displayWidgets = computed(() =>
-    availableWidgets.value.filter(widget => widget.category === 'display')
-);*/
 
 // Flutter code display
 const showFlutterCode = ref<boolean>(false);
 const flutterCode = computed(() => generateFlutterCode());
+const selectedCodeTab = ref<number>(0); // 0 = Full App, 1 = NavigationDrawer, 2+ = Individual Screens
+const setSelectedCodeTab = (tab: number) => { selectedCodeTab.value = tab; };
+
+// State for the NavigationDrawer widget
+const navigationDrawerWidget = ref<FlutterWidget | null>(null);
+
+// Find or create the NavigationDrawer widget
+const findOrCreateNavigationDrawer = () => {
+    // First, try to find the drawer screen
+    const drawerScreen = screens.value.find(screen => screen.isDrawer);
+
+    if (drawerScreen && drawerScreen.elements) {
+        // Look for a Drawer widget in the drawer screen
+        const existingDrawer = drawerScreen.elements.find(widget => widget.type === 'Drawer');
+        if (existingDrawer) {
+            return existingDrawer;
+        }
+    }
+
+    // If not found, create a new one
+    const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+    if (!drawerDef) return null;
+
+    const newDrawer: FlutterWidget = {
+        id: `widget-${widgetIdCounter++}`,
+        type: 'Drawer',
+        props: {},
+        children: []
+    };
+
+    // Initialize properties with default values
+    drawerDef.properties.forEach((prop) => {
+        newDrawer.props[prop.name] = prop.defaultValue;
+    });
+
+    // Add to drawer screen if it exists
+    if (drawerScreen && drawerScreen.elements) {
+        drawerScreen.elements.push(newDrawer);
+    } else {
+        // If drawer screen doesn't exist, create it
+        const drawerElements = [newDrawer];
+        screens.value.unshift({
+            id: `screen-drawer-${Date.now()}`,
+            name: 'Drawer',
+            elements: drawerElements,
+            isHome: false,
+            isDrawer: true
+        });
+    }
+
+    return newDrawer;
+};
+
+// Initialize the NavigationDrawer widget
+const initNavigationDrawer = () => {
+    navigationDrawerWidget.value = findOrCreateNavigationDrawer();
+};
+// Generate code for the NavigationDrawer
+const generateNavigationDrawerCode = () => {
+    // Make sure we have a NavigationDrawer widget
+    if (!navigationDrawerWidget.value) {
+        initNavigationDrawer();
+    }
+
+    if (!navigationDrawerWidget.value) {
+        return '// No NavigationDrawer widget found';
+    }
+
+    // Generate code for the NavigationDrawer
+    return `
+import 'package:flutter/material.dart';
+
+class NavigationDrawer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: ${navigationDrawerWidget.value.props.backgroundColor ? `Color(0xFF${navigationDrawerWidget.value.props.backgroundColor.substring(1).toUpperCase()})` : 'Colors.white'},
+      width: ${navigationDrawerWidget.value.props.width || 300},
+      elevation: ${navigationDrawerWidget.value.props.elevation || 16},
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text('User Name'),
+            accountEmail: Text('user@example.com'),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(
+                'U',
+                style: TextStyle(fontSize: 40.0, color: Colors.blue),
+              ),
+            ),
+            decoration: BoxDecoration(
+              color: Colors.blue,
+            ),
+          ),
+          ${screens.value
+            .filter(screen => !screen.isDrawer)
+            .map(
+                (screen, index) => `
+          ListTile(
+            leading: Icon(${index === 0 ? 'Icons.home' : `Icons.screen_${index + 1}`}),
+            title: Text('${screen.name}'),
+            trailing: Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+            },
+          ),`
+            )
+            .join('\n')}
+          Divider(),
+          ListTile(
+            leading: Icon(Icons.settings),
+            title: Text('Settings'),
+            onTap: () {
+              // Navigate to settings
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.help),
+            title: Text('Help & Feedback'),
+            onTap: () {
+              // Navigate to help
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+`;
+};
+
+// Generate code for a specific screen
+const generateScreenCode = (screenIndex: number) => {
+    if (screenIndex < 0 || screenIndex >= screens.value.length) {
+        return '';
+    }
+
+    const screen = screens.value[screenIndex];
+
+    // Skip generating code for the drawer screen, as it's handled separately
+    if (screen.isDrawer) {
+        return generateNavigationDrawerCode();
+    }
+
+    // Format screen name for class name
+    const screenClassName = screen.name
+        .replace(/[^\w\s]/g, '')  // Remove special characters
+        .replace(/\s+/g, '')      // Remove spaces
+        .replace(/^./, match => match.toUpperCase()); // Capitalize first letter
+
+    // Generate code for each widget in this screen
+    let screenWidgetsCode = '';
+    if (screen.elements && Array.isArray(screen.elements)) {
+        screen.elements.forEach((widget) => {
+            const generateWidgetCode = (widget: FlutterWidget, indent: string = ''): string => {
+                let code = `${indent}${widget.type}(\n`;
+
+                // Add properties
+                Object.entries(widget.props).forEach(([key, value]) => {
+                    // Check if this is a color property
+                    const isColorProperty = availableWidgets.value
+                        .find((w) => w.type === widget.type)?.properties
+                        .find((p: any) => p.name === key)?.type === 'color';
+
+                    if (isColorProperty && typeof value === 'string') {
+                        // Convert HEX color to Flutter Color
+                        if (value.startsWith('#')) {
+                            // Remove # and convert to uppercase
+                            const hexColor = value.substring(1).toUpperCase();
+                            // If it's a 6-digit hex color
+                            if (hexColor.length === 6) {
+                                code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                            } else {
+                                // Fallback for invalid hex colors
+                                code += `${indent}  ${key}: Colors.black,\n`;
+                            }
+                        } else if (value.startsWith('rgb')) {
+                            // Convert RGB to HEX and then to Flutter Color
+                            const hexColor = getHexColor(value).substring(1).toUpperCase();
+                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                        } else if (value.startsWith('hsl')) {
+                            // Convert HSL to HEX and then to Flutter Color
+                            const hexColor = getHexColor(value).substring(1).toUpperCase();
+                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                        } else {
+                            // Try to use predefined Flutter colors
+                            const lowerCaseValue = value.toLowerCase();
+                            if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
+                                code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
+                            } else {
+                                // Fallback to black
+                                code += `${indent}  ${key}: Colors.black,\n`;
+                            }
+                        }
+                    } else if (typeof value === 'string' && !value.includes('(')) {
+                        code += `${indent}  ${key}: '${value}',\n`;
+                    } else {
+                        code += `${indent}  ${key}: ${value},\n`;
+                    }
+                });
+
+                // Add children if any
+                if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
+                    code += `${indent}  children: [\n`;
+                    widget.children.forEach((child) => {
+                        code += generateWidgetCode(child, `${indent}    `) + ',\n';
+                    });
+                    code += `${indent}  ],\n`;
+                }
+
+                code += `${indent})`;
+                return code;
+            };
+
+            screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
+        });
+    }
+
+    // Create a screen class
+    return `
+import 'package:flutter/material.dart';
+
+class ${screenClassName} extends StatelessWidget {
+  const ${screenClassName}({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('${screen.name}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              // Show navigation drawer
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ],
+      ),
+      drawer: NavigationDrawer(),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ${screenWidgetsCode}
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Import the shared NavigationDrawer
+import 'navigation_drawer.dart';
+`;
+};
 
 // Active widget category for mobile selector
 const activeWidgetCategory = ref<number>(0);
@@ -966,7 +1424,17 @@ const activeWidgetCategory = ref<number>(0);
 
 // Copy Flutter code to clipboard
 const copyFlutterCode = () => {
-    navigator.clipboard.writeText(flutterCode.value);
+    // Copy either the full app code, NavigationDrawer code, or the selected screen's code
+    let codeToCopy;
+    if (selectedCodeTab.value === 0) {
+        codeToCopy = flutterCode.value;
+    } else if (selectedCodeTab.value === 1) {
+        codeToCopy = generateNavigationDrawerCode();
+    } else {
+        codeToCopy = generateScreenCode(selectedCodeTab.value - 2);
+    }
+
+    navigator.clipboard.writeText(codeToCopy);
     AlertService.prototype.success('Código copiado al portapapeles');
 };
 
@@ -976,14 +1444,44 @@ const downloadFlutterProject = async () => {
         // Show loading message
         AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
 
+        // Get the code to download based on selected tab
+        let codeToDownload;
+        if (selectedCodeTab.value === 0) {
+            codeToDownload = flutterCode.value;
+        } else if (selectedCodeTab.value === 1) {
+            codeToDownload = generateNavigationDrawerCode();
+        } else {
+            codeToDownload = generateScreenCode(selectedCodeTab.value - 2);
+        }
+
+        // Get project name based on selected tab
+        let downloadProjectName;
+        if (selectedCodeTab.value === 0) {
+            downloadProjectName = projectName.value || 'FlutterProject';
+        } else if (selectedCodeTab.value === 1) {
+            downloadProjectName = 'NavigationDrawer';
+        } else {
+            downloadProjectName = screens.value[selectedCodeTab.value - 2]?.name || 'ScreenProject';
+        }
+
+        // Get elements based on selected tab
+        let elements;
+        if (selectedCodeTab.value === 0) {
+            elements = flutterWidgets.value;
+        } else if (selectedCodeTab.value === 1) {
+            elements = navigationDrawerWidget.value ? [navigationDrawerWidget.value] : [];
+        } else {
+            elements = screens.value[selectedCodeTab.value - 2]?.elements || [];
+        }
+
         // Send request to backend to generate and download the project
         const response = await axios.post(
             '/pizarra/download-flutter-project',
             {
-                name: projectName.value || 'FlutterProject',
-                elements: flutterWidgets.value, // Enviar como array, no como string
-                code: flutterCode.value,
-                project_name: projectName.value || 'FlutterProject',
+                name: downloadProjectName,
+                elements: elements,
+                code: codeToDownload,
+                project_name: downloadProjectName,
                 id: props.pizarra?.id || null
             },
             {
@@ -1019,6 +1517,10 @@ const downloadFlutterProject = async () => {
 // Image upload functions
 const closeImageUpload = () => {
     showImageUpload.value = false;
+    showResultsPanel.value = false;
+    originalImage.value = null;
+    processedImage.value = null;
+    roboflowData.value = null;
     clearSelectedImage();
 };
 const handleImageUpload = (event: Event) => {
@@ -1046,7 +1548,7 @@ const processImage = async () => {
 
     try {
         isProcessingImage.value = true;
-        AlertService.prototype.info('Procesando', 'Analizando imagen con IA...');
+        AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
 
         // Create form data
         const formData = new FormData();
@@ -1060,15 +1562,20 @@ const processImage = async () => {
         });
 
         if (response.data.success) {
+            // Store the original and processed images
+            originalImage.value = response.data.originalImage;
+            processedImage.value = response.data.processedImage;
+            roboflowData.value = response.data.rawData;
+
             // Add the generated widgets to the canvas
             if (response.data.widgets && response.data.widgets.length > 0) {
                 addAIWidgetsToCanvas(response.data.widgets);
 
-                // Close the modal
-                closeImageUpload();
-
                 // Show success message
                 AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
+
+                // Show the results panel instead of closing the modal
+                showResultsPanel.value = true;
             } else {
                 AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
             }
@@ -1167,6 +1674,7 @@ const debouncedSave = debounce(() => {
         savePizarraFlutter();
     }
 }, 1000); // 1 second debounce
+
 // Watch for changes in flutterWidgets and save them
 watch(
     flutterWidgets,
@@ -1176,83 +1684,14 @@ watch(
     { deep: true, flush: 'post' }
 );
 // Load collaborators
-const loadCollaborators = async () => {
-    if (!props.pizarra?.id) return;
 
-    try {
-        const response = await axios.get(`/pizarra/${props.pizarra.id}/collaborators/flutter`);
-        console.log(response);
-        // Add showActivities property to each collaborator for UI toggle
-        collaborators.value = response.data.map((collaborator: any) => ({
-            ...collaborator,
-            showActivities: false
-        }));
-    } catch (error) {
-        console.error('Error loading collaborators:', error);
-        AlertService.prototype.error('Error', 'No se pudo cargar los colaboradores');
-    }
-};
 // Invite a collaborator
-const inviteCollaborator = async () => {
-    if (!props.pizarra?.id || !inviteEmail.value) return;
+/*const inviteCollaborator = async () => {
 
-    try {
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(inviteEmail.value)) {
-            AlertService.prototype.error('Error', 'Formato de correo electrónico inválido');
-            return;
-        }
+};*/
 
-        await axios.post(`/pizarra/${props.pizarra.id}/invite/flutter`, {
-            email: inviteEmail.value
-        });
-
-        AlertService.prototype.success('Éxito', 'Invitación enviada correctamente');
-
-        inviteEmail.value = '';
-        showInviteForm.value = false;
-        loadCollaborators();
-    } catch (error) {
-        console.error('Error inviting collaborator:', error);
-        AlertService.prototype.error('Error', 'No se pudo enviar la invitación');
-    }
-};
-// Generate invite link
-const generateInviteLink = () => {
-    showInviteLink.value = !showInviteLink.value;
-    inviteLink.value = `${window.location.origin}/pizarra/${props.pizarra.id}/invite/flutter`;
-};
-// Copy text to clipboard
-const copyToClipboard = (text: string, successMessage: string) => {
-    navigator.clipboard
-        .writeText(text)
-        .then(() => {
-            AlertService.prototype.success(successMessage);
-        })
-        .catch((err) => {
-            console.error('Error copying to clipboard:', err);
-            AlertService.prototype.error('Error', 'No se pudo copiar al portapapeles');
-        });
-};
-// Copy invite link to clipboard
-const copyInviteLink = () => {
-    copyToClipboard(inviteLink.value, '¡Enlace copiado al portapapeles!');
-};
 // Toggle floating chat visibility
-const toggleFloatingChat = () => {
-    showFloatingChat.value = !showFloatingChat.value;
 
-    // Close AI chat if opening regular chat
-    if (showFloatingChat.value) {
-        showAIChat.value = false;
-    }
-
-    // If opening the chat and we have a form ID, load messages
-    if (showFloatingChat.value && props.pizarra?.id) {
-        loadChatMessages();
-    }
-};
 // Toggle AI chat visibility
 const toggleAIChat = () => {
     console.log('Toggling AI chat visibility desde Pizarra Flutter ');
@@ -1261,65 +1700,6 @@ const toggleAIChat = () => {
     // Close regular chat if opening AI chat
     if (showAIChat.value) {
         showFloatingChat.value = false;
-    }
-};
-// Load chat messages for the current form
-const loadChatMessages = async () => {
-    if (!props.pizarra?.id) return;
-
-    try {
-        const response = await axios.get(`/chat/form/${props.pizarra.id}/messages`);
-        console.log('Chat messages loaded:', response.data);
-
-        // Format messages from the database
-        const dbMessages = response.data.map((msg: any) => ({
-            text: msg.message,
-            user: msg.user_name || msg.user_email || 'Usuario',
-            timestamp: new Date(msg.created_at).getTime()
-        }));
-
-        chatMessages.value = dbMessages;
-    } catch (error) {
-        console.error('Error loading chat messages:', error);
-        AlertService.prototype.error('Error', 'No se pudieron cargar los mensajes del chat');
-    }
-};
-// Send a chat message
-const sendChatMessage = async () => {
-    if (chatMessage.value.trim()) {
-        // Prepare message data
-        const messageData = {
-            roomId: roomId.value,
-            text: chatMessage.value,
-            user: currentUser.value,
-            userId: user_id.value,
-            timestamp: Date.now()
-        };
-
-        // Emit message to socket
-        socket.emit('chatMessage', messageData);
-
-        // Add message to local chat
-        chatMessages.value.push({
-            text: chatMessage.value,
-            user: currentUser.value,
-            timestamp: Date.now()
-        });
-
-        // Save message to database
-        try {
-            await axios.post('/chat/message', {
-                form_id: props.pizarra?.id,
-                message: chatMessage.value,
-                user_id: user_id.value
-            });
-        } catch (error) {
-            console.error('Error saving chat message:', error);
-            AlertService.prototype.error('Error', 'No se pudo guardar el mensaje en la base de datos');
-        }
-
-        // Clear input
-        chatMessage.value = '';
     }
 };
 
@@ -1755,10 +2135,13 @@ const sendAIPrompt = async () => {
             `${azureApiUrl}/openai/deployments/${azureModelName}/chat/completions?api-version=2023-03-15-preview`,
             {
                 messages: [
-                    { role: 'system', content: 'Eres un asistente útil para Flutter.' },
+                    {
+                        role: 'system',
+                        content: 'Eres un asistente útil para Flutter. Cuando te pidan crear componentes, formularios o widgets de Flutter, responde SIEMPRE con un JSON que describa los widgets solicitados. El JSON debe tener la siguiente estructura: {"widgets": [{"type": "Widget_Type", "props": {"prop1": "value1"}, "children": []}], "explanation": "Explicación de los widgets"}.  \n\nLos tipos de widgets disponibles incluyen: Container, Row, Column, Text, Image, Icon, Scaffold, AppBar, Center, Form, TextFormField, TextField, DropdownButton, Checkbox, SizedBox, Drawer, Card, ListTile, FloatingActionButton. \n\nEjemplo de respuesta para un formulario de login: \n```json\n{"widgets": [{"type": "Form", "props": {"key": "GlobalKey<FormState>()"}, "children": [{"type": "Column", "props": {"mainAxisAlignment": "MainAxisAlignment.center"}, "children": [{"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Email\\")", "keyboardType": "TextInputType.email"}, "children": []}, {"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Password\\")", "obscureText": true}, "children": []}, {"type": "ElevatedButton", "props": {"child": "Text(\\"Login\\")"}, "children": []}]}]}], "explanation": "Este es un formulario de login con campos para email y contraseña, y un botón para enviar."}\n```'
+                    },
                     { role: 'user', content: prompt }
                 ],
-                max_tokens: 500,
+                max_tokens: 1500,
                 temperature: 0.7
             },
             {
@@ -1772,17 +2155,48 @@ const sendAIPrompt = async () => {
         if (response.data && response.data.choices) {
             const aiResponse = response.data.choices[0].message.content;
             console.log('AI Response:', aiResponse);
-            /*
-            const dart = extractFromFirstImport(aiResponse);
-            console.log(dart);
-            parseFlutterWidgets(dart);
-            */
-            // Add the response to the chat
-            aiMessages.value.push({
-                text: aiResponse,
-                isUser: false,
-                timestamp: Date.now()
-            });
+
+            // Try to parse the response as JSON
+            try {
+                const jsonResponse = parseAIResponseAsJSON(aiResponse);
+                if (jsonResponse && jsonResponse.widgets && Array.isArray(jsonResponse.widgets)) {
+                    // Add the response to the chat with widgets
+                    aiMessages.value.push({
+                        text: jsonResponse.explanation || aiResponse,
+                        isUser: false,
+                        timestamp: Date.now(),
+                        widgets: jsonResponse.widgets
+                    });
+
+                    // Show success message
+                    AlertService.prototype.success('Éxito', 'Widgets generados por la IA listos para añadir a la pizarra');
+                } else {
+                    // Add the response to the chat without widgets
+                    aiMessages.value.push({
+                        text: aiResponse,
+                        isUser: false,
+                        timestamp: Date.now()
+                    });
+                    // If JSON parsing fails, try to extract Flutter code
+                    const dart = extractFromFirstImport(aiResponse);
+                    console.log('Extracted Dart code:', dart);
+                    parseFlutterWidgets(dart);
+                }
+            } catch (error) {
+                console.error('Error parsing AI response:', error);
+
+                // Add the response to the chat without widgets
+                aiMessages.value.push({
+                    text: aiResponse,
+                    isUser: false,
+                    timestamp: Date.now()
+                });
+
+                // If JSON parsing fails, try to extract Flutter code
+                const dart = extractFromFirstImport(aiResponse);
+                console.log('Extracted Dart code:', dart);
+                parseFlutterWidgets(dart);
+            }
         } else {
             aiMessages.value.push({
                 text: 'No se pudo generar una respuesta.',
@@ -1801,6 +2215,63 @@ const sendAIPrompt = async () => {
         isProcessingAI.value = false;
     }
 };
+/**
+ * Parses the AI response as JSON.
+ *
+ * This function attempts to:
+ * 1. Extract JSON from the AI response text
+ * 2. Parse it into a JavaScript object
+ * 3. Validate that it has the expected structure
+ *
+ * @param aiResponse The AI response text
+ * @returns The parsed JSON object or null if parsing fails
+ */
+function parseAIResponseAsJSON(aiResponse: string): any {
+    console.log('Parsing AI response as JSON...');
+
+    try {
+        // First, try to parse the entire response as JSON
+        try {
+            const jsonObject = JSON.parse(aiResponse);
+            console.log('Successfully parsed entire response as JSON:', jsonObject);
+            return jsonObject;
+        } catch (error) {
+            console.log('Could not parse entire response as JSON, trying to extract JSON...');
+        }
+
+        // If that fails, try to extract JSON from the response
+        // First look for JSON code blocks
+        const jsonCodeBlockRegex = /```(?:json)?\s*({[\s\S]*?})\s*```/g;
+        let matches = [...aiResponse.matchAll(jsonCodeBlockRegex)];
+
+        // If no code blocks found, try to find JSON objects directly
+        if (matches.length === 0) {
+            const jsonObjectRegex = /({[\s\S]*?"widgets"\s*:\s*\[[\s\S]*?\]})/g;
+            matches = [...aiResponse.matchAll(jsonObjectRegex)];
+        }
+
+        if (matches.length > 0) {
+            // Use the first match that can be parsed as JSON
+            for (const match of matches) {
+                const jsonString = match[1] || match[0];
+                try {
+                    const jsonObject = JSON.parse(jsonString);
+                    console.log('Successfully extracted and parsed JSON:', jsonObject);
+                    return jsonObject;
+                } catch (error) {
+                    console.log('Failed to parse extracted JSON, trying next match...');
+                }
+            }
+        }
+
+        console.log('No valid JSON found in AI response');
+        return null;
+    } catch (error) {
+        console.error('Error in parseAIResponseAsJSON:', error);
+        return null;
+    }
+}
+
 // Add AI-generated widgets to the canvas
 const addAIWidgetsToCanvas = (widgets: any) => {
     if (!widgets || !Array.isArray(widgets) || widgets.length === 0) {
@@ -1833,23 +2304,18 @@ const addAIWidgetsToCanvas = (widgets: any) => {
             socket.emit('flutter-widget-added', {
                 roomId: roomId.value,
                 widget: widget,
-                userId: currentUser.value
+                userId: currentUser.value,
+                screenId: currentScreen.value?.id
             });
         });
+
+        // Show success message
+        AlertService.prototype.success('Éxito', 'Widgets generados por la IA añadidos a la pizarra');
     } catch (error) {
         console.error('Error adding widgets to canvas:', error);
         AlertService.prototype.error('Error', 'No se pudieron añadir los widgets generados por la IA');
     }
 };
-// Handle typing in the chat input
-const onChatInput = () => {
-    // Emit typing event
-    socket.emit('typing', {
-        roomId: roomId.value,
-        user: currentUser.value
-    });
-};
-
 const onChatInputAI = () => {
     // Emit typing event for AI chat
     socket.emit('typingAI', {
@@ -1891,11 +2357,10 @@ const onChatInputAI = () => {
                     </button>
                 </div>
             </div>
-
             <!-- Image Upload Modal -->
             <div v-if="showImageUpload"
                  class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-                <div class="w-full max-w-md rounded-lg bg-white p-4 transition-colors dark:bg-gray-800 sm:p-6">
+                <div class="w-full max-w-4xl rounded-lg bg-white p-4 transition-colors dark:bg-gray-800 sm:p-6">
                     <div class="mb-4 flex items-center justify-between">
                         <h2 class="text-xl font-bold dark:text-white">Subir Imagen</h2>
                         <button
@@ -1910,93 +2375,152 @@ const onChatInputAI = () => {
                         </button>
                     </div>
 
-                    <div class="mb-4">
-                        <p class="mb-2 text-sm text-gray-600 dark:text-gray-300">
-                            Sube una imagen de un boceto o diseño para que la IA lo convierta en código Flutter.
-                        </p>
+                    <!-- Results Panel (after processing) -->
+                    <div v-if="showResultsPanel" class="mb-6">
+                        <h3 class="mb-2 text-lg font-semibold dark:text-white">Resultados del Análisis ROBOFLOW</h3>
 
-                        <!-- Image preview -->
-                        <div v-if="previewImage" class="mb-4">
-                            <img :src="previewImage" alt="Preview"
-                                 class="mx-auto max-h-60 rounded border dark:border-gray-600" />
-                            <div class="mt-2 flex justify-center">
-                                <button
-                                    @click="clearSelectedImage"
-                                    class="rounded bg-red-500 px-3 py-1 text-sm text-white transition-colors hover:bg-red-600"
-                                >
-                                    Eliminar
-                                </button>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <!-- Original Image -->
+                            <div class="rounded-lg border p-3 dark:border-gray-600">
+                                <h4 class="mb-2 text-sm font-medium dark:text-white">Imagen Original</h4>
+                                <img v-if="originalImage" :src="originalImage" alt="Original Image"
+                                     class="mx-auto max-h-60 rounded border dark:border-gray-600" />
+                            </div>
+
+                            <!-- Processed Image -->
+                            <div class="rounded-lg border p-3 dark:border-gray-600">
+                                <h4 class="mb-2 text-sm font-medium dark:text-white">Imagen Procesada</h4>
+                                <img v-if="processedImage" :src="processedImage" alt="Processed Image"
+                                     class="mx-auto max-h-60 rounded border dark:border-gray-600" />
                             </div>
                         </div>
 
-                        <!-- Upload options -->
-                        <div v-if="!previewImage" class="flex flex-col gap-3">
-                            <!-- Camera option -->
-                            <label
-                                class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-6 w-6 text-gray-500 dark:text-gray-300"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                                    />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span class="dark:text-white">Tomar Foto</span>
-                                <input type="file" accept="image/*" capture="environment" class="hidden"
-                                       @change="handleImageUpload" />
-                            </label>
+                        <!-- Detected Components -->
+                        <div v-if="roboflowData && roboflowData.predictions" class="mt-4 rounded-lg border p-3 dark:border-gray-600">
+                            <h4 class="mb-2 text-sm font-medium dark:text-white">Componentes Detectados</h4>
+                            <div class="max-h-40 overflow-y-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr class="border-b dark:border-gray-600">
+                                            <th class="p-2">Tipo</th>
+                                            <th class="p-2">Confianza</th>
+                                            <th class="p-2">Posición</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(prediction, index) in roboflowData.predictions" :key="index"
+                                            class="border-b dark:border-gray-600">
+                                            <td class="p-2">{{ prediction.class }}</td>
+                                            <td class="p-2">{{ Math.round(prediction.confidence * 100) }}%</td>
+                                            <td class="p-2">x: {{ Math.round(prediction.x) }}, y: {{ Math.round(prediction.y) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-                            <!-- Gallery option -->
-                            <label
-                                class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-6 w-6 text-gray-500 dark:text-gray-300"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                    />
-                                </svg>
-                                <span class="dark:text-white">Seleccionar de Galería</span>
-                                <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
-                            </label>
+                        <!-- Action buttons for results panel -->
+                        <div class="mt-4 flex justify-end gap-2">
+                            <button @click="showResultsPanel = false; showImageUpload = false"
+                                    class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">
+                                Cerrar y Continuar
+                            </button>
+                            <button @click="showResultsPanel = false; clearSelectedImage()"
+                                    class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
+                                Procesar Otra Imagen
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Action buttons -->
-                    <div class="flex justify-end gap-2">
-                        <button @click="closeImageUpload" class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300">
-                            Cancelar
-                        </button>
-                        <button
-                            @click="processImage"
-                            class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-                            :disabled="!selectedImage || isProcessingImage"
-                            :class="{ 'cursor-not-allowed opacity-50': !selectedImage || isProcessingImage }"
-                        >
-                            {{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}
-                        </button>
+                    <!-- Upload Panel (before processing) -->
+                    <div v-if="!showResultsPanel">
+                        <div class="mb-4">
+                            <p class="mb-2 text-sm text-gray-600 dark:text-gray-300">
+                                Sube una imagen de un boceto o diseño para que ROBOFLOW lo convierta en componentes Flutter.
+                            </p>
+
+                            <!-- Image preview -->
+                            <div v-if="previewImage" class="mb-4">
+                                <img :src="previewImage" alt="Preview"
+                                     class="mx-auto max-h-60 rounded border dark:border-gray-600" />
+                                <div class="mt-2 flex justify-center">
+                                    <button
+                                        @click="clearSelectedImage"
+                                        class="rounded bg-red-500 px-3 py-1 text-sm text-white transition-colors hover:bg-red-600"
+                                    >
+                                        Eliminar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Upload options -->
+                            <div v-if="!previewImage" class="flex flex-col gap-3">
+                                <!-- Camera option -->
+                                <label
+                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-6 w-6 text-gray-500 dark:text-gray-300"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                                        />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span class="dark:text-white">Tomar Foto</span>
+                                    <input type="file" accept="image/*" capture="environment" class="hidden"
+                                           @change="handleImageUpload" />
+                                </label>
+
+                                <!-- Gallery option -->
+                                <label
+                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-6 w-6 text-gray-500 dark:text-gray-300"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                        />
+                                    </svg>
+                                    <span class="dark:text-white">Seleccionar de Galería</span>
+                                    <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action buttons -->
+                        <div class="flex justify-end gap-2">
+                            <button @click="closeImageUpload" class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300">
+                                Cancelar
+                            </button>
+                            <button
+                                @click="processImage"
+                                class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                                :disabled="!selectedImage || isProcessingImage"
+                                :class="{ 'cursor-not-allowed opacity-50': !selectedImage || isProcessingImage }"
+                            >
+                                {{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-
             <!-- Screen Manager -->
             <div class="mb-1">
                 <div class="mb-2 flex items-center justify-between">
@@ -2083,22 +2607,20 @@ const onChatInputAI = () => {
                 </div>
             </div>
             <!-- Flutter code display -->
-            <div v-if="showFlutterCode" class="rounded-md bg-gray-800 p-4 text-white">
-                <div class="mb-2 flex items-center justify-between">
-                    <h3 class="font-medium">Código Flutter</h3>
-                    <div class="flex gap-2">
-                        <button @click="downloadFlutterProject"
-                                class="rounded bg-green-600 px-2 py-1 text-sm text-white hover:bg-green-700">
-                            Descargar Proyecto
-                        </button>
-                        <button @click="copyFlutterCode"
-                                class="rounded bg-gray-700 px-2 py-1 text-sm hover:bg-gray-600">Copiar
-                        </button>
-                    </div>
-                </div>
-                <pre class="max-h-96 overflow-auto text-sm">{{ flutterCode }}</pre>
-            </div>
-            <div v-else>
+            <FlutterCodeViewer
+                :show="showFlutterCode"
+                :flutterCode="flutterCode"
+                :selectedCodeTab="selectedCodeTab"
+                :screens="screens"
+                :generateNavigationDrawerCode="generateNavigationDrawerCode"
+                :generateScreenCode="generateScreenCode"
+                :downloadFlutterProject="downloadFlutterProject"
+                :copyFlutterCode="copyFlutterCode"
+                :setSelectedCodeTab="setSelectedCodeTab"
+                :initNavigationDrawer="initNavigationDrawer"
+            />
+
+            <div v-if="!showFlutterCode" class="flex h-full flex-1 flex-col gap-4">
                 <!-- Mobile widget selector (visible on small screens) -->
                 <div class="mb-4 md:hidden">
                     <WidgetPalette
@@ -2132,10 +2654,20 @@ const onChatInputAI = () => {
                                 class="mobile-phone-frame transition-colors dark:bg-gray-900 dark:shadow-[0_0_0_10px_#000,0_0_0_11px_#333,0_20px_30px_rgba(0,0,0,0.5)]"
                             >
                                 <!-- Phone status bar -->
-                                <PhoneStatusBar />
-
+                                <PhoneStatusBar
+                                    :title="currentScreen?.name || 'Pantalla Flutter'"
+                                    :showMenu="true"
+                                    :actions="[]"
+                                    :class="{
+                                        'selected-widget m-2': selectedWidget?.id === 'widget-1'
+                                    }"
+                                    class="cursor-move"
+                                    @click="selectWidget(currentScreen.elements[0])"
+                                />
+                                <br/>
                                 <!-- Phone content area (draggable canvas) -->
-                                <div class="phone-content-area transition-colors dark:bg-gray-800">
+                                <div class="phone-content-area transition-colors bg-sky-50 dark:bg-gray-800 mt-4">
+                                    <!-- Si la pantalla esta vacia-->
                                     <div
                                         v-if="!currentScreen || !Array.isArray(currentScreen.elements)"
                                         class="flex min-h-full w-full items-center justify-center"
@@ -2151,12 +2683,13 @@ const onChatInputAI = () => {
                                             </button>
                                         </div>
                                     </div>
+                                    <!-- Draggable elements -->
                                     <draggable
                                         v-else
                                         v-model="currentScreen.elements"
                                         group="widgets"
                                         item-key="id"
-                                        class="min-h-full w-full"
+                                        class="min-h-full w-full "
                                         :animation="150"
                                         ghost-class="ghost-widget"
                                         chosen-class="chosen-widget"
@@ -2184,18 +2717,19 @@ const onChatInputAI = () => {
                                                 }"
                                                 @click.stop="selectWidget(element)"
                                             >
-                                                <div class="widget-header dark:border-gray-600 dark:bg-gray-800">
+<!--                                                <div class="widget-header dark:border-gray-600 dark:bg-gray-800">
                                                     <span class="widget-type dark:text-white">Widget: {{ element.type }}</span>
-                                                    <button @click.stop="removeWidget(element)"
-                                                            class="widget-remove-btn">×
-                                                    </button>
-                                                </div>
+                                                </div>-->
 
                                                 <!-- Realistic Flutter Widget Rendering -->
-                                                <div class="flutter-widget-preview">
+                                                <div class="flutter-widget-preview bg-red-100 static">
+                                                    <div class="absolute top-0 right-0 z-10">
+                                                        <button @click.stop="removeWidget(element)" class="widget-remove-btn ">
+                                                            ×
+                                                        </button>
+                                                    </div>
                                                     <!-- Text Widget -->
-                                                    <div
-                                                        v-if="element.type === 'Text'"
+                                                    <div v-if="element.type === 'Text'"
                                                         class="flutter-text"
                                                         :style="{
                                                             fontSize: '16px',
@@ -2222,8 +2756,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- Container Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'Container'"
+                                                    <div v-else-if="element.type === 'Container'"
                                                         class="flutter-container droppable-container"
                                                         :style="{
                                                             width: (element.props.width || 200) + 'px',
@@ -2763,21 +3296,88 @@ const onChatInputAI = () => {
                                                                         boxShadow: `0 0 ${child.props.elevation || 16}px rgba(0,0,0,0.3)`,
                                                                     }"
                                                                 >
-                                                                    <div class="drawer-header">Drawer</div>
-                                                                    <div class="drawer-content">
-                                                                        <div
-                                                                            v-if="
-                                                                                !child.children ||
-                                                                                !Array.isArray(child.children) ||
-                                                                                child.children.length === 0
-                                                                            "
-                                                                            class="drawer-placeholder"
-                                                                        >
-                                                                            <div class="drop-here-indicator">
-                                                                                <span>Drawer Content Goes Here</span>
+                                                                    <!-- User Account Drawer Header -->
+                                                                    <div class="drawer-header" style="background-color: #2196F3; color: white; padding: 16px; height: 150px; display: flex; flex-direction: column; justify-content: flex-end;">
+                                                                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                                                            <div style="width: 60px; height: 60px; border-radius: 30px; background-color: white; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                                                                                <span style="font-size: 24px; color: #2196F3;">U</span>
+                                                                            </div>
+                                                                            <div>
+                                                                                <div style="font-weight: bold; font-size: 16px;">User Name</div>
+                                                                                <div style="font-size: 14px;">user@example.com</div>
                                                                             </div>
                                                                         </div>
-                                                                        <div v-else class="drawer-children">
+                                                                    </div>
+
+                                                                    <div class="drawer-content">
+                                                                        <!-- Default ListTiles for navigation -->
+                                                                        <div class="drawer-list-tiles">
+                                                                            <!-- Home screen -->
+                                                                            <div class="flutter-list-tile" style="padding: 16px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0;">
+                                                                                <div style="margin-right: 16px; color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+                                                                                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                                <div style="flex: 1;">Home</div>
+                                                                                <div style="color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 0 24 24" width="16">
+                                                                                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <!-- Profile screen -->
+                                                                            <div class="flutter-list-tile" style="padding: 16px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0;">
+                                                                                <div style="margin-right: 16px; color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+                                                                                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                                <div style="flex: 1;">Profile</div>
+                                                                                <div style="color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 0 24 24" width="16">
+                                                                                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <!-- Divider -->
+                                                                            <div style="height: 1px; background-color: #e0e0e0; margin: 8px 0;"></div>
+
+                                                                            <!-- Settings -->
+                                                                            <div class="flutter-list-tile" style="padding: 16px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0;">
+                                                                                <div style="margin-right: 16px; color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+                                                                                        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                                <div style="flex: 1;">Settings</div>
+                                                                                <div style="color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 0 24 24" width="16">
+                                                                                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <!-- Help & Feedback -->
+                                                                            <div class="flutter-list-tile" style="padding: 16px; display: flex; align-items: center; border-bottom: 1px solid #f0f0f0;">
+                                                                                <div style="margin-right: 16px; color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+                                                                                        <path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                                <div style="flex: 1;">Help & Feedback</div>
+                                                                                <div style="color: #757575;">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 0 24 24" width="16">
+                                                                                        <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" fill="currentColor"/>
+                                                                                    </svg>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <!-- Custom drawer children if any -->
+                                                                        <div v-if="child.children && Array.isArray(child.children) && child.children.length > 0" class="drawer-children">
                                                                             <div
                                                                                 v-for="grandchild in child.children"
                                                                                 :key="grandchild.id"
@@ -2907,8 +3507,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- Row Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'Row'"
+                                                    <div v-else-if="element.type === 'Row'"
                                                         class="flutter-row droppable-container"
                                                         :style="{
                                                             justifyContent: 'flex-start',
@@ -3164,8 +3763,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- Column Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'Column'"
+                                                    <div v-else-if="element.type === 'Column'"
                                                         class="flutter-column droppable-container"
                                                         :style="{
                                                             justifyContent: 'flex-start',
@@ -3434,8 +4032,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- Icon Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'Icon'"
+                                                    <div v-else-if="element.type === 'Icon'"
                                                         class="flutter-icon"
                                                         :style="{
                                                             color: element.props.color || '#000000',
@@ -3471,8 +4068,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- ScrollChildren Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'ScrollChildren'"
+                                                    <div v-else-if="element.type === 'ScrollChildren'"
                                                         class="flutter-scroll-children droppable-container"
                                                         :style="{
                                                             width: '100%',
@@ -3609,8 +4205,7 @@ const onChatInputAI = () => {
                                                     </div>
 
                                                     <!-- CardText Widget -->
-                                                    <div
-                                                        v-else-if="element.type === 'CardText'"
+                                                    <div v-else-if="element.type === 'CardText'"
                                                         class="flutter-card-text"
                                                         :style="{
                                                             backgroundColor: element.props.color || '#FFFFFF',
@@ -3648,7 +4243,7 @@ const onChatInputAI = () => {
                                                     </div>
                                                 </div>
 
-                                                <!-- Nested children if any -->
+                                                <!-- Niños anidados si los hay -->
                                                 <div
                                                     v-if="element.children && Array.isArray(element.children) && element.children.length > 0"
                                                     class="widget-children"
@@ -3679,8 +4274,7 @@ const onChatInputAI = () => {
                                                                 @click.stop="selectWidget(child)"
                                                             >
                                                                 <div class="child-widget-header">
-                                                                    <span class="child-widget-type">{{ child.type
-                                                                        }}</span>
+                                                                    <span class="child-widget-type">{{ child.type }}</span>
                                                                     <button @click.stop="removeWidget(child)"
                                                                             class="widget-remove-btn">×
                                                                     </button>
@@ -3893,67 +4487,12 @@ const onChatInputAI = () => {
             </div>
 
             <!-- Collaborator Management Section -->
-            <div v-if="isCreator" class="mt-4 rounded-md bg-gray-100 p-4">
-                <h3 class="mb-2 text-lg font-semibold">Gestión de Colaboradores</h3>
-
-                <!-- Invite Button -->
-                <div class="mb-4 flex gap-2">
-                    <button @click="showInviteForm = !showInviteForm"
-                            class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">
-                        {{ showInviteForm ? 'Cancelar' : 'Invitar Colaborador' }}
-                    </button>
-
-                    <button @click="generateInviteLink"
-                            class="rounded-md bg-purple-500 px-4 py-2 text-white hover:bg-purple-600">
-                        {{ showInviteLink ? 'Ocultar Enlace' : 'Generar Enlace de Invitación' }}
-                    </button>
-                </div>
-
-                <!-- Invite Form -->
-                <div v-if="showInviteForm" class="mb-4 rounded-md border border-gray-300 bg-white p-4">
-                    <div class="flex gap-2">
-                        <input v-model="inviteEmail" type="email" placeholder="Correo electrónico"
-                               class="flex-1 rounded-md border px-3 py-2" />
-                        <button @click="inviteCollaborator"
-                                class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">Invitar
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Invite Link -->
-                <div v-if="showInviteLink" class="mb-4 rounded-md border border-gray-300 bg-white p-4">
-                    <div class="flex gap-2">
-                        <input v-model="inviteLink" type="text" readonly
-                               class="flex-1 rounded-md border bg-gray-50 px-3 py-2" />
-                        <button @click="copyInviteLink"
-                                class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">Copiar
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Collaborators List -->
-                <div v-if="collaborators.length > 0" class="mt-4">
-                    <h4 class="mb-2 font-medium">Colaboradores</h4>
-                    <div class="space-y-2">
-                        <div
-                            v-for="collaborator in collaborators"
-                            :key="collaborator.id || collaborator.email"
-                            class="flex items-center justify-between rounded-md border border-gray-300 bg-white p-2"
-                        >
-                            <div class="flex items-center gap-2">
-                                <div
-                                    class="h-3 w-3 rounded-full"
-                                    :class="onlineCollaborators.includes(collaborator.name || collaborator.email) ? 'bg-green-500' : 'bg-gray-400'"
-                                    :title="onlineCollaborators.includes(collaborator.name || collaborator.email) ? 'En línea' : 'Desconectado'"
-                                ></div>
-                                <span>{{ collaborator.name || collaborator.email }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div v-else class="mt-4 text-center text-gray-500">No hay colaboradores aún</div>
-            </div>
+            <Colaboradores
+                v-if="isCreator"
+                :collaborators="collaborators"
+                :online-collaborators="onlineCollaborators"
+                :pizarra="props.pizarra"
+            />
 
             <!-- Chat Buttons -->
             <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
@@ -4012,7 +4551,7 @@ const onChatInputAI = () => {
                 <button
                     @click="toggleFloatingChat"
                     class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
-                    :class="{ 'animate-pulse': chatMessages.length > 0 && !showFloatingChat, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
+                    :class="{ 'animate-pulse': !showFloatingChat, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
                     aria-label="Toggle Chat"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
@@ -4029,14 +4568,14 @@ const onChatInputAI = () => {
 
             <!-- Floating Chat Window -->
             <ChatColaborativo
-                :showFloatingChat="showFloatingChat"
-                :chatMessages="chatMessages"
-                :chatTyping="chatTyping"
-                :chatMessage="chatMessage"
+                v-if="showFloatingChat"
+                :socket="socket"
                 :currentUser="currentUser"
-                @toggleFloatingChat="toggleFloatingChat"
-                @sendChatMessage="sendChatMessage"
-                @onChatInput="onChatInput"
+                :roomId="roomId"
+                :showChat="showFloatingChat"
+                @close="showFloatingChat = false"
+                @send-message="handleChatMessage"
+                @typing="handleTyping"
             />
             <!-- AI Chat Window -->
             <ChatAI

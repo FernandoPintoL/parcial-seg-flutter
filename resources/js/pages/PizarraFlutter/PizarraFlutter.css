@@ -108,13 +108,13 @@
 }
 
 .selected-widget {
-    box-shadow: 0 0 0 2px #007aff, 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 0 2px #23ac4a, 0 4px 8px rgba(0, 0, 0, 0.1);
     transform: scale(1.01);
 }
 
 /* Dark mode for selected widget */
 :root.dark .selected-widget {
-    box-shadow: 0 0 0 2px #3b82f6, 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 2px #23ac4a, 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .widget-header {

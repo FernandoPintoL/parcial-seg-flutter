@@ -150,7 +150,7 @@ class PizarraController extends Controller
     }
 
     /**
-     * Process an uploaded image and generate Flutter UI
+     * Process an uploaded image and generate Flutter UI using ROBOFLOW
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -176,36 +176,282 @@ class PizarraController extends Controller
             $imagePath = $tempDir . '/' . $image->getClientOriginalName();
             move_uploaded_file($image->getPathname(), $imagePath);
 
-            // Convert image to base64 for sending to Azure
-            $imageData = base64_encode(file_get_contents($imagePath));
+            // Get ROBOFLOW credentials from environment
+            $roboflowApiKey = env('ROBOFLOW_API_KEY');
+            $modelId = env('ROBFLOW_MODEL_ID');
 
-            // Create a description of the image using Azure AI Vision
-            $description = $this->getImageDescription($imageData);
-
-            if (!$description) {
+            if (!$roboflowApiKey || !$modelId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se pudo generar una descripción de la imagen',
-                ], 400);
+                    'message' => 'ROBOFLOW API key or model ID not configured',
+                ], 500);
             }
 
-            // Generate Flutter UI based on the description
-            $aiController = app(\App\Http\Controllers\AIController::class);
-            $flutterResponse = $aiController->generateFlutterUI(new \Illuminate\Http\Request([
-                'prompt' => "Create a Flutter UI based on this image description: $description. Make it as close as possible to what is described.",
-            ]));
+            // Prepare the image for ROBOFLOW
+            $imageData = file_get_contents($imagePath);
+            $base64Image = base64_encode($imageData);
+
+            // Call ROBOFLOW API
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'Content-Type' => 'application/json',
+            ])->post("https://detect.roboflow.com/v1/detect/{$modelId}?api_key={$roboflowApiKey}", [
+                'image' => $base64Image
+            ]);
+
+            if (!$response->successful()) {
+                \Log::error('ROBOFLOW API error: ' . $response->body());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error al procesar la imagen con ROBOFLOW: ' . $response->body(),
+                ], 500);
+            }
+
+            // Process ROBOFLOW response
+            $roboflowData = $response->json();
+
+            // Convert ROBOFLOW predictions to Flutter widgets
+            $widgets = $this->convertRoboflowToFlutterWidgets($roboflowData);
+
+            // Generate a URL for the original image
+            $imageUrl = 'data:image/' . $image->getClientOriginalExtension() . ';base64,' . $base64Image;
+
+            // Generate a URL for the processed image (if ROBOFLOW returns one)
+            $processedImageUrl = $roboflowData['image'] ?? $imageUrl;
 
             // Clean up the temporary directory
             $this->deleteDirectory($tempDir);
 
-            // Return the response
-            return $flutterResponse;
+            // Return the response with both the original image, processed image, and widgets
+            return response()->json([
+                'success' => true,
+                'widgets' => $widgets,
+                'originalImage' => $imageUrl,
+                'processedImage' => $processedImageUrl,
+                'rawData' => $roboflowData,
+                'rawCode' => $this->generateFlutterCodeFromWidgets($widgets),
+            ]);
         } catch (\Exception $e) {
             \Log::error('Error scanning image: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error al procesar la imagen: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Convert ROBOFLOW predictions to Flutter widgets
+     *
+     * @param array $roboflowData
+     * @return array
+     */
+    private function convertRoboflowToFlutterWidgets($roboflowData)
+    {
+        $widgets = [];
+        $predictions = $roboflowData['predictions'] ?? [];
+
+        foreach ($predictions as $prediction) {
+            $widgetType = $prediction['class'] ?? 'Container';
+            $confidence = $prediction['confidence'] ?? 0;
+
+            // Skip low confidence predictions
+            if ($confidence < 0.5) {
+                continue;
+            }
+
+            // Get bounding box coordinates
+            $x = $prediction['x'] ?? 0;
+            $y = $prediction['y'] ?? 0;
+            $width = $prediction['width'] ?? 100;
+            $height = $prediction['height'] ?? 100;
+
+            // Create a Flutter widget based on the prediction class
+            $widget = [
+                'id' => 'widget-' . uniqid(),
+                'type' => $this->mapRoboflowClassToFlutterWidget($widgetType),
+                'props' => $this->getDefaultPropsForWidgetType($widgetType, $width, $height),
+                'children' => [],
+                'metadata' => [
+                    'roboflow' => [
+                        'class' => $widgetType,
+                        'confidence' => $confidence,
+                        'x' => $x,
+                        'y' => $y,
+                        'width' => $width,
+                        'height' => $height
+                    ]
+                ]
+            ];
+
+            $widgets[] = $widget;
+        }
+
+        return $widgets;
+    }
+
+    /**
+     * Map ROBOFLOW class to Flutter widget type
+     *
+     * @param string $roboflowClass
+     * @return string
+     */
+    private function mapRoboflowClassToFlutterWidget($roboflowClass)
+    {
+        $mapping = [
+            'button' => 'FloatingActionButton',
+            'text' => 'Text',
+            'image' => 'Image',
+            'container' => 'Container',
+            'row' => 'Row',
+            'column' => 'Column',
+            'appbar' => 'AppBar',
+            'textfield' => 'TextField',
+            'card' => 'Card',
+            'icon' => 'Icon',
+            'checkbox' => 'Checkbox',
+            'dropdown' => 'DropdownButton',
+            'scaffold' => 'Scaffold',
+            'center' => 'Center',
+            'sizedbox' => 'SizedBox',
+            'padding' => 'Padding',
+            'form' => 'Form',
+            'drawer' => 'Drawer',
+            'listtitle' => 'ListTitle',
+            'cardtext' => 'CardText',
+        ];
+
+        return $mapping[strtolower($roboflowClass)] ?? 'Container';
+    }
+
+    /**
+     * Get default properties for a widget type
+     *
+     * @param string $widgetType
+     * @param float $width
+     * @param float $height
+     * @return array
+     */
+    private function getDefaultPropsForWidgetType($widgetType, $width, $height)
+    {
+        $widgetType = strtolower($widgetType);
+
+        $props = [
+            'width' => $width,
+            'height' => $height,
+        ];
+
+        switch ($widgetType) {
+            case 'button':
+                $props['child'] = 'Text("Button")';
+                $props['backgroundColor'] = '#2196F3';
+                $props['foregroundColor'] = '#FFFFFF';
+                break;
+            case 'text':
+                $props['data'] = 'Text Content';
+                $props['style'] = 'TextStyle(fontSize: 16.0)';
+                break;
+            case 'image':
+                $props['src'] = 'https://via.placeholder.com/150';
+                $props['fit'] = 'BoxFit.cover';
+                break;
+            case 'container':
+                $props['color'] = '#FFFFFF';
+                $props['padding'] = 'EdgeInsets.all(16.0)';
+                break;
+            case 'textfield':
+                $props['decoration'] = 'InputDecoration(labelText: "Label")';
+                $props['controller'] = 'TextEditingController()';
+                break;
+            case 'appbar':
+                $props['title'] = 'AppBar Title';
+                $props['backgroundColor'] = '#2196F3';
+                break;
+            default:
+                // Default properties for other widget types
+                break;
+        }
+
+        return $props;
+    }
+
+    /**
+     * Generate Flutter code from widgets
+     *
+     * @param array $widgets
+     * @return string
+     */
+    private function generateFlutterCodeFromWidgets($widgets)
+    {
+        $code = "import 'package:flutter/material.dart';\n\n";
+        $code .= "class MyFlutterApp extends StatelessWidget {\n";
+        $code .= "  const MyFlutterApp({Key? key}) : super(key: key);\n\n";
+        $code .= "  @override\n";
+        $code .= "  Widget build(BuildContext context) {\n";
+        $code .= "    return Scaffold(\n";
+        $code .= "      appBar: AppBar(\n";
+        $code .= "        title: const Text('Flutter UI from ROBOFLOW'),\n";
+        $code .= "      ),\n";
+        $code .= "      body: Center(\n";
+        $code .= "        child: Column(\n";
+        $code .= "          mainAxisAlignment: MainAxisAlignment.center,\n";
+        $code .= "          children: [\n";
+
+        foreach ($widgets as $widget) {
+            $code .= "            // " . ($widget['metadata']['roboflow']['class'] ?? 'Widget') . " (confidence: " . ($widget['metadata']['roboflow']['confidence'] ?? 'N/A') . ")\n";
+            $code .= "            " . $this->generateWidgetCode($widget) . ",\n";
+        }
+
+        $code .= "          ],\n";
+        $code .= "        ),\n";
+        $code .= "      ),\n";
+        $code .= "    );\n";
+        $code .= "  }\n";
+        $code .= "}\n";
+
+        return $code;
+    }
+
+    /**
+     * Generate code for a single widget
+     *
+     * @param array $widget
+     * @return string
+     */
+    private function generateWidgetCode($widget)
+    {
+        $type = $widget['type'];
+        $props = $widget['props'];
+
+        switch ($type) {
+            case 'Container':
+                return "Container(\n" .
+                       "              width: " . $props['width'] . ",\n" .
+                       "              height: " . $props['height'] . ",\n" .
+                       "              color: Color(0xFF" . substr($props['color'] ?? '#FFFFFF', 1) . "),\n" .
+                       "              padding: " . ($props['padding'] ?? 'EdgeInsets.zero') . ",\n" .
+                       "            )";
+            case 'Text':
+                return "Text(\n" .
+                       "              '" . ($props['data'] ?? 'Text Content') . "',\n" .
+                       "              style: " . ($props['style'] ?? 'null') . ",\n" .
+                       "            )";
+            case 'Image':
+                return "Image.network(\n" .
+                       "              '" . ($props['src'] ?? 'https://via.placeholder.com/150') . "',\n" .
+                       "              width: " . $props['width'] . ",\n" .
+                       "              height: " . $props['height'] . ",\n" .
+                       "              fit: " . ($props['fit'] ?? 'BoxFit.cover') . ",\n" .
+                       "            )";
+            case 'FloatingActionButton':
+                return "FloatingActionButton(\n" .
+                       "              onPressed: () {},\n" .
+                       "              child: " . ($props['child'] ?? 'const Icon(Icons.add)') . ",\n" .
+                       "              backgroundColor: Color(0xFF" . substr($props['backgroundColor'] ?? '#2196F3', 1) . "),\n" .
+                       "            )";
+            default:
+                return "$type(\n" .
+                       "              // Default widget properties\n" .
+                       "            )";
         }
     }
 
