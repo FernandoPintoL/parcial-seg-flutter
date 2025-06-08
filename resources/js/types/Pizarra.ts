@@ -3,18 +3,19 @@ export interface Pizarra {
     name: string;
     room_id: string;
     elements: FlutterWidget[];
-    screens?: PizarraScreen[];
     user_id: number;
     pizarra_id: number;
     created_at: string;
+    isHome? : boolean;
+    isDrawer? : boolean;
 }
-export interface PizarraScreen {
+/*export interface PizarraScreen {
     id: string;
     name: string;
     elements: FlutterWidget[];
     isHome?: boolean;
     isDrawer?: boolean;
-}
+}*/
 export interface Chats{
     id: number;
     pizarra_id: number;
@@ -31,10 +32,17 @@ export interface PizarraCollaborators{
     status: string;
 }
 export interface FlutterWidget {
-    id : string;
+    id : number;
     type: string;
-    props: Record<string, any>;
+    label: string;
+    icon: string;
+    code_string: string;
+    categoria_widget_id: number;
+    categoria: CategoriaWidget;
+    propiedades: Record<string, any>;
     children?: FlutterWidget[];
+    pendingChild?: any; // For widgets that can have children but are not yet defined
+    pendingChildren?: any[]; // For widgets that can have multiple children but are not yet defined
 }
 // Define la estructura de las propiedades de un widget de Flutter
 export interface FlutterWidgetProperty {
@@ -52,8 +60,15 @@ export interface FlutterWidgetDefinition {
     hasChildren: boolean;
 }
 export interface CategoriaWidget{
+    id : number;
     category: string;
     label: string;
+}
+export interface PropiedadesWidget{
+    id:number;
+    name:string;
+    type:string;
+    defaultValue:string;
 }
 export interface WhiteboardActivities{
     id: number;

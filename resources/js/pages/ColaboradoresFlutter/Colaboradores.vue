@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { AlertService } from '@/Services/AlertService';
+import { AlertService } from '@/services/AlertService';
 import axios from 'axios';
 import type { Pizarra } from '@/types/Pizarra';
 

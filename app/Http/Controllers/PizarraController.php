@@ -559,7 +559,8 @@ class PizarraController extends Controller
     {
         $pizarra = new Pizarra();
         $pizarra->name = $request->name;
-        $pizarra->elements = $request->elements ?? [];
+        /*$pizarra->elements = $request->elements ?? [];
+        $pizarra->screens = $request->screens ?? [];*/
         $pizarra->user_id = auth()->id();
         $pizarra->save();
 
@@ -606,15 +607,17 @@ class PizarraController extends Controller
         $pizarra->name = $request->name;
 
         // Update elements (legacy support)
-        if ($request->has('elements')) {
+        /*if ($request->has('elements')) {
             $pizarra->elements = $request->elements;
         }
-
-        // Update screens if provided
         if ($request->has('screens')) {
             $pizarra->screens = $request->screens;
+        }*/
+        if($pizarra->id === null){
+            return response()->json(['error' => 'Pizarra not found'], 404);
+        }else{
+            $pizarra->pizarra_id = $pizarra->id;
         }
-
         $pizarra->save();
 
         return response()->json($pizarra);
@@ -634,6 +637,21 @@ class PizarraController extends Controller
 
         return redirect()->route('pizarra.flutter.index');
     }
+    // destroy pizarra hija
+    public function destroyHija(Pizarra $pizarra)
+    {
+        // Check if user is authorized to delete this pizarra
+        if ($pizarra->user_id !== auth()->id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $pizarra_hija = Pizarra::where('pizarra_id', $pizarra->id)->first();
+        $pizarra_hija->delete();
+
+        return redirect()->route('pizarra.edit', $pizarra->id)
+            ->with('message', 'Pizarra hija eliminada con éxito');
+    }
+
+
     /**
      * Invite a user to collaborate on a pizarra.
      */

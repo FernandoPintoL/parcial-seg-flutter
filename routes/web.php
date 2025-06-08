@@ -52,6 +52,7 @@ Route::post('/whiteboard/activity', [WhiteboardActivityController::class, 'store
 
 Route::resource('/pizarra', PizarraController::class);
 Route::get('/pizarra/flutter', [PizarraController::class, 'indexFlutter'])->name('pizarra.flutter.index');
+Route::delete('/pizarra/hija/{pizarra}/delete', [PizarraController::class, 'destroyHija'])->name('pizarra.destroy.hija');
 //Route::get('/pizarra/angular', [PizarraController::class, 'indexAngular'])->name('pizarra.angular.index');
 // Routes Pizarra Flutter
 Route::post('/pizarra/{pizarra}/invite/flutter', [PizarraController::class, 'inviteCollaborator'])->name('pizarra.flutter.invite');
@@ -73,6 +74,19 @@ Route::post('/pizarra/scan-image', [PizarraController::class, 'scanImage'])->nam
 
 Route::get('/node-data', NodeController::class.'@getData')->name('node-data');
 Route::get('/figma/file/{fileId}', [FigmaController::class, 'getFile'])->name('figma.file');
+
+// Categoria Widget Routes
+Route::resource('/categoria-widget', \App\Http\Controllers\CategoriaWidgetController::class);
+// Propiedades de los Widgets Routes
+Route::resource('/propiedad-widget', \App\Http\Controllers\PropiedadesController::class);
+// Widget Routes
+Route::resource('/widget', \App\Http\Controllers\WidgetController::class);
+Route::post('/widget/query', [\App\Http\Controllers\WidgetController::class, 'getAllWidgets'])->name('widget.query');
+Route::get('/widget/{widget}/propiedades', [\App\Http\Controllers\WidgetController::class, 'getPropiedades'])->name('widget.propiedades');
+Route::delete('/widget/{widget}/propiedades', [\App\Http\Controllers\WidgetController::class, 'deletePropiedades'])->name('widget.propiedades.delete');
+// Asignación de Widgets a Categorías Routes
+// Asignacion de Propiedades a Widgets Routes
+Route::resource('/widgets-propiedades', \App\Http\Controllers\WidgetsPropiedadesController::class);
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

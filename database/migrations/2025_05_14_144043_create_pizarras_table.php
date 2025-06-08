@@ -14,12 +14,12 @@ return new class extends Migration
         Schema::create('pizarras', function (Blueprint $table) {
             $table->id();
             $table->string('room_id')->nullable()->unique();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->cascadeOnUpdate();
             $table->string('name');
-            $table->json('elements')->nullable();
             $table->json('users')->nullable();
-            $table->json('screens')->nullable()->after('elements');
             $table->foreignId('pizarra_id')->nullable()->constrained('pizarras')->nullOnDelete();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->cascadeOnUpdate();
+//            $table->json('elements')->nullable();
+//            $table->json('screens')->nullable()->after('elements');
             $table->timestamps();
         });
     }

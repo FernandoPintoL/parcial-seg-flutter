@@ -42,21 +42,6 @@ const breadcrumbs: BreadcrumbItem[] = [
             <p class="text-gray-600">You have {{ props.ownedForms.length }} owned forms and {{ props.collaboratingForms.length }} collaborating forms.</p>
             <p class="text-gray-600">You have {{ props.pendingInvitations.length }} pending invitations.</p>
             <p class="text-gray-600">You can create a new form by clicking the button below.</p>
-            <router-link to="/form-builder/create" class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                Create New Form
-            </router-link>
-            <p class="text-gray-600">You can view your forms by clicking the button below.</p>
-            <router-link to="/form-builder" class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                View My Forms
-            </router-link>
-            <p class="text-gray-600">You can view your collaborating forms by clicking the button below.</p>
-            <router-link to="/form-builder/collaborating" class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                View My Collaborating Forms
-            </router-link>
-            <p class="text-gray-600">You can view your pending invitations by clicking the button below.</p>
-            <router-link to="/form-builder/invitations" class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                View My Pending Invitations
-            </router-link>
         </div>
     </AppLayout>
 </template>

@@ -24,7 +24,6 @@ class Pizarra extends Model
         'name',
         'room_id',
         'elements',
-        'screens',
         'user_id',
         'users',
         'pizarra_id'
@@ -36,8 +35,7 @@ class Pizarra extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'elements' => 'array',
-        'screens' => 'array',
+        'elements' => 'array'
     ];
 
     /**
@@ -64,7 +62,7 @@ class Pizarra extends Model
     {
         return $this->hasMany(Chat::class);
     }
-    public function pizarraPadre(): BelongsTo
+    public function pizarraHijas(): BelongsTo
     {
         return $this->belongsTo(Pizarra::class, 'pizarra_id', 'id');
     }

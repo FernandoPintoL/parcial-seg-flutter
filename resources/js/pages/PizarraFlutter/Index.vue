@@ -86,7 +86,7 @@ const createNewPizarra = async () => {
     if (pizarraName) {
         try {
             // Crear la pizarra en el servidor
-            await axios.post('/pizarra', { name: pizarraName, elements : [] }).then((response) => {
+            await axios.post('/pizarra', { name: pizarraName }).then((response) => {
                 console.log('Pizarra creada:', response.data);
                 if (response.status !== 200) {
                     throw new Error('Error al crear la pizarra');

@@ -6,10 +6,10 @@ export const categoriesWidget : CategoriaWidget[] = [
     { category: 'input', label: 'Entrada de Datos (Formularios)' },
     { category: 'plataforma', label: 'Especificos de Plataforma' },
     { category: 'containers', label: 'Contenedores y Decoración' },
-    // { category: 'animation', label: 'Animaciones' },
-    // { category: 'list', label: 'Listas Avanzadas' },
     { category: 'navegation', label: 'Navegación y Rutas' },
     { category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' }
+    // { category: 'animation', label: 'Animaciones' },
+    // { category: 'list', label: 'Listas Avanzadas' },
 ];
 
 export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
@@ -399,3 +399,5 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         hasChildren: false
     }
 ];
+
+export const FlutterCode = "// Flutter code snippet template";
