@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import './PizarraFlutter.css';
-import { ref, onMounted, onUnmounted, computed, watch, defineProps, defineEmits } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, defineProps } from 'vue';
 import draggable from 'vuedraggable';
 import { io } from 'socket.io-client';
 import axios from 'axios';
@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget, PizarraScreen } from '@/types/Pizarra';
+import type { Pizarra, PizarraCollaborators, FlutterWidget } from '@/types/Pizarra';
 import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/services/SocketService';
