@@ -43,7 +43,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: true
     },
-
     //Material Design y Cupertino (iOS)
     {
         type: 'AppBar',
@@ -59,6 +58,39 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         hasChildren: true
     },
     {
+        type: 'ElevatedButton',
+        category: 'material-cupertino',
+        label: 'Elevated Button',
+        properties: [
+            { name: 'onPressed', type: 'string', defaultValue: '() {}' },
+            { name: 'child', type: 'string', defaultValue: 'Text("Elevated Button")' },
+            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Colors.blue))' }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'TextButton',
+        category: 'material-cupertino',
+        label: 'Text Button',
+        properties: [
+            { name: 'onPressed', type: 'string', defaultValue: '() {}' },
+            { name: 'child', type: 'string', defaultValue: 'Text("Text Button")' },
+            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(foregroundColor: MaterialStateProperty.all<Color>(Colors.blue))' }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'OutlinedButton',
+        category: 'material-cupertino',
+        label: 'Outlined Button',
+        properties: [
+            { name: 'onPressed', type: 'string', defaultValue: '() {}' },
+            { name: 'child', type: 'string', defaultValue: 'Text("Outlined Button")' },
+            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(side: MaterialStateProperty.all<BorderSide>(BorderSide(color: Colors.blue)))' }
+        ],
+        hasChildren: false
+    },
+    {
         type: 'FloatingActionButton',
         category: 'material-cupertino',
         label: 'Floating Action Button',
@@ -72,7 +104,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
-
     // Input widgets
     {
         type: 'TextField',
@@ -143,7 +174,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
-
     // Widgets Basicos
     {
         type: 'Container',
@@ -217,7 +247,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
-
     // Layout widgets
     {
         type: 'Row',
@@ -312,7 +341,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: false
     },
-
     //Navegación y Rutas
     {
         type: 'Drawer',
@@ -325,7 +353,6 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: true
     },
-
     // Containers and Decoration
     {
         type: 'Card',

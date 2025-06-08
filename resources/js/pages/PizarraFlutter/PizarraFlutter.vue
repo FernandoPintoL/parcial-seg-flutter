@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import './PizarraFlutter.css';
-import { ref, onMounted, onUnmounted, computed, watch, reactive, defineProps } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, defineProps } from 'vue';
 import draggable from 'vuedraggable';
 import { io } from 'socket.io-client';
 import axios from 'axios';
@@ -20,7 +20,7 @@ import WidgetPalette from '@/pages/PizarraFlutter/WidgetPalette.vue';
 import PhoneStatusBar from '@/pages/PizarraFlutter/PhoneStatusBar.vue';
 import Colaboradores from '@/pages/ColaboradoresFlutter/Colaboradores.vue';
 import FlutterCodeViewer from '@/pages/PizarraFlutter/FlutterCodeViewer.vue';
-import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
+import ColorPicker from '@/components/ColorPicker.vue';
 
 // Props
 const props = defineProps({
@@ -54,6 +54,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     }
 ];
 // Socket.io connection
+let socketService: SocketService;
 const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
 const socketConfig = ref(getSocketConfig(useLocalSocket.value));
 const roomId = ref<string>(props.pizarra ? props.pizarra.room_id : '');
@@ -68,91 +69,6 @@ const socketError = ref<string>('');
 const collaborators = ref<any>(props.colaboradores || []);
 const onlineCollaborators = ref<any>([]);
 const isCreator = ref<boolean>(props.isCreador);
-
-
-// Invitation system
-/*
-const user_id = ref(props.user?.id);
-const inviteEmail = ref<string>('');
-const showInviteForm = ref<boolean>(false);
-const showInviteLink = ref<boolean>(false);
-const inviteLink = ref<string>('');
-// Load chat messages for the current form
-// Generate invite link
-const generateInviteLink = () => {
-    showInviteLink.value = !showInviteLink.value;
-    inviteLink.value = `${window.location.origin}/pizarra/${props.pizarra.id}/invite/flutter`;
-};
-// Copy text to clipboard
-const copyToClipboard = (text: string, successMessage: string) => {
-    navigator.clipboard
-        .writeText(text)
-        .then(() => {
-            AlertService.prototype.success(successMessage);
-        })
-        .catch((err) => {
-            console.error('Error copying to clipboard:', err);
-            AlertService.prototype.error('Error', 'No se pudo copiar al portapapeles');
-        });
-};
-const loadChatMessages = async () => {
-    if (!props.pizarra?.id) return;
-
-    try {
-        const response = await axios.get(`/chat/form/${props.pizarra.id}/messages`);
-        console.log('Chat messages loaded:', response.data);
-
-        // Format messages from the database
-        const dbMessages = response.data.map((msg: any) => ({
-            text: msg.message,
-            user: msg.user_name || msg.user_email || 'Usuario',
-            timestamp: new Date(msg.created_at).getTime()
-        }));
-
-        chatMessages.value = dbMessages;
-    } catch (error) {
-        console.error('Error loading chat messages:', error);
-        AlertService.prototype.error('Error', 'No se pudieron cargar los mensajes del chat');
-    }
-};
-// Send a chat message
-const sendChatMessage = async () => {
-    if (chatMessage.value.trim()) {
-        // Prepare message data
-        const messageData = {
-            roomId: roomId.value,
-            text: chatMessage.value,
-            user: currentUser.value,
-            userId: user_id.value,
-            timestamp: Date.now()
-        };
-
-        // Emit message to socket
-        socket.emit('chatMessage', messageData);
-
-        // Add message to local chat
-        chatMessages.value.push({
-            text: chatMessage.value,
-            user: currentUser.value,
-            timestamp: Date.now()
-        });
-
-        // Save message to database
-        try {
-            await axios.post('/chat/message', {
-                form_id: props.pizarra?.id,
-                message: chatMessage.value,
-                user_id: user_id.value
-            });
-        } catch (error) {
-            console.error('Error saving chat message:', error);
-            AlertService.prototype.error('Error', 'No se pudo guardar el mensaje en la base de datos');
-        }
-
-        // Clear input
-        chatMessage.value = '';
-    }
-};*/
 
 // Métodos para manejar eventos del chat
 const showFloatingChat = ref<boolean>(false);
@@ -180,22 +96,6 @@ const handleTyping = () => {
         roomId: roomId.value,
         user: currentUser.value
     });
-};
-const loadCollaborators = async () => {
-    if (!props.pizarra?.id) return;
-
-    try {
-        const response = await axios.get(`/pizarra/${props.pizarra.id}/collaborators/flutter`);
-        console.log(response);
-        // Add showActivities property to each collaborator for UI toggle
-        collaborators.value = response.data.map((collaborator: any) => ({
-            ...collaborator,
-            showActivities: false
-        }));
-    } catch (error) {
-        console.error('Error loading collaborators:', error);
-        AlertService.prototype.error('Error', 'No se pudo cargar los colaboradores');
-    }
 };
 const toggleFloatingChat = () => {
     showFloatingChat.value = !showFloatingChat.value;
@@ -261,6 +161,7 @@ const initializeScreens = () => {
         // Create a default drawer screen
         const drawerElements = [];
         const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+        console.log('drawerDef', drawerDef);
         if (drawerDef) {
             const drawerWidget = {
                 id: `widget-${widgetIdCounter++}`,
@@ -294,7 +195,7 @@ const initializeScreens = () => {
             isHome: true
         });
     } else {
-        // Ensure all screens have unique IDs
+        // Asegúrese de que todas las pantallas tengan identificaciones únicas
         screens.value.forEach((screen, index) => {
             if (!screen.id) {
                 screen.id = `screen-${Date.now()}-${index}`;
@@ -371,7 +272,7 @@ const addDefaultWidgets = (existingElements = []) => {
         };
 
         // Initialize properties with default values
-        drawerDef.properties.forEach((prop) => {
+        drawerDef.properties.forEach((prop : any) => {
             drawerWidget.props[prop.name] = prop.defaultValue;
         });
 
@@ -509,6 +410,7 @@ const getInitialFlutterWidgets = (): FlutterWidget[] => {
     }
     return addIdsToWidgets(widgets);
 };
+
 const flutterWidgets = computed(() => {
     // If we have screens, use the current screen's elements
     if (screens.value.length > 0 && currentScreen.value) {
@@ -798,7 +700,7 @@ const generateFlutterCode = () => {
     let routeDefinitions = '';
     let homeScreenName = '';
 
-    screens.value.forEach((screen, index) => {
+    screens.value.forEach((screen) => {
         // Skip drawer screen as it's handled separately
         if (screen.isDrawer) {
             return;
@@ -825,37 +727,37 @@ const generateFlutterCode = () => {
 
         // Create a screen class
         screenClasses += `
-class ${screenClassName} extends StatelessWidget {
-  const ${screenClassName}({Key? key}) : super(key: key);
+            class ${screenClassName} extends StatelessWidget {
+              const ${screenClassName}({Key? key}) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('${screen.name}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              // Show navigation drawer
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ],
-      ),
-      drawer: NavigationDrawer(),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ${screenWidgetsCode}
-          ],
-        ),
-      ),
-    );
-  }
-}
-`;
+              @override
+              Widget build(BuildContext context) {
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text('${screen.name}'),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.menu),
+                        onPressed: () {
+                          // Show navigation drawer
+                          Scaffold.of(context).openDrawer();
+                        },
+                      ),
+                    ],
+                  ),
+                  drawer: NavigationDrawer(),
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ${screenWidgetsCode}
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+            `;
 
         // Add route definition (skip drawer screen)
         if (!screen.isDrawer) {
@@ -863,85 +765,86 @@ class ${screenClassName} extends StatelessWidget {
         }
     });
 
-    // If no home screen is defined, use the first screen
+    // Si no se define ninguna pantalla de inicio, utilice la primera pantalla
     if (!homeScreenName && screens.value.length > 0) {
         homeScreenName = 'Screen0';
     }
 
     // Create navigation drawer
     const navigationDrawer = `
-class NavigationDrawer extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue,
-            ),
-            child: Text(
-              '${projectName.value}',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
+        class NavigationDrawer extends StatelessWidget {
+          @override
+          Widget build(BuildContext context) {
+            return Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  const DrawerHeader(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                    ),
+                    child: Text(
+                      '${projectName.value}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                      ),
+                    ),
+                  ),
+                  ${screens.value
+                .map(
+                    (screen) => `
+                  ListTile(
+                    title: Text('${screen.name}'),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+                    },
+                  ),`
+                )
+                .join('\n')}
+                ],
               ),
-            ),
-          ),
-          ${screens.value
-        .map(
-            (screen) => `
-          ListTile(
-            title: Text('${screen.name}'),
-            onTap: () {
-              Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
-            },
-          ),`
-        )
-        .join('\n')}
-        ],
-      ),
-    );
-  }
-}
-`;
+            );
+          }
+        }
+        `;
 
     // Wrap everything in a Flutter app with navigation
     flutterCode = `
-import 'package:flutter/material.dart';
+        // @ts-ignore
+        import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const MyFlutterApp());
-}
+        void main() {
+          runApp(const MyFlutterApp());
+        }
 
-class MyFlutterApp extends StatelessWidget {
-  const MyFlutterApp({Key? key}) : super(key: key);
+        class MyFlutterApp extends StatelessWidget {
+          const MyFlutterApp({Key? key}) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '${projectName.value}',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      initialRoute: '/${
-        screens.value
-            .find((s) => s.isHome)
-            ?.name.toLowerCase()
-            .replace(/\s+/g, '_') || 'home'
-    }',
-      routes: {
-${routeDefinitions}
-      },
-    );
-  }
-}
+          @override
+          Widget build(BuildContext context) {
+            return MaterialApp(
+              title: '${projectName.value}',
+              theme: ThemeData(
+                primarySwatch: Colors.blue,
+              ),
+              initialRoute: '/${
+                screens.value
+                    .find((s) => s.isHome)
+                    ?.name.toLowerCase()
+                    .replace(/\s+/g, '_') || 'home'
+            }',
+              routes: {
+        ${routeDefinitions}
+              },
+            );
+          }
+        }
 
-${navigationDrawer}
+        ${navigationDrawer}
 
-${screenClasses}
-`;
+        ${screenClasses}
+        `;
 
     return flutterCode;
 };
@@ -1000,7 +903,7 @@ const addChildWidget = (parentId: string, widgetType: string) => {
     });
 };
 
-let socketService: SocketService;
+
 
 // Function to toggle between local and production socket servers
 const toggleSocketServer = () => {
@@ -1131,12 +1034,12 @@ onMounted(() => {
         AlertService.prototype.success('Colaborador Aceptado', `El colaborador ${data.user} ha sido aceptado.`);
 
         // Reload the collaborators list to get the updated list
-        loadCollaborators();
+        // loadCollaborators();
     });
 
     // Load collaborators and chat messages if we have a form ID
     if (props.pizarra?.id) {
-        loadCollaborators();
+        // loadCollaborators();
     }
 });
 
@@ -1225,6 +1128,7 @@ const generateNavigationDrawerCode = () => {
 
     // Generate code for the NavigationDrawer
     return `
+// @ts-ignore
 import 'package:flutter/material.dart';
 
 class NavigationDrawer extends StatelessWidget {
@@ -1377,6 +1281,7 @@ const generateScreenCode = (screenIndex: number) => {
 
     // Create a screen class
     return `
+// @ts-ignore
 import 'package:flutter/material.dart';
 
 class ${screenClassName} extends StatelessWidget {
@@ -1411,6 +1316,7 @@ class ${screenClassName} extends StatelessWidget {
 }
 
 // Import the shared NavigationDrawer
+// @ts-ignore
 import 'navigation_drawer.dart';
 `;
 };
@@ -1545,21 +1451,23 @@ const processImage = async () => {
         AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
         return;
     }
-
+    const url = "http://localhost:10000/api/scan";
     try {
         isProcessingImage.value = true;
         AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
 
         // Create form data
         const formData = new FormData();
-        formData.append('image', selectedImage.value);
+        formData.append('file', selectedImage.value);
 
         // Send to backend for processing
-        const response = await axios.post('/pizarra/scan-image', formData, {
+        const response = await axios.post(url, formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
         });
+
+        console.log('Image processing response:', response.data);
 
         if (response.data.success) {
             // Store the original and processed images
@@ -4375,7 +4283,7 @@ const onChatInputAI = () => {
                                     <label :for="key">{{ selectedWidget.props[key] ? 'Sí' : 'No' }}</label>
                                 </div>
 
-                                <!-- Color input with advanced color picker -->
+                                <!-- Color input with @ckpack/vue-color -->
                                 <div
                                     v-else-if="
                                         availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)
@@ -4383,21 +4291,10 @@ const onChatInputAI = () => {
                                     "
                                     class="flex flex-col gap-2"
                                 >
-                                    <div class="flex items-center gap-2">
-                                        <input
-                                            v-model="selectedWidget.props[key]"
-                                            type="color"
-                                            class="h-10 w-10 rounded border"
-                                            @change="updateColorProperty(key, selectedWidget.props[key])"
-                                        />
-                                        <input
-                                            v-model="selectedWidget.props[key]"
-                                            type="text"
-                                            class="flex-1 rounded-md border px-3 py-2"
-                                            @change="updateColorProperty(key, selectedWidget.props[key])"
-                                            placeholder="HEX: #RRGGBB"
-                                        />
-                                    </div>
+                                    <ColorPicker
+                                        v-model="selectedWidget.props[key]"
+                                        @change="updateColorProperty(key, $event)"
+                                    />
                                     <div class="grid grid-cols-3 gap-2 text-xs">
                                         <div class="rounded border p-1 dark:border-gray-600">
                                             <span class="font-semibold">HEX:</span>

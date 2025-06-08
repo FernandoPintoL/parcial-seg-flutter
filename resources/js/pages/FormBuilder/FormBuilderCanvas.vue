@@ -10,6 +10,7 @@ import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
 import type { FormBuilder } from '@/types/FormBuilder';
 import type { User } from '@/types/User';
+import ColorPicker from '@/components/ColorPicker.vue';
 
 // Props
 const props = defineProps({
@@ -3118,20 +3119,16 @@ onUnmounted(() => {
                             <div class="grid grid-cols-2 gap-2 mt-4">
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Fondo del Encabezado</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.headerBackgroundColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Texto del Encabezado</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.headerTextColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                             </div>
@@ -3183,20 +3180,16 @@ onUnmounted(() => {
                             <div class="grid grid-cols-2 gap-2 mt-4">
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Fondo al Pasar</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.hoverBackgroundColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Texto al Pasar</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.hoverTextColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                             </div>
@@ -3247,20 +3240,16 @@ onUnmounted(() => {
                             <div class="grid grid-cols-2 gap-2 mt-4">
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Fondo del Encabezado</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.headerBackgroundColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-sm font-medium text-gray-700">Color de Fondo del Pie</label>
-                                    <input
+                                    <ColorPicker
                                         v-model="selectedElement.props.footerBackgroundColor"
-                                        type="color"
-                                        class="w-full rounded border border-gray-300 p-1 h-10"
-                                        @input="updateElement"
+                                        @change="updateElement"
                                     />
                                 </div>
                             </div>
@@ -3425,34 +3414,18 @@ onUnmounted(() => {
                                     <div class="space-y-1">
                                         <label class="block text-xs text-gray-600">Color de Texto</label>
                                         <div class="flex items-center space-x-2">
-                                            <input
-                                                type="color"
+                                            <ColorPicker
                                                 v-model="selectedElement.props.textColor"
-                                                class="h-8 w-8 cursor-pointer rounded border border-gray-300"
-                                                @input="updateElement"
-                                            />
-                                            <input
-                                                v-model="selectedElement.props.textColor"
-                                                class="flex-1 rounded border border-gray-300 p-2 text-sm"
-                                                @input="updateElement"
-                                                placeholder="#000000"
+                                                @change="updateElement"
                                             />
                                         </div>
                                     </div>
                                     <div class="space-y-1">
                                         <label class="block text-xs text-gray-600">Color de Fondo</label>
                                         <div class="flex items-center space-x-2">
-                                            <input
-                                                type="color"
+                                            <ColorPicker
                                                 v-model="selectedElement.props.backgroundColor"
-                                                class="h-8 w-8 cursor-pointer rounded border border-gray-300"
-                                                @input="updateElement"
-                                            />
-                                            <input
-                                                v-model="selectedElement.props.backgroundColor"
-                                                class="flex-1 rounded border border-gray-300 p-2 text-sm"
-                                                @input="updateElement"
-                                                placeholder="#ffffff"
+                                                @change="updateElement"
                                             />
                                         </div>
                                     </div>
@@ -3467,17 +3440,9 @@ onUnmounted(() => {
                                     <div class="space-y-1">
                                         <label class="block text-xs text-gray-600">Color</label>
                                         <div class="flex items-center space-x-2">
-                                            <input
-                                                type="color"
+                                            <ColorPicker
                                                 v-model="selectedElement.props.borderColor"
-                                                class="h-8 w-8 cursor-pointer rounded border border-gray-300"
-                                                @input="updateElement"
-                                            />
-                                            <input
-                                                v-model="selectedElement.props.borderColor"
-                                                class="flex-1 rounded border border-gray-300 p-2 text-sm"
-                                                @input="updateElement"
-                                                placeholder="#ced4da"
+                                                @change="updateElement"
                                             />
                                         </div>
                                     </div>
