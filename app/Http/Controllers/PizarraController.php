@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CategoriaWidget;
 use App\Models\Pizarra;
 use App\Http\Requests\StorePizarraRequest;
 use App\Http\Requests\UpdatePizarraRequest;
 use App\Models\PizarraCollaborator;
 use App\Models\User;
+use App\Models\Widget;
 use App\Notifications\PizarraInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -518,7 +520,8 @@ class PizarraController extends Controller
         $user = auth()->user();
 
         // Get pizarras created by the user
-        $ownedPizarras = Pizarra::where('user_id', $user->id)->get();
+        $ownedPizarras = Pizarra::where('user_id', $user->id)
+                        ->where('isHome', true)->get();
 
         // Get pizarras the user is collaborating on (with accepted status)
         $collaboratingPizarras = $user->collaborating()
@@ -557,16 +560,37 @@ class PizarraController extends Controller
      */
     public function store(StorePizarraRequest $request)
     {
-        $pizarra = new Pizarra();
-        $pizarra->name = $request->name;
-        /*$pizarra->elements = $request->elements ?? [];
-        $pizarra->screens = $request->screens ?? [];*/
-        $pizarra->user_id = auth()->id();
-        $pizarra->save();
-
-        $pizarra->update([
-            'room_id' => 'room_'.$pizarra->id,
-        ]);
+        $isHome = $request->isHome ?? false;
+        $pizarra = null;
+        if($isHome){
+            $pizarra = Pizarra::create([
+                'name' => $request->name,
+                'user_id' => auth()->id(),
+                'isHome' => $request->isHome,
+                'screens' => $request->screen ?? json_encode([]),
+                'elements' => $request->elements ?? json_encode([]),
+            ]);
+            $pizarra->update([
+                'room_id' => 'room_'.$pizarra->id,
+            ]);
+            // a esta pizarra le asignamos un scaffold y un appbar por defecto
+            // creamos el Drawer asignado a la pizarra como una pantalla hija
+            /*$drawer = Pizarra::create([
+                'name' => 'Drawer',
+                'user_id' => auth()->id(),
+                'isHome' => false,
+                'pizarra_id' => $pizarra->id, // id de la pizarra padre
+            ]);*/
+        }else{
+            $pizarra = Pizarra::create([
+                'name' => $request->name,
+                'user_id' => auth()->id(),
+                'isHome' => false,
+                'pizarra_id' => $request->pizarra_id, // id de la pizarra padre
+                'screens' => $request->screen ?? json_encode([]),
+                'elements' => $request->elements ?? json_encode([]),
+            ]);
+        }
 
         return response()->json($pizarra, 200);
     }
@@ -589,13 +613,15 @@ class PizarraController extends Controller
      */
     public function edit(Pizarra $pizarra)
     {
-
         return Inertia::render('PizarraFlutter/PizarraFlutter', [
             'user' => auth()->user(),
             'pizarra' => $pizarra,
             'isCreador' => $pizarra->user_id === auth()->id(),
             'creador' => $pizarra->user,
             'collaborators' => $pizarra->collaborators(),
+            'screens' => $pizarra->pizarraHijas()->get(),
+            'widgets' => Widget::with('categoria')->get(),
+            'categoriasWidget' => CategoriaWidget::all(),
         ]);
     }
 
@@ -628,14 +654,13 @@ class PizarraController extends Controller
      */
     public function destroy(Pizarra $pizarra)
     {
-        // Check if user is authorized to delete this pizarra
         if ($pizarra->user_id !== auth()->id()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
-
+        Pizarra::where('pizarra_id', $pizarra->id)->delete();
         $pizarra->delete();
 
-        return redirect()->route('pizarra.flutter.index');
+        return response()->json(['message' => 'Pizarra deleted successfully'], 200);
     }
     // destroy pizarra hija
     public function destroyHija(Pizarra $pizarra)

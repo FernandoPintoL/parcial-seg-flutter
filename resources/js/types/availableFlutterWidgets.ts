@@ -1,18 +1,31 @@
 import type { CategoriaWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
 
 export const categoriesWidget : CategoriaWidget[] = [
-    { category: 'widgets', label: 'Widgets Básicos' },
-    { category: 'layout', label: 'Layouts y Organización' },
-    { category: 'input', label: 'Entrada de Datos (Formularios)' },
-    { category: 'plataforma', label: 'Especificos de Plataforma' },
-    { category: 'containers', label: 'Contenedores y Decoración' },
-    { category: 'navegation', label: 'Navegación y Rutas' },
-    { category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' }
+    { id : 1, category: 'widgets', label: 'Widgets Básicos' },
+    { id : 2, category: 'layout', label: 'Layouts y Organización' },
+    { id : 3, category: 'input', label: 'Entrada de Datos (Formularios)' },
+    { id : 4, category: 'plataforma', label: 'Especificos de Plataforma' },
+    { id : 5, category: 'containers', label: 'Contenedores y Decoración' },
+    { id : 6, category: 'navegation', label: 'Navegación y Rutas' },
+    { id : 7, category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' }
     // { category: 'animation', label: 'Animaciones' },
     // { category: 'list', label: 'Listas Avanzadas' },
 ];
 
 export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
+    // Select Widget (New)
+    {
+        type: 'Select',
+        category: 'input',
+        label: 'Select',
+        properties: [
+            { name: 'label', type: 'string', defaultValue: 'Select an option' },
+            { name: 'value', type: 'string', defaultValue: '' },
+            { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+        ],
+        hasChildren: false
+    },
     // Especificos de Plataforma
     {
         type: 'SafeArea',
@@ -173,6 +186,53 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
             { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
         ],
         hasChildren: false
+    },
+    // table
+    {
+        type: 'DataTable',
+        category: 'input',
+        label: 'Data Table',
+        properties: [
+            { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
+            { name: 'rows', type: 'number', defaultValue: 3 },
+            { name: 'sortColumnIndex', type: 'number', defaultValue: null },
+            { name: 'sortAscending', type: 'boolean', defaultValue: true }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'Switch',
+        category: 'input',
+        label: 'Switch',
+        properties: [
+            { name: 'value', type: 'boolean', defaultValue: false },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'Slider',
+        category: 'input',
+        label: 'Slider',
+        properties: [
+            { name: 'value', type: 'number', defaultValue: 0.5 },
+            { name: 'min', type: 'number', defaultValue: 0.0 },
+            { name: 'max', type: 'number', defaultValue: 1.0 },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+        ],
+        hasChildren: false
+    },
+    {
+        type: 'SwitchListTile',
+        category: 'input',
+        label: 'Switch List Tile',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'Switch List Tile' },
+            { name: 'value', type: 'boolean', defaultValue: false },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+        ],
+        hasChildren : false
     },
     // Widgets Basicos
     {

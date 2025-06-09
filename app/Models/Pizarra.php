@@ -14,30 +14,16 @@ class Pizarra extends Model
     protected $table = 'pizarras';
     protected $primaryKey = 'id';
     public $timestamps = true;
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'room_id',
-        'elements',
         'user_id',
+        'pizarra_id',
+        'isHome',
         'users',
-        'pizarra_id'
+        'screens',
+        'elements',
     ];
-
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'elements' => 'array'
-    ];
-
     /**
      * Get the user that owns the pizarra flutter.
      */

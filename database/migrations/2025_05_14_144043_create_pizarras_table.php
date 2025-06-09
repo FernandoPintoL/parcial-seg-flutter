@@ -16,10 +16,11 @@ return new class extends Migration
             $table->string('room_id')->nullable()->unique();
             $table->string('name');
             $table->json('users')->nullable();
+            $table->boolean('isHome')->default(false);
             $table->foreignId('pizarra_id')->nullable()->constrained('pizarras')->nullOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->cascadeOnUpdate();
-//            $table->json('elements')->nullable();
-//            $table->json('screens')->nullable()->after('elements');
+            $table->json('elements')->nullable();
+            $table->json('screens')->nullable()->after('elements');
             $table->timestamps();
         });
     }

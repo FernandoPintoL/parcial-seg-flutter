@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { FormBuilder } from '@/types/FormBuilder';
+import { Pizarra } from '@/types/Pizarra';
 
 interface Props {
     title: string;
     userCreador?: string;
-    forms: FormBuilder[];
-    onSelect: (form: FormBuilder) => void;
-    onDelete?: (form: FormBuilder, event: MouseEvent) => void;
-    onAcept?: (form: FormBuilder) => void;
-    onReject?: (form: FormBuilder) => void;
-    onQuit?: (form: FormBuilder) => void;
+    forms: Pizarra[];
+    onSelect: (form: Pizarra) => void;
+    onDelete?: (form: Pizarra, event: MouseEvent) => void;
+    onAcept?: (form: Pizarra) => void;
+    onReject?: (form: Pizarra) => void;
+    onQuit?: (form: Pizarra) => void;
     isOwner?: boolean;
     isInvitations?: boolean;
     isColaborator?: boolean;

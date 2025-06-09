@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget } from '@/types/Pizarra';
+import type { Pizarra, PizarraCollaborators, FlutterWidget, CategoriaWidget } from '@/types/Pizarra';
 import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/services/SocketService';
@@ -22,6 +22,16 @@ import Colaboradores from '@/pages/ColaboradoresFlutter/Colaboradores.vue';
 import FlutterCodeViewer from '@/pages/PizarraFlutter/FlutterCodeViewer.vue';
 import WidgetVerification from '@/pages/PizarraFlutter/WidgetVerification.vue';
 import ColorPicker from '@/components/ColorPicker.vue';
+
+// Import Flutter Widget Components
+import CheckboxFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/CheckboxFlutter.vue';
+import SelectFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/SelectFlutter.vue';
+import InputFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/InputFlutter.vue';
+import DropdownFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DropdownFlutter.vue';
+import TableFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/TableFlutter.vue';
+import ListCardFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ListCardFlutter.vue';
+import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
+import DrawerFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DrawerFlutter.vue';
 
 /**
  * PizarraFlutter Component
@@ -68,6 +78,18 @@ const props = defineProps({
     colaboradores: {
         type: Array as () => PizarraCollaborators[],
         default: () => []
+    },
+    screens: {
+        type: Array as () => Pizarra[],
+        default: () => []
+    },
+    categoriasWidget: {
+        type: Array as () => CategoriaWidget[],
+        default: () => []
+    },
+    widgets : {
+        type: Array as () => FlutterWidget[],
+        default: () => []
     }
 });
 // Breadcrumbs for navigation
@@ -81,11 +103,27 @@ const breadcrumbs: BreadcrumbItem[] = [
 let socketService: SocketService;
 const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
 const socketConfig = ref(getSocketConfig(useLocalSocket.value));
-const roomId = ref<string>(props.pizarra ? props.pizarra.room_id : '');
+const roomId = ref<string | null>(props.pizarra ? props.pizarra.room_id ?? null : null);
 const currentUser = ref(props.user?.name || 'Usuario');
 const socket = io(socketConfig.value.url, socketConfig.value.options);
 const socketConnected = ref<boolean>(false);
 const socketError = ref<string>('');
+// Función para alternar entre servidores de sockets locales y de producción
+const toggleSocketServer = () => {
+    // Disconnect current socket
+    socketService.disconnect();
+
+    // Toggle socket environment
+    useLocalSocket.value = !useLocalSocket.value;
+    socketConfig.value = toggleSocketEnvironment(useLocalSocket.value);
+
+    // Reconnect with new configuration
+    socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
+    socketService.connect();
+
+    // Show notification
+    AlertService.prototype.info(`Ahora usando servidor socket ${useLocalSocket.value ? 'local' : 'de producción'}: ${socketConfig.value.url}`);
+};
 
 // Collaborator management
 const collaborators = ref<any>(props.colaboradores || []);
@@ -131,1468 +169,6 @@ const showAIChat = ref<boolean>(false);
 const aiMessages = ref<any>([]);
 const aiPrompt = ref<string>('');
 const isProcessingAI = ref<boolean>(false);
-
-// Image upload state
-const showImageUpload = ref<boolean>(false);
-const selectedImage = ref<File | null>(null);
-const previewImage = ref<string | null>(null);
-const isProcessingImage = ref<boolean>(false);
-const originalImage = ref<string | null>(null);
-const processedImage = ref<string | null>(null);
-const roboflowData = ref<any>(null);
-const showResultsPanel = ref<boolean>(false);
-
-// Counter for generating unique widget IDs
-let widgetIdCounter = 1;
-// Project name ref
-const projectName = ref<string>(props.pizarra?.name || 'Nueva Pizarra Flutter');
-// Dark mode state
-const isDarkMode = ref<boolean>(localStorage.getItem('darkMode') === 'true');
-// Apply dark mode class to html element
-const applyDarkMode = () => {
-    if (isDarkMode.value) {
-        document.documentElement.classList.add('dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-    }
-};
-// Toggle dark mode
-const toggleDarkMode = () => {
-    isDarkMode.value = !isDarkMode.value;
-    localStorage.setItem('darkMode', isDarkMode.value.toString());
-    applyDarkMode();
-};
-
-// Screens management
-const screens = ref<PizarraScreen[]>(props.pizarra?.screens || []);
-const currentScreenIndex = ref<number>(0);
-const showScreenManager = ref<boolean>(false);
-const newScreenName = ref<string>('');
-
-// Initialize screens if empty
-const initializeScreens = () => {
-    if (screens.value.length === 0) {
-        // Create a default home screen
-        const elements = Array.isArray(props.pizarra?.elements) && props.pizarra.elements.length > 0
-            ? props.pizarra.elements
-            : addDefaultWidgets([]);
-
-        // Create a default drawer screen
-        const drawerElements = [];
-        const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
-        console.log('drawerDef', drawerDef);
-        if (drawerDef) {
-            console.log('Creating default Drawer widget: ', drawerDef.type);
-            const drawerWidget = {
-                id: `widget-${drawerDef.id || Date.now()}`,
-                type: 'Drawer',
-                props: {},
-                children: []
-            };
-            // Initialize properties with default values
-            drawerDef.properties.forEach((prop) => {
-                drawerWidget.props[prop.name] = prop.defaultValue;
-            });
-            drawerElements.push(drawerWidget);
-        }
-
-        // Add drawer screen first
-        screens.value.push({
-            id: `screen-drawer-${Date.now()}`,
-            name: 'Drawer',
-            elements: drawerElements,
-            isHome: false,
-            isDrawer: true
-        });
-
-        // Add home screen
-        screens.value.push({
-            id: `screen-${Date.now()}`,
-            name: 'Home',
-            elements: elements,
-            isHome: true
-        });
-    } else {
-        // Asegúrese de que todas las pantallas tengan identificaciones únicas
-        screens.value.forEach((screen, index) => {
-            if (!screen.id) {
-                screen.id = `screen-${Date.now()}-${index}`;
-            }
-        });
-
-        // Check if drawer screen exists, if not create it
-        if (!screens.value.some(screen => screen.isDrawer)) {
-            const drawerElements = [];
-            const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
-            if (drawerDef) {
-                const drawerWidget = {
-                    id: `widget-${widgetIdCounter++}`,
-                    type: 'Drawer',
-                    props: {},
-                    children: []
-                };
-
-                // Initialize properties with default values
-                drawerDef.properties.forEach((prop) => {
-                    drawerWidget.props[prop.name] = prop.defaultValue;
-                });
-
-                drawerElements.push(drawerWidget);
-            }
-
-            // Add drawer screen
-            screens.value.unshift({
-                id: `screen-drawer-${Date.now()}`,
-                name: 'Drawer',
-                elements: drawerElements,
-                isHome: false,
-                isDrawer: true
-            });
-        }
-    }
-}
-
-// Add default widgets (Scaffold and Drawer) to a screen
-const addDefaultWidgets = (existingElements = []) => {
-    if (existingElements.length > 0) {
-        return existingElements;
-    }
-
-    // Find widget definitions
-    const scaffoldDef = availableWidgets.value.find(w => w.type === 'Scaffold');
-    const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
-
-    // Create default widgets
-    const defaultWidgets = [];
-
-    if (scaffoldDef) {
-        const scaffoldWidget = {
-            id: `widget-${widgetIdCounter++}`,
-            type: 'Scaffold',
-            props: {},
-            children: []
-        };
-
-        // Initialize properties with default values
-        scaffoldDef.properties.forEach((prop) => {
-            scaffoldWidget.props[prop.name] = prop.defaultValue;
-        });
-
-        defaultWidgets.push(scaffoldWidget);
-    }
-
-    if (drawerDef) {
-        const drawerWidget = {
-            id: `widget-${widgetIdCounter++}`,
-            type: 'Drawer',
-            props: {},
-            children: []
-        };
-
-        // Initialize properties with default values
-        drawerDef.properties.forEach((prop : any) => {
-            drawerWidget.props[prop.name] = prop.defaultValue;
-        });
-
-        defaultWidgets.push(drawerWidget);
-    }
-
-    return defaultWidgets;
-};
-
-// Get current screen
-const currentScreen = computed(() => {
-    // Handle case when screens array is empty
-    if (screens.value.length === 0) {
-        initializeScreens();
-    }
-    return screens.value[currentScreenIndex.value] || screens.value[0] || { elements: [] };
-});
-
-// Add a new screen
-const addScreen = () => {
-    if (!newScreenName.value.trim()) {
-        AlertService.prototype.error('Error', 'El nombre de la pantalla no puede estar vacío');
-        return;
-    }
-
-    screens.value.push({
-        id: `screen-${Date.now()}`,
-        name: newScreenName.value,
-        elements: addDefaultWidgets([]),
-        isHome: screens.value.length === 0
-    });
-
-    // Select the new screen
-    currentScreenIndex.value = screens.value.length - 1;
-
-    // Clear the input
-    newScreenName.value = '';
-
-    // Close the screen manager
-    showScreenManager.value = false;
-
-    // Save changes
-    debouncedSave();
-};
-
-// Delete a screen
-const deleteScreen = (index: number) => {
-    if (screens.value.length <= 1) {
-        AlertService.prototype.error('Error', 'No puedes eliminar la única pantalla');
-        return;
-    }
-
-    // Confirm deletion
-    Swal.fire({
-        title: '¿Estás seguro?',
-        text: 'Esta acción no se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Remove the screen
-            screens.value.splice(index, 1);
-
-            // Adjust current screen index if needed
-            if (currentScreenIndex.value >= screens.value.length) {
-                currentScreenIndex.value = screens.value.length - 1;
-            }
-
-            // Save changes
-            debouncedSave();
-        }
-    });
-};
-
-// Set a screen as home
-const setHomeScreen = (index: number) => {
-    screens.value.forEach((screen, i) => {
-        screen.isHome = i === index;
-    });
-
-    // Save changes
-    debouncedSave();
-};
-
-// Select a screen
-const selectScreen = (index: number) => {
-    currentScreenIndex.value = index;
-};
-
-// Selected widget for editing
-const selectedWidget = ref<FlutterWidget | null>(null);
-
-// Available Flutter widgets
-const availableWidgets = ref(availableFlutterWidgets);
-const dbWidgets = ref<FlutterWidget[]>([]);
-
-// Fetch widgets from the database
-const fetchWidgetsFromDB = async () => {
-    try {
-        const response = await axios.post('/widget/query');
-        dbWidgets.value = response.data;
-        console.log('Widgets fetched from DB:', dbWidgets.value);
-    } catch (error) {
-        console.error('Error fetching widgets from DB:', error);
-    }
-};
-
-// Flutter widgets on the canvas
-// Initialize with a properly computed value
-// Ensure all widgets have unique IDs
-const addIdsToWidgets = (widgetList: any) => {
-    return widgetList.map((widget: any) => {
-        // Add ID if not present
-        if (!widget.id) {
-            widget.id = `widget-${widgetIdCounter++}`;
-        }
-
-        // Process children recursively if they exist
-        if (widget.children && Array.isArray(widget.children)) {
-            widget.children = addIdsToWidgets(widget.children);
-        } else {
-            // Initialize children as an empty array if it doesn't exist or isn't an array
-            widget.children = [];
-        }
-
-        return widget;
-    });
-};
-const getInitialFlutterWidgets = (): FlutterWidget[] => {
-    let widgets = [];
-
-    if (!props.pizarra?.elements) {
-        return [];
-    }
-
-    if (Array.isArray(props.pizarra.elements)) {
-        widgets = props.pizarra.elements;
-    } else {
-        try {
-            widgets = JSON.parse(props.pizarra.elements || '[]');
-        } catch (error) {
-            console.error('Error parsing pizarra elements:', error);
-            return [];
-        }
-    }
-    return addIdsToWidgets(widgets);
-};
-
-const flutterWidgets = computed(() => {
-    // If we have screens, use the current screen's elements
-    if (screens.value.length > 0 && currentScreen.value) {
-        return currentScreen.value.elements;
-    }
-    // Otherwise, use the legacy elements array
-    return getInitialFlutterWidgets();
-});
-// Helper function to create a new widget
-const createWidget = (widgetType: string): FlutterWidget | null => {
-    // First, check if the widget exists in the database
-    const dbWidget = dbWidgets.value.find((w) => w.type === widgetType);
-
-    if (dbWidget) {
-        console.log('Using widget from database:', dbWidget);
-
-        // Create a new widget based on the database widget
-        const newWidget: FlutterWidget = {
-            id: `widget-${widgetIdCounter++}`,
-            type: dbWidget.type,
-            props: {},
-            children: [], // Always initialize as an array to avoid "elements must be an array" error
-            code_string: dbWidget.code_string || ''
-        };
-
-        // If the widget has properties in the database, use them
-        if (dbWidget.propiedades && Array.isArray(dbWidget.propiedades)) {
-            dbWidget.propiedades.forEach((prop) => {
-                newWidget.props[prop.name] = prop.value || prop.defaultValue;
-            });
-        }
-
-        return newWidget;
-    }
-
-    // Fallback to the hardcoded widget definition
-    const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
-    if (!widgetDefinition) return null;
-
-    const newWidget: FlutterWidget = {
-        id: `widget-${widgetIdCounter++}`,
-        type: widgetDefinition.type,
-        props: {},
-        children: [] // Always initialize as an array to avoid "elements must be an array" error
-    };
-
-    // Initialize properties with default values
-    widgetDefinition.properties.forEach((prop) => {
-        newWidget.props[prop.name] = prop.defaultValue;
-    });
-
-    return newWidget;
-};
-
-// Helper function to emit widget added event
-const emitWidgetAdded = (widget: FlutterWidget, screenId?: string) => {
-    socket.emit('flutter-widget-added', {
-        roomId: roomId.value,
-        widget: widget,
-        userId: currentUser.value,
-        screenId: screenId
-    });
-};
-
-// Function to add a widget to the canvas
-const addWidget = (widgetType: string) => {
-    const newWidget = createWidget(widgetType);
-    if (!newWidget) return;
-
-    // Add widget to the current screen
-    if (screens.value.length > 0 && currentScreen.value) {
-        if (!currentScreen.value.elements) {
-            currentScreen.value.elements = [];
-        }
-        currentScreen.value.elements.push(newWidget);
-    } else {
-        // Legacy support - create a default screen with the widgets
-        initializeScreens();
-        if (screens.value.length > 0 && screens.value[0].elements) {
-            screens.value[0].elements.push(newWidget);
-        }
-    }
-
-    // Emit widget added event to socket
-    emitWidgetAdded(newWidget, currentScreen.value?.id);
-};
-
-// Debounce function to limit how often a function can be called
-const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
-    let timeout: number | null = null;
-    return (...args: Parameters<T>) => {
-        if (timeout) {
-            clearTimeout(timeout);
-        }
-        timeout = setTimeout(() => {
-            fn(...args);
-            timeout = null;
-        }, delay);
-    };
-};
-
-// Function to select a widget for editing
-const selectWidget = (widget: FlutterWidget) => {
-    selectedWidget.value = widget;
-};
-
-// Function to emit widget updated event to socket
-const emitWidgetUpdated = () => {
-    if (!selectedWidget.value) return;
-
-    socket.emit('flutter-widget-updated', {
-        roomId: roomId.value,
-        widget: selectedWidget.value,
-        userId: currentUser.value,
-        screenId: currentScreen.value?.id
-    });
-};
-
-// Versión sin rebotes de emitWidgetUpdated para evitar eventos de socket excesivos
-const debouncedEmitWidgetUpdated = debounce(emitWidgetUpdated, 300); // 300ms debounce
-
-// Function to update a widget property
-const updateWidgetProperty = (propertyName: string, value: any) => {
-    if (!selectedWidget.value) return;
-
-    selectedWidget.value.props[propertyName] = value;
-
-    // Use debounced emit for better performance
-    debouncedEmitWidgetUpdated();
-};
-
-// Function to update a color property
-const updateColorProperty = (propertyName: string, value: string) => {
-    if (!selectedWidget.value) return;
-
-    // Ensure the value is a valid hex color
-    const hexColor = getHexColor(value);
-    selectedWidget.value.props[propertyName] = hexColor;
-
-    // Use debounced emit for better performance
-    debouncedEmitWidgetUpdated();
-};
-
-// Color utility functions
-const colorUtils = {
-    // Convert any color format to HEX
-    toHex: (color: string): string => {
-        // If already a valid hex color, return it
-        if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color)) {
-            return color.toUpperCase();
-        }
-
-        // Try to parse as RGB
-        const rgbMatch = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
-        if (rgbMatch) {
-            const r = parseInt(rgbMatch[1]);
-            const g = parseInt(rgbMatch[2]);
-            const b = parseInt(rgbMatch[3]);
-            return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
-        }
-
-        // Try to parse as HSL
-        const hslMatch = color.match(/^hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/i);
-        if (hslMatch) {
-            const h = parseInt(hslMatch[1]) / 360;
-            const s = parseInt(hslMatch[2]) / 100;
-            const l = parseInt(hslMatch[3]) / 100;
-
-            // Convert HSL to RGB
-            let r, g, b;
-            if (s === 0) {
-                r = g = b = l;
-            } else {
-                const hue2rgb = (p: number, q: number, t: number) => {
-                    if (t < 0) t += 1;
-                    if (t > 1) t -= 1;
-                    if (t < 1 / 6) return p + (q - p) * 6 * t;
-                    if (t < 1 / 2) return q;
-                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-                    return p;
-                };
-
-                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                const p = 2 * l - q;
-                r = hue2rgb(p, q, h + 1 / 3);
-                g = hue2rgb(p, q, h);
-                b = hue2rgb(p, q, h - 1 / 3);
-            }
-
-            // Convert RGB to HEX
-            const toHex = (x: number) => {
-                const hex = Math.round(x * 255).toString(16);
-                return hex.length === 1 ? '0' + hex : hex;
-            };
-
-            return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
-        }
-
-        // Default to black if invalid color
-        return '#000000';
-    },
-
-    // Convert HEX to RGB
-    toRgb: (color: string): string => {
-        // Ensure we have a valid hex color
-        const hex = colorUtils.toHex(color);
-
-        // Parse the hex color
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-
-        return `rgb(${r}, ${g}, ${b})`;
-    },
-
-    // Convert HEX to HSL
-    toHsl: (color: string): string => {
-        // Ensure we have a valid hex color
-        const hex = colorUtils.toHex(color);
-
-        // Parse the hex color
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        let h = 0, s = 0, l = (max + min) / 2;
-
-        if (max !== min) {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-            switch (max) {
-                case r:
-                    h = (g - b) / d + (g < b ? 6 : 0);
-                    break;
-                case g:
-                    h = (b - r) / d + 2;
-                    break;
-                case b:
-                    h = (r - g) / d + 4;
-                    break;
-            }
-
-            h /= 6;
-        }
-
-        // Convert to degrees, percentage, percentage
-        h = Math.round(h * 360);
-        s = Math.round(s * 100);
-        l = Math.round(l * 100);
-
-        return `hsl(${h}, ${s}%, ${l}%)`;
-    }
-};
-
-// Helper functions for backward compatibility
-const getHexColor = (color: string): string => colorUtils.toHex(color);
-const getRgbColor = (color: string): string => colorUtils.toRgb(color);
-const getHslColor = (color: string): string => colorUtils.toHsl(color);
-
-// Function to remove a widget from the canvas
-const removeWidget = (widget: FlutterWidget) => {
-    if (screens.value.length > 0 && currentScreen.value && currentScreen.value.elements) {
-        const index = currentScreen.value.elements.indexOf(widget);
-        if (index !== -1) {
-            currentScreen.value.elements.splice(index, 1);
-
-            // Emit widget removed event to socket
-            socket.emit('flutter-widget-removed', {
-                roomId: roomId.value,
-                widgetIndex: index,
-                userId: currentUser.value,
-                screenId: currentScreen.value.id
-            });
-
-            // Clear selection if the removed widget was selected
-            if (selectedWidget.value === widget) {
-                selectedWidget.value = null;
-            }
-        }
-    }
-};
-
-// Function to generate Flutter code
-const generateFlutterCode = () => {
-    let flutterCode = '';
-
-    const generateWidgetCode = (widget: FlutterWidget, indent: string = ''): string => {
-        // If the widget has a code_string property, use it directly
-        if (widget.code_string && widget.code_string.trim() !== '') {
-            console.log('Using code_string for widget:', widget.type);
-
-            // Check if the code_string already includes the widget type
-            if (widget.code_string.trim().startsWith(widget.type)) {
-                return `${indent}${widget.code_string}`;
-            } else {
-                // If not, wrap it with the widget type
-                return `${indent}${widget.type}(\n${indent}  ${widget.code_string}\n${indent})`;
-            }
-        }
-
-        // Otherwise, generate code based on widget properties
-        let code = `${indent}${widget.type}(\n`;
-
-        // Add properties
-        Object.entries(widget.props).forEach(([key, value]) => {
-            // Check if this is a color property
-            const isColorProperty = availableWidgets.value
-                .find((w) => w.type === widget.type)?.properties
-                .find((p: any) => p.name === key)?.type === 'color';
-
-            if (isColorProperty && typeof value === 'string') {
-                // Convert HEX color to Flutter Color
-                if (value.startsWith('#')) {
-                    // Remove # and convert to uppercase
-                    const hexColor = value.substring(1).toUpperCase();
-                    // If it's a 6-digit hex color
-                    if (hexColor.length === 6) {
-                        code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                    } else {
-                        // Fallback for invalid hex colors
-                        code += `${indent}  ${key}: Colors.black,\n`;
-                    }
-                } else if (value.startsWith('rgb')) {
-                    // Convert RGB to HEX and then to Flutter Color
-                    const hexColor = getHexColor(value).substring(1).toUpperCase();
-                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                } else if (value.startsWith('hsl')) {
-                    // Convert HSL to HEX and then to Flutter Color
-                    const hexColor = getHexColor(value).substring(1).toUpperCase();
-                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                } else {
-                    // Try to use predefined Flutter colors
-                    const lowerCaseValue = value.toLowerCase();
-                    if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
-                        code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
-                    } else {
-                        // Fallback to black
-                        code += `${indent}  ${key}: Colors.black,\n`;
-                    }
-                }
-            } else if (typeof value === 'string' && !value.includes('(')) {
-                code += `${indent}  ${key}: '${value}',\n`;
-            } else {
-                code += `${indent}  ${key}: ${value},\n`;
-            }
-        });
-
-        // Add children if any
-        if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
-            code += `${indent}  children: [\n`;
-            widget.children.forEach((child) => {
-                code += generateWidgetCode(child, `${indent}    `) + ',\n';
-            });
-            code += `${indent}  ],\n`;
-        }
-
-        code += `${indent})`;
-        return code;
-    };
-
-    // Generate screen classes
-    let screenClasses = '';
-    let routeDefinitions = '';
-    let homeScreenName = '';
-
-    screens.value.forEach((screen) => {
-        // Skip drawer screen as it's handled separately
-        if (screen.isDrawer) {
-            return;
-        }
-
-        // Format screen name for class name (remove spaces, special chars, capitalize)
-        const screenClassName = screen.name
-            .replace(/[^\w\s]/g, '')  // Remove special characters
-            .replace(/\s+/g, '')      // Remove spaces
-            .replace(/^./, match => match.toUpperCase()); // Capitalize first letter
-
-        // Find the home screen
-        if (screen.isHome) {
-            homeScreenName = screenClassName;
-        }
-
-        // Generate code for each widget in this screen
-        let screenWidgetsCode = '';
-        if (screen.elements && Array.isArray(screen.elements)) {
-            screen.elements.forEach((widget) => {
-                screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
-            });
-        }
-
-        // Create a screen class
-        screenClasses += `
-            class ${screenClassName} extends StatelessWidget {
-              const ${screenClassName}({Key? key}) : super(key: key);
-
-              @override
-              Widget build(BuildContext context) {
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('${screen.name}'),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.menu),
-                        onPressed: () {
-                          // Show navigation drawer
-                          Scaffold.of(context).openDrawer();
-                        },
-                      ),
-                    ],
-                  ),
-                  drawer: NavigationDrawer(),
-                  body: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ${screenWidgetsCode}
-                      ],
-                    ),
-                  ),
-                );
-              }
-            }
-            `;
-
-        // Add route definition (skip drawer screen)
-        if (!screen.isDrawer) {
-            routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const ${screenClassName}(),\n`;
-        }
-    });
-
-    // Si no se define ninguna pantalla de inicio, utilice la primera pantalla
-    if (!homeScreenName && screens.value.length > 0) {
-        homeScreenName = 'Screen0';
-    }
-
-    // Create navigation drawer
-    const navigationDrawer = `
-        class NavigationDrawer extends StatelessWidget {
-          @override
-          Widget build(BuildContext context) {
-            return Drawer(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  const DrawerHeader(
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                    ),
-                    child: Text(
-                      '${projectName.value}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                  ${screens.value
-                .map(
-                    (screen) => `
-                  ListTile(
-                    title: Text('${screen.name}'),
-                    onTap: () {
-                      Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
-                    },
-                  ),`
-                )
-                .join('\n')}
-                ],
-              ),
-            );
-          }
-        }
-        `;
-
-    // Wrap everything in a Flutter app with navigation
-    flutterCode = `
-        // @ts-ignore
-        import 'package:flutter/material.dart';
-
-        void main() {
-          runApp(const MyFlutterApp());
-        }
-
-        class MyFlutterApp extends StatelessWidget {
-          const MyFlutterApp({Key? key}) : super(key: key);
-
-          @override
-          Widget build(BuildContext context) {
-            return MaterialApp(
-              title: '${projectName.value}',
-              theme: ThemeData(
-                primarySwatch: Colors.blue,
-              ),
-              initialRoute: '/${
-                screens.value
-                    .find((s) => s.isHome)
-                    ?.name.toLowerCase()
-                    .replace(/\s+/g, '_') || 'home'
-            }',
-              routes: {
-        ${routeDefinitions}
-              },
-            );
-          }
-        }
-
-        ${navigationDrawer}
-
-        ${screenClasses}
-        `;
-
-    return flutterCode;
-};
-
-// --- DRAG & DROP PARA AGREGAR WIDGETS DENTRO DE OTROS WIDGETS ---
-// Widget que se está arrastrando desde la paleta
-const draggingWidgetType = ref<string | null>(null);
-
-// Variables para el menú de agregar widget hijo
-const showAddChildMenu = ref<string | null>(null);
-const activeAddChildCategory = ref<number>(0);
-
-// Drag and drop utility functions
-const dragUtils = {
-    // Handle drag start from palette
-    onDragStart: (widgetType: string) => {
-        draggingWidgetType.value = widgetType;
-    },
-
-    // Handle drag end
-    onDragEnd: () => {
-        draggingWidgetType.value = null;
-    },
-
-    // Handle drag enter/over
-    onDragOver: (event: DragEvent) => {
-        event.preventDefault();
-        const target = event.currentTarget as HTMLElement;
-        if (target) target.classList.add('dragover');
-    },
-
-    // Handle drag leave
-    onDragLeave: (event: DragEvent) => {
-        event.preventDefault();
-        const target = event.currentTarget as HTMLElement;
-        if (target) target.classList.remove('dragover');
-    },
-
-    // Handle drop
-    onDrop: (event: DragEvent) => {
-        event.preventDefault();
-        const target = event.currentTarget as HTMLElement;
-        if (target) target.classList.remove('dragover');
-    }
-};
-
-// Backward compatibility functions
-const onPaletteDragStart = dragUtils.onDragStart;
-const onPaletteDragEnd = dragUtils.onDragEnd;
-
-// Función para agregar un widget hijo a un widget padre (por id)
-const addChildWidget = (parentId: string, widgetType: string) => {
-    const newWidget = createWidget(widgetType);
-    if (!newWidget) return;
-
-    // Buscar el widget padre recursivamente y agregar el hijo
-    const addToParent = (widgets: FlutterWidget[]): boolean => {
-        for (const widget of widgets) {
-            if (widget.id === parentId) {
-                if (!widget.children) widget.children = [];
-                widget.children.push(newWidget);
-                return true;
-            }
-            if (widget.children && widget.children.length > 0) {
-                if (addToParent(widget.children)) return true;
-            }
-        }
-        return false;
-    };
-
-    // Add the child widget to the parent
-    addToParent(flutterWidgets.value);
-
-    // Emit widget added event to socket
-    emitWidgetAdded(newWidget, currentScreen.value?.id);
-};
-
-// Function to toggle between local and production socket servers
-const toggleSocketServer = () => {
-    // Disconnect current socket
-    socketService.disconnect();
-
-    // Toggle socket environment
-    useLocalSocket.value = !useLocalSocket.value;
-    socketConfig.value = toggleSocketEnvironment(useLocalSocket.value);
-
-    // Reconnect with new configuration
-    socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
-    socketService.connect();
-
-    // Show notification
-    AlertService.prototype.info(`Ahora usando servidor socket ${useLocalSocket.value ? 'local' : 'de producción'}: ${socketConfig.value.url}`);
-};
-
-// Computed properties for filtering widgets by category
-const widgetsByActiveCategory = computed(() => {
-    const category = categoriesWidget[activeWidgetCategory.value]?.category;
-    if (!category) return [];
-    return availableWidgets.value.filter((widget) => widget.category === category);
-});
-
-// Flutter code display
-const showFlutterCode = ref<boolean>(false);
-const flutterCode = computed(() => generateFlutterCode());
-const selectedCodeTab = ref<number>(0); // 0 = Full App, 1 = NavigationDrawer, 2+ = Individual Screens
-const setSelectedCodeTab = (tab: number) => { selectedCodeTab.value = tab; };
-
-// State for the NavigationDrawer widget
-const navigationDrawerWidget = ref<FlutterWidget | null>(null);
-
-// Find or create the NavigationDrawer widget
-const findOrCreateNavigationDrawer = () => {
-    // First, try to find the drawer screen
-    const drawerScreen = screens.value.find(screen => screen.isDrawer);
-
-    if (drawerScreen && drawerScreen.elements) {
-        // Look for a Drawer widget in the drawer screen
-        const existingDrawer = drawerScreen.elements.find(widget => widget.type === 'Drawer');
-        if (existingDrawer) {
-            return existingDrawer;
-        }
-    }
-
-    // If not found, create a new one
-    const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
-    if (!drawerDef) return null;
-
-    const newDrawer: FlutterWidget = {
-        id: `widget-${widgetIdCounter++}`,
-        type: 'Drawer',
-        props: {},
-        children: []
-    };
-
-    // Initialize properties with default values
-    drawerDef.properties.forEach((prop) => {
-        newDrawer.props[prop.name] = prop.defaultValue;
-    });
-
-    // Add to drawer screen if it exists
-    if (drawerScreen && drawerScreen.elements) {
-        drawerScreen.elements.push(newDrawer);
-    } else {
-        // If drawer screen doesn't exist, create it
-        const drawerElements = [newDrawer];
-        screens.value.unshift({
-            id: `screen-drawer-${Date.now()}`,
-            name: 'Drawer',
-            elements: drawerElements,
-            isHome: false,
-            isDrawer: true
-        });
-    }
-
-    return newDrawer;
-};
-
-// Initialize the NavigationDrawer widget
-const initNavigationDrawer = () => {
-    navigationDrawerWidget.value = findOrCreateNavigationDrawer();
-};
-// Generate code for the NavigationDrawer
-const generateNavigationDrawerCode = () => {
-    // Make sure we have a NavigationDrawer widget
-    if (!navigationDrawerWidget.value) {
-        initNavigationDrawer();
-    }
-
-    if (!navigationDrawerWidget.value) {
-        return '// No NavigationDrawer widget found';
-    }
-
-    // Generate code for the NavigationDrawer
-    return `
-// @ts-ignore
-import 'package:flutter/material.dart';
-
-class NavigationDrawer extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      backgroundColor: ${navigationDrawerWidget.value.props.backgroundColor ? `Color(0xFF${navigationDrawerWidget.value.props.backgroundColor.substring(1).toUpperCase()})` : 'Colors.white'},
-      width: ${navigationDrawerWidget.value.props.width || 300},
-      elevation: ${navigationDrawerWidget.value.props.elevation || 16},
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          UserAccountsDrawerHeader(
-            accountName: Text('User Name'),
-            accountEmail: Text('user@example.com'),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                'U',
-                style: TextStyle(fontSize: 40.0, color: Colors.blue),
-              ),
-            ),
-            decoration: BoxDecoration(
-              color: Colors.blue,
-            ),
-          ),
-          ${screens.value
-            .filter(screen => !screen.isDrawer)
-            .map(
-                (screen, index) => `
-          ListTile(
-            leading: Icon(${index === 0 ? 'Icons.home' : `Icons.screen_${index + 1}`}),
-            title: Text('${screen.name}'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
-            },
-          ),`
-            )
-            .join('\n')}
-          Divider(),
-          ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('Settings'),
-            onTap: () {
-              // Navigate to settings
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.help),
-            title: Text('Help & Feedback'),
-            onTap: () {
-              // Navigate to help
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-`;
-};
-
-// Generate code for a specific screen
-const generateScreenCode = (screenIndex: number) => {
-    if (screenIndex < 0 || screenIndex >= screens.value.length) {
-        return '';
-    }
-
-    const screen = screens.value[screenIndex];
-
-    // Skip generating code for the drawer screen, as it's handled separately
-    if (screen.isDrawer) {
-        return generateNavigationDrawerCode();
-    }
-
-    // Format screen name for class name
-    const screenClassName = screen.name
-        .replace(/[^\w\s]/g, '')  // Remove special characters
-        .replace(/\s+/g, '')      // Remove spaces
-        .replace(/^./, match => match.toUpperCase()); // Capitalize first letter
-
-    // Generate code for each widget in this screen
-    let screenWidgetsCode = '';
-    if (screen.elements && Array.isArray(screen.elements)) {
-        screen.elements.forEach((widget) => {
-            const generateWidgetCode = (widget: FlutterWidget, indent: string = ''): string => {
-                let code = `${indent}${widget.type}(\n`;
-
-                // Add properties
-                Object.entries(widget.props).forEach(([key, value]) => {
-                    // Check if this is a color property
-                    const isColorProperty = availableWidgets.value
-                        .find((w) => w.type === widget.type)?.properties
-                        .find((p: any) => p.name === key)?.type === 'color';
-
-                    if (isColorProperty && typeof value === 'string') {
-                        // Convert HEX color to Flutter Color
-                        if (value.startsWith('#')) {
-                            // Remove # and convert to uppercase
-                            const hexColor = value.substring(1).toUpperCase();
-                            // If it's a 6-digit hex color
-                            if (hexColor.length === 6) {
-                                code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                            } else {
-                                // Fallback for invalid hex colors
-                                code += `${indent}  ${key}: Colors.black,\n`;
-                            }
-                        } else if (value.startsWith('rgb')) {
-                            // Convert RGB to HEX and then to Flutter Color
-                            const hexColor = getHexColor(value).substring(1).toUpperCase();
-                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                        } else if (value.startsWith('hsl')) {
-                            // Convert HSL to HEX and then to Flutter Color
-                            const hexColor = getHexColor(value).substring(1).toUpperCase();
-                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
-                        } else {
-                            // Try to use predefined Flutter colors
-                            const lowerCaseValue = value.toLowerCase();
-                            if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
-                                code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
-                            } else {
-                                // Fallback to black
-                                code += `${indent}  ${key}: Colors.black,\n`;
-                            }
-                        }
-                    } else if (typeof value === 'string' && !value.includes('(')) {
-                        code += `${indent}  ${key}: '${value}',\n`;
-                    } else {
-                        code += `${indent}  ${key}: ${value},\n`;
-                    }
-                });
-
-                // Add children if any
-                if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
-                    code += `${indent}  children: [\n`;
-                    widget.children.forEach((child) => {
-                        code += generateWidgetCode(child, `${indent}    `) + ',\n';
-                    });
-                    code += `${indent}  ],\n`;
-                }
-
-                code += `${indent})`;
-                return code;
-            };
-
-            screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
-        });
-    }
-
-    // Create a screen class
-    return `
-// @ts-ignore
-import 'package:flutter/material.dart';
-
-class ${screenClassName} extends StatelessWidget {
-  const ${screenClassName}({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('${screen.name}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () {
-              // Show navigation drawer
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ],
-      ),
-      drawer: NavigationDrawer(),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ${screenWidgetsCode}
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Import the shared NavigationDrawer
-// @ts-ignore
-import 'navigation_drawer.dart';
-`;
-};
-
-// Active widget category for mobile selector
-const activeWidgetCategory = ref<number>(0);
-
-// Toggle between widget palette and widget verification
-const showWidgetVerification = ref<boolean>(false);
-const toggleWidgetVerification = () => {
-    showWidgetVerification.value = !showWidgetVerification.value;
-};
-
-// Flutter widget rendering helper comment
-// These functions were removed as they are no longer needed
-// The widget rendering has been simplified to use static values
-
-// Copy Flutter code to clipboard
-const copyFlutterCode = () => {
-    // Copy either the full app code, NavigationDrawer code, or the selected screen's code
-    let codeToCopy;
-    if (selectedCodeTab.value === 0) {
-        codeToCopy = flutterCode.value;
-    } else if (selectedCodeTab.value === 1) {
-        codeToCopy = generateNavigationDrawerCode();
-    } else {
-        codeToCopy = generateScreenCode(selectedCodeTab.value - 2);
-    }
-
-    navigator.clipboard.writeText(codeToCopy);
-    AlertService.prototype.success('Código copiado al portapapeles');
-};
-
-// Function to download the complete Flutter project
-const downloadFlutterProject = async () => {
-    try {
-        // Show loading message
-        AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
-
-        // Get the code to download based on selected tab
-        let codeToDownload;
-        if (selectedCodeTab.value === 0) {
-            codeToDownload = flutterCode.value;
-        } else if (selectedCodeTab.value === 1) {
-            codeToDownload = generateNavigationDrawerCode();
-        } else {
-            codeToDownload = generateScreenCode(selectedCodeTab.value - 2);
-        }
-
-        // Get project name based on selected tab
-        let downloadProjectName;
-        if (selectedCodeTab.value === 0) {
-            downloadProjectName = projectName.value || 'FlutterProject';
-        } else if (selectedCodeTab.value === 1) {
-            downloadProjectName = 'NavigationDrawer';
-        } else {
-            downloadProjectName = screens.value[selectedCodeTab.value - 2]?.name || 'ScreenProject';
-        }
-
-        // Get elements based on selected tab
-        let elements;
-        if (selectedCodeTab.value === 0) {
-            elements = flutterWidgets.value;
-        } else if (selectedCodeTab.value === 1) {
-            elements = navigationDrawerWidget.value ? [navigationDrawerWidget.value] : [];
-        } else {
-            elements = screens.value[selectedCodeTab.value - 2]?.elements || [];
-        }
-
-        // Send request to backend to generate and download the project
-        const response = await axios.post(
-            '/pizarra/download-flutter-project',
-            {
-                name: downloadProjectName,
-                elements: elements,
-                code: codeToDownload,
-                project_name: downloadProjectName,
-                id: props.pizarra?.id || null
-            },
-            {
-                responseType: 'blob' // Important to set response type for file download
-            }
-        );
-
-        // Create a blob URL from the response
-        const blob = new Blob([response.data], { type: 'application/zip' });
-        const url = window.URL.createObjectURL(blob);
-
-        // Create a temporary link element to trigger the download
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `${projectName.value || 'FlutterProject'}.zip`);
-        document.body.appendChild(link);
-
-        // Trigger the download
-        link.click();
-
-        // Clean up
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(link);
-
-        // Show success message
-        AlertService.prototype.success('Éxito', 'Proyecto Flutter descargado correctamente');
-    } catch (error) {
-        console.error('Error downloading Flutter project:', error);
-        AlertService.prototype.error('Error', 'No se pudo descargar el proyecto Flutter');
-    }
-};
-
-// Image upload functions
-const closeImageUpload = () => {
-    showImageUpload.value = false;
-    showResultsPanel.value = false;
-    originalImage.value = null;
-    processedImage.value = null;
-    roboflowData.value = null;
-    clearSelectedImage();
-};
-const handleImageUpload = (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-        selectedImage.value = input.files[0];
-
-        // Create preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            previewImage.value = e.target?.result as string;
-        };
-        reader.readAsDataURL(selectedImage.value);
-    }
-};
-const clearSelectedImage = () => {
-    selectedImage.value = null;
-    previewImage.value = null;
-};
-const processImage = async () => {
-    if (!selectedImage.value) {
-        AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
-        return;
-    }
-    const url = "http://localhost:10000/api/scan";
-    try {
-        isProcessingImage.value = true;
-        AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
-
-        // Create form data
-        const formData = new FormData();
-        formData.append('file', selectedImage.value);
-
-        // Send to backend for processing
-        const response = await axios.post(url, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data'
-            }
-        });
-
-        console.log('Image processing response:', response.data);
-
-        if (response.data.success) {
-            // Store the original and processed images
-            originalImage.value = response.data.originalImage;
-            processedImage.value = response.data.processedImage;
-            roboflowData.value = response.data.rawData;
-
-            // Add the generated widgets to the canvas
-            if (response.data.widgets && response.data.widgets.length > 0) {
-                addAIWidgetsToCanvas(response.data.widgets);
-
-                // Show success message
-                AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
-
-                // Show the results panel instead of closing the modal
-                showResultsPanel.value = true;
-            } else {
-                AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
-            }
-
-            // If there's raw code, show it
-            if (response.data.rawCode) {
-                aiMessages.value.push({
-                    text: response.data.rawCode,
-                    isUser: false,
-                    timestamp: Date.now()
-                });
-                showAIChat.value = true;
-            }
-        } else {
-            AlertService.prototype.error('Error', response.data.message || 'Error al procesar la imagen');
-        }
-    } catch (error: any) {
-        console.error('Error processing image:', error);
-        AlertService.prototype.error('Error', error.response?.data?.message || 'Error al procesar la imagen');
-    } finally {
-        isProcessingImage.value = false;
-    }
-};
-// Save changes to the pizarraFlutter
-const savePizarraFlutter = async () => {
-    if (!props.pizarra || !props.pizarra.id) return;
-
-    try {
-        // Ensure ID is a valid number
-        if (isNaN(props.pizarra.id)) {
-            console.error('Invalid pizarra ID:', props.pizarra.id);
-            AlertService.prototype.error('Error', 'ID de pizarra inválido');
-            return;
-        }
-
-        // Validate project name
-        if (!projectName.value || projectName.value.trim() === '') {
-            const { value: newName } = await Swal.fire({
-                title: 'Nombre del Proyecto',
-                input: 'text',
-                inputLabel: 'Por favor ingrese un nombre para el proyecto',
-                inputValue: projectName.value || '',
-                showCancelButton: true,
-                inputValidator: (value) => {
-                    if (!value || value.trim() === '') {
-                        return 'El nombre del proyecto es requerido';
-                    }
-                }
-            });
-
-            if (!newName) return; // User cancelled
-            projectName.value = newName;
-        }
-
-        // Ensure we have at least one screen
-        if (screens.value.length === 0) {
-            initializeScreens();
-        }
-
-        // Make sure at least one screen is marked as home
-        if (!screens.value.some((screen) => screen.isHome)) {
-            screens.value[0].isHome = true;
-        }
-
-        // Save both the legacy elements array (for backward compatibility)
-        // and the new screens array
-        const response = await axios.put(`/pizarra/${props.pizarra.id}`, {
-            name: projectName.value,
-            elements: currentScreen.value?.elements || [],
-            screens: screens.value
-        });
-        console.log('Pizarra saved:', response.data);
-
-        // AlertService.prototype.success('Éxito', 'Cambios guardados correctamente');
-    } catch (error) {
-        console.error('Error saving pizarra flutter:', error);
-        AlertService.prototype.error('Error', 'No se pudieron guardar los cambios');
-    }
-};
-// Debounced save function
-const debouncedSave = debounce(() => {
-    if (props.pizarra && props.isCreador && props.pizarra.id) {
-        savePizarraFlutter();
-    }
-}, 1000); // 1 second debounce
-
-// Watch for changes in flutterWidgets and save them
-watch(
-    flutterWidgets,
-    () => {
-        debouncedSave();
-    },
-    { deep: true, flush: 'post' }
-);
-// Load collaborators
-
-// Invite a collaborator
-/*const inviteCollaborator = async () => {
-
-};*/
-
-// Toggle floating chat visibility
-
 // Toggle AI chat visibility
 const toggleAIChat = () => {
     console.log('Toggling AI chat visibility desde Pizarra Flutter ');
@@ -1603,7 +179,6 @@ const toggleAIChat = () => {
         showFloatingChat.value = false;
     }
 };
-
 /**
  * Extracts Flutter code from an AI response.
  *
@@ -1671,7 +246,6 @@ function extractFromFirstImport(inputString: string): string {
         return inputString;
     }
 }
-
 /**
  * Parses Flutter widgets from code and creates a widget hierarchy.
  *
@@ -1711,18 +285,18 @@ function parseFlutterWidgets(inputCode: string) {
 
         // Helper function to extract property values from widget content
         const extractProperties = (widgetContent: string, widgetDefinition: any) => {
-            const props = {};
+            const props : Record<string,any> = {};
 
             // Initialize with default values first
-            widgetDefinition.properties.forEach((prop) => {
+            widgetDefinition.properties.forEach((prop : { name: string, defaultValue : any}) => {
                 props[prop.name] = prop.defaultValue;
             });
 
             // Try to extract actual values for common properties
-            widgetDefinition.properties.forEach((prop) => {
+            widgetDefinition.properties.forEach((prop : { name : string, type: string, defaultValue : any}) => {
                 // Different regex patterns based on property type
-                let propRegex;
-                let valueExtractor = (match) => match[1];
+                let propRegex : RegExp;
+                let valueExtractor = (match : RegExpExecArray) => match[1];
 
                 switch (prop.type) {
                     case 'string':
@@ -1732,17 +306,17 @@ function parseFlutterWidgets(inputCode: string) {
                     case 'number':
                         // Match numeric values
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(\\d+(?:\\.\\d+)?)`, 'i');
-                        valueExtractor = (match) => parseFloat(match[1]);
+                        valueExtractor = (match : RegExpExecArray) => String(parseFloat(match[1]));
                         break;
                     case 'boolean':
                         // Match boolean values
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(true|false)`, 'i');
-                        valueExtractor = (match) => match[1].toLowerCase() === 'true';
+                        valueExtractor = (match : RegExpExecArray) => match[1].toLowerCase() === 'true' ? 'true' : 'false';
                         break;
                     case 'color':
                         // Try to match color values in various formats
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(?:Colors\\.([a-zA-Z]+)|Color\\(0x([0-9A-Fa-f]+)\\)|'#([0-9A-Fa-f]+)')`, 'i');
-                        valueExtractor = (match) => {
+                        valueExtractor = (match : RegExpExecArray) => {
                             if (match[1]) return `#${colorNameToHex(match[1])}`;
                             if (match[2]) return `#${match[2]}`;
                             if (match[3]) return `#${match[3]}`;
@@ -1751,13 +325,14 @@ function parseFlutterWidgets(inputCode: string) {
                         break;
                     case 'select':
                         // Match enum values
-                        const options = prop.options.map((opt) => opt.replace(/\./g, '\\.'));
+                        const options = prop.options?.map((opt : string) => opt.replace(/\./g, '\\.'));
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
+                        valueExtractor = (match: RegExpExecArray) => match[1];
                         break;
                     default:
                         // For other types, try a generic approach
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*([^,}]+)`, 'i');
-                        valueExtractor = (match) => match[1].trim();
+                        valueExtractor = (match : RegExpExecArray) => match[1].trim();
                 }
 
                 // Try to extract the property value
@@ -1779,7 +354,7 @@ function parseFlutterWidgets(inputCode: string) {
         };
 
         // Helper function to convert color name to hex
-        const colorNameToHex = (colorName) => {
+        const colorNameToHex = (colorName : any) => {
             const colorMap = {
                 red: 'FF0000',
                 blue: '0000FF',
@@ -2224,8 +799,13 @@ const addAIWidgetsToCanvas = (widgets: any) => {
         });
 
         // Add processed widgets to the canvas
+        // Make sure currentScreen.elements exists and is an array
+        if (!currentScreen.value.elements) {
+            currentScreen.value.elements = [];
+        }
+
         processedWidgets.forEach((widget) => {
-            flutterWidgets.value.push(widget);
+            currentScreen.value.elements.push(widget);
         });
 
         // Emit widget added event to socket for each widget
@@ -2252,14 +832,1534 @@ const onChatInputAI = () => {
         user: currentUser.value
     });
 };
+
+
+// Image upload state
+const showImageUpload = ref<boolean>(false);
+const selectedImage = ref<File | null>(null);
+const previewImage = ref<string | null>(null);
+const isProcessingImage = ref<boolean>(false);
+const originalImage = ref<string | null>(null);
+const processedImage = ref<string | null>(null);
+const roboflowData = ref<any>(null);
+const showResultsPanel = ref<boolean>(false);
+
+// Image upload functions
+const closeImageUpload = () => {
+    showImageUpload.value = false;
+    showResultsPanel.value = false;
+    originalImage.value = null;
+    processedImage.value = null;
+    roboflowData.value = null;
+    clearSelectedImage();
+};
+const handleImageUpload = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+        selectedImage.value = input.files[0];
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImage.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(selectedImage.value);
+    }
+};
+const clearSelectedImage = () => {
+    selectedImage.value = null;
+    previewImage.value = null;
+};
+// Function to process image scan results from the API
+const processImageScanResults = (data: any) => {
+    if (!data || !data.components || !Array.isArray(data.components)) {
+        AlertService.prototype.warning('Advertencia', 'No se encontraron componentes en la respuesta de la API');
+        return null;
+    }
+
+    // Map the components from the API response to the format expected by addAIWidgetsToCanvas
+    const widgets = data.components.map((component: any) => {
+        // Determine the widget type based on the component type
+        let widgetType = 'Container'; // Default type
+        const props: any = {};
+
+        // Convert component type to appropriate widget type
+        switch (component.type.toLowerCase()) {
+            case 'button':
+                widgetType = 'ElevatedButton';
+                // Extract text from subcomponents if available
+                if (component.subcomponents && component.subcomponents.length > 0) {
+                    const textComponent = component.subcomponents.find((sub: any) => sub.type === 'text');
+                    if (textComponent) {
+                        props.child = `Text("${textComponent.text || 'Button'}")`;
+                    } else {
+                        props.child = `Text("Button")`;
+                    }
+                } else if (component.text) {
+                    props.child = `Text("${component.text}")`;
+                } else {
+                    props.child = `Text("Button")`;
+                }
+                props.onPressed = '() {}';
+                props.style = 'ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Colors.blue))';
+                break;
+
+            case 'text':
+                widgetType = 'Text';
+                props.data = component.text || 'Text';
+                props.style = 'TextStyle(fontSize: 16.0)';
+                props.textAlign = 'TextAlign.left';
+                break;
+
+            case 'textfield':
+                widgetType = 'TextField';
+                // Extract hint from subcomponents if available
+                if (component.subcomponents && component.subcomponents.length > 0) {
+                    const hintComponent = component.subcomponents.find((sub: any) => sub.type === 'hint');
+                    if (hintComponent) {
+                        props.decoration = `InputDecoration(labelText: "${hintComponent.text || 'Label'}")`;
+                    } else {
+                        props.decoration = 'InputDecoration(labelText: "Label")';
+                    }
+                } else {
+                    props.decoration = 'InputDecoration(labelText: "Label")';
+                }
+                props.controller = 'TextEditingController()';
+                props.keyboardType = 'TextInputType.text';
+                props.obscureText = false;
+                props.enabled = true;
+                break;
+
+            default:
+                widgetType = 'Container';
+                props.width = 200;
+                props.height = 200;
+                props.color = '#FFFFFF';
+                props.padding = 'EdgeInsets.all(16.0)';
+                props.margin = 'EdgeInsets.all(8.0)';
+                props.alignment = 'Alignment.center';
+        }
+
+        // Create the widget object
+        return {
+            id: `widget-${widgetIdCounter++}`,
+            type: widgetType,
+            props: props,
+            children: [],
+            // Add coordinates for positioning
+            coordinates: component.coordinates ? {
+                x: component.coordinates.x1,
+                y: component.coordinates.y1,
+                width: component.coordinates.x2 - component.coordinates.x1,
+                height: component.coordinates.y2 - component.coordinates.y1
+            } : null,
+            confidence: component.confidence || 1.0
+        };
+    });
+
+    return widgets;
+};
+
+const processImage = async () => {
+    if (!selectedImage.value) {
+        AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
+        return;
+    }
+    const url = "/api/scan";
+    try {
+        isProcessingImage.value = true;
+        AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('file', selectedImage.value);
+
+        // Send to backend for processing
+        const response = await axios.post(url, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+
+        console.log('Image processing response:', response.data);
+
+        if (response.data.components) {
+            // This is the new API response format
+            roboflowData.value = response.data;
+
+            // Process the components from the API response
+            const widgets = processImageScanResults(response.data);
+
+            if (widgets && widgets.length > 0) {
+                // Add the widgets to the canvas
+                addAIWidgetsToCanvas(widgets);
+
+                // Show success message
+                AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
+
+                // Show the results panel
+                showResultsPanel.value = true;
+            } else {
+                AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
+            }
+        } else if (response.data.success) {
+            // Legacy response format
+            // Store the original and processed images
+            originalImage.value = response.data.originalImage;
+            processedImage.value = response.data.processedImage;
+            roboflowData.value = response.data.rawData;
+
+            // Add the generated widgets to the canvas
+            if (response.data.widgets && response.data.widgets.length > 0) {
+                addAIWidgetsToCanvas(response.data.widgets);
+
+                // Show success message
+                AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
+
+                // Show the results panel instead of closing the modal
+                showResultsPanel.value = true;
+            } else {
+                AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
+            }
+
+            // If there's raw code, show it
+            if (response.data.rawCode) {
+                aiMessages.value.push({
+                    text: response.data.rawCode,
+                    isUser: false,
+                    timestamp: Date.now()
+                });
+                showAIChat.value = true;
+            }
+        } else {
+            AlertService.prototype.error('Error', response.data.message || 'Error al procesar la imagen');
+        }
+    } catch (error: any) {
+        console.error('Error processing image:', error);
+        AlertService.prototype.error('Error', error.response?.data?.message || 'Error al procesar la imagen');
+    } finally {
+        isProcessingImage.value = false;
+    }
+};
+
+// Counter for generating unique widget IDs
+let widgetIdCounter = 1;
+// Project name ref
+const projectName = ref<string>(props.pizarra?.name || 'Nueva Pizarra Flutter');
+// Dark mode state
+const isDarkMode = ref<boolean>(localStorage.getItem('darkMode') === 'true');
+// Apply dark mode class to html element
+const applyDarkMode = () => {
+    if (isDarkMode.value) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+};
+// Toggle dark mode
+const toggleDarkMode = () => {
+    isDarkMode.value = !isDarkMode.value;
+    localStorage.setItem('darkMode', isDarkMode.value.toString());
+    applyDarkMode();
+};
+// Screens management
+const screens = ref<Pizarra[]>(props.screens || []);
+const currentScreenIndex = ref<number>(0);
+const showScreenManager = ref<boolean>(false);
+const newScreenName = ref<string>('');
+// Obtener pantalla actual
+const currentScreen = computed(() => {
+    // Manejar el caso cuando la matriz de pantallas está vacía
+    if (screens.value.length === 0) {
+        initializeScreens();
+    }
+    return screens.value[currentScreenIndex.value] || screens.value[0] || { elements: [] };
+});
+
+// Agregar una nueva pantalla
+const addScreen = () => {
+    if (!newScreenName.value.trim()) {
+        AlertService.prototype.error('Error', 'El nombre de la pantalla no puede estar vacío');
+        return;
+    }
+
+    screens.value.push({
+        id: `screen-${Date.now()}`,
+        name: newScreenName.value,
+        elements: addDefaultWidgets([]),
+        isHome: screens.value.length === 0
+    });
+
+    // Seleccione la nueva pantalla
+    currentScreenIndex.value = screens.value.length - 1;
+
+    // Borrar la entrada
+    newScreenName.value = '';
+
+    // Cerrar el administrador de pantalla
+    showScreenManager.value = false;
+
+    // Save changes
+    debouncedSave();
+};
+
+// Delete a screen
+const deleteScreen = (index: number) => {
+    if (screens.value.length <= 1) {
+        AlertService.prototype.error('Error', 'No puedes eliminar la única pantalla');
+        return;
+    }
+
+    // Confirm deletion
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Remove the screen
+            screens.value.splice(index, 1);
+
+            // Adjust current screen index if needed
+            if (currentScreenIndex.value >= screens.value.length) {
+                currentScreenIndex.value = screens.value.length - 1;
+            }
+
+            // Save changes
+            debouncedSave();
+        }
+    });
+};
+// Set a screen as home
+const setHomeScreen = (index: number) => {
+    screens.value.forEach((screen, i) => {
+        screen.isHome = i === index;
+    });
+    // Save changes
+    debouncedSave();
+};
+
+// Select a screen
+const selectScreen = (index: number) => {
+    currentScreenIndex.value = index;
+};
+// Initialize screens if empty
+const initializeScreens = () => {
+    // inicializar las pantallas desde la BD
+    // adicionar Drawer y Scaffold por defecto
+
+    if (screens.value.length === 0) {
+        // Create a default home screen
+        const elements = Array.isArray(props.pizarra?.widgets) && props.pizarra.widgets.length > 0
+            ? props.pizarra.widgets
+            : addDefaultWidgets([]);
+
+        // Create a default drawer screen
+        const drawerElements = [];
+        const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+        console.log('drawerDef', drawerDef);
+        if (drawerDef) {
+            console.log('Creating default Drawer widget: ', drawerDef.type);
+            const drawerWidget = {
+                id: `widget-${drawerDef.id || Date.now()}`,
+                type: 'Drawer',
+                props: {},
+                children: []
+            };
+            // Initialize properties with default values
+            drawerDef.properties.forEach((prop) => {
+                drawerWidget.props[prop.name] = prop.defaultValue;
+            });
+            drawerElements.push(drawerWidget);
+        }
+
+        // Add drawer screen first
+        screens.value.push({
+            id: `screen-drawer-${Date.now()}`,
+            name: 'Drawer',
+            elements: drawerElements,
+            isHome: false,
+            isDrawer: true
+        });
+
+        // Add home screen
+        screens.value.push({
+            id: `screen-${Date.now()}`,
+            name: 'Home',
+            elements: elements,
+            isHome: true
+        });
+    } else {
+        // Asegúrese de que todas las pantallas tengan identificaciones únicas
+        screens.value.forEach((screen, index) => {
+            if (!screen.id) {
+                screen.id = `screen-${Date.now()}-${index}`;
+            }
+        });
+
+        // Comprueba si existe la pantalla del cajón, si no créala
+        if (!screens.value.some(screen => screen.isDrawer)) {
+            const drawerElements = [];
+            const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+            if (drawerDef) {
+                const drawerWidget = {
+                    id: `widget-${widgetIdCounter++}`,
+                    type: 'Drawer',
+                    props: {},
+                    children: []
+                };
+
+                // Inicializar propiedades con valores predeterminados
+                drawerDef.properties.forEach((prop) => {
+                    drawerWidget.props[prop.name] = prop.defaultValue;
+                });
+
+                drawerElements.push(drawerWidget);
+            }
+
+            // Add drawer screen
+            screens.value.unshift({
+                id: `screen-drawer-${Date.now()}`,
+                name: 'Drawer',
+                elements: drawerElements,
+                isHome: false,
+                isDrawer: true
+            });
+        }
+    }
+}
+
+// Add default widgets (Scaffold only) to a screen
+const addDefaultWidgets = (existingElements = []) => {
+    if (existingElements.length > 0) {
+        return existingElements;
+    }
+
+    // Find widget definitions
+    const scaffoldDef = availableWidgets.value.find(w => w.type === 'Scaffold');
+
+    // Create default widgets
+    const defaultWidgets = [];
+
+    if (scaffoldDef) {
+        const scaffoldWidget = {
+            id: `widget-${widgetIdCounter++}`,
+            type: 'Scaffold',
+            props: {},
+            children: []
+        };
+
+        // Initialize properties with default values
+        scaffoldDef.properties.forEach((prop) => {
+            scaffoldWidget.props[prop.name] = prop.defaultValue;
+        });
+
+        defaultWidgets.push(scaffoldWidget);
+    }
+
+    return defaultWidgets;
+};
+// Selected widget for editing
+const selectedWidget = ref<FlutterWidget | null>(null);
+// Available Flutter widgets
+const availableWidgets = ref(availableFlutterWidgets);
+const dbWidgets = ref<FlutterWidget[]>(props.widgets || []);
+// Fetch widgets from the database
+// Commented out as it's not currently used
+// const fetchWidgetsFromDB = async () => {
+//     try {
+//         const response = await axios.post('/widget/query');
+//         dbWidgets.value = response.data;
+//         console.log('Widgets fetched from DB:', dbWidgets.value);
+//     } catch (error) {
+//         console.error('Error fetching widgets from DB:', error);
+//     }
+// };
+// Widgets de Flutter en el lienzo
+// Inicializar con un valor calculado correctamente
+// Asegurarse de que todos los widgets tengan identificadores únicos
+const addIdsToWidgets = (widgetList: any) => {
+    return widgetList.map((widget: any) => {
+        // Add ID if not present
+        if (!widget.id) {
+            widget.id = `widget-${widgetIdCounter++}`;
+        }
+
+        // Process children recursively if they exist
+        if (widget.children && Array.isArray(widget.children)) {
+            widget.children = addIdsToWidgets(widget.children);
+        } else {
+            // Initialize children as an empty array if it doesn't exist or isn't an array
+            widget.children = [];
+        }
+
+        return widget;
+    });
+};
+// Obtener widgets de la base de datos al montar
+const getInitialFlutterWidgets = (): FlutterWidget[] => {
+    let widgets = [];
+
+    if (!props.widgets) {
+        return [];
+    }
+
+    if (Array.isArray(props.widgets)) {
+        widgets = props.widgets;
+    } else {
+        try {
+            widgets = JSON.parse(props.widgets || '[]');
+        } catch (error) {
+            console.error('Error parsing pizarra elements:', error);
+            return [];
+        }
+    }
+    return addIdsToWidgets(widgets);
+};
+const flutterWidgets = computed(() => {
+    // If we have screens, use the current screen's elements
+    if (screens.value.length > 0 && currentScreen.value) {
+        return currentScreen.value.elements;
+    }
+    // Otherwise, use the legacy elements array
+    return getInitialFlutterWidgets();
+});
+
+// Helper function to create a new widget
+const createWidget = (widgetType: string): FlutterWidget | null => {
+    // First, check if the widget exists in the database
+    const dbWidget = dbWidgets.value.find((w) => w.type === widgetType);
+
+    if (dbWidget) {
+        console.log('Using widget from database:', dbWidget);
+
+        // Create a new widget based on the database widget
+        const newWidget: FlutterWidget = {
+            id: `widget-${widgetIdCounter++}`,
+            type: dbWidget.type,
+            props: {},
+            children: [], // Always initialize as an array to avoid "elements must be an array" error
+            code_string: dbWidget.code_string || ''
+        };
+
+        // If the widget has properties in the database, use them
+        if (dbWidget.propiedades && Array.isArray(dbWidget.propiedades)) {
+            dbWidget.propiedades.forEach((prop) => {
+                newWidget.props[prop.name] = prop.value || prop.defaultValue;
+            });
+        }
+
+        return newWidget;
+    }
+
+    // Fallback to the hardcoded widget definition
+    const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
+    if (!widgetDefinition) return null;
+
+    const newWidget: FlutterWidget = {
+        id: `widget-${widgetIdCounter++}`,
+        type: widgetDefinition.type,
+        props: {},
+        children: [] // Always initialize as an array to avoid "elements must be an array" error
+    };
+
+    // Initialize properties with default values
+    widgetDefinition.properties.forEach((prop) => {
+        newWidget.props[prop.name] = prop.defaultValue;
+    });
+
+    return newWidget;
+};
+
+// Helper function to emit widget added event
+const emitWidgetAdded = (widget: FlutterWidget, screenId?: string) => {
+    socket.emit('flutter-widget-added', {
+        roomId: roomId.value,
+        widget: widget,
+        userId: currentUser.value,
+        screenId: screenId
+    });
+};
+
+// Function to add a widget to the canvas
+const addWidget = (widgetType: string) => {
+    const newWidget = createWidget(widgetType);
+    if (!newWidget) return;
+
+    // Add widget to the current screen
+    if (screens.value.length > 0 && currentScreen.value) {
+        if (!currentScreen.value.elements) {
+            currentScreen.value.elements = [];
+        }
+        currentScreen.value.elements.push(newWidget);
+    } else {
+        // Legacy support - create a default screen with the widgets
+        initializeScreens();
+        if (screens.value.length > 0 && screens.value[0].elements) {
+            screens.value[0].elements.push(newWidget);
+        }
+    }
+
+    // Emit widget added event to socket
+    emitWidgetAdded(newWidget, currentScreen.value?.id);
+};
+
+// Función antirrebote para limitar la frecuencia con la que se puede llamar a una función
+const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
+    let timeout: number | null = null;
+    return (...args: Parameters<T>) => {
+        if (timeout) {
+            clearTimeout(timeout);
+        }
+        timeout = setTimeout(() => {
+            fn(...args);
+            timeout = null;
+        }, delay);
+    };
+};
+
+// Function to select a widget for editing
+const selectWidget = (widget: FlutterWidget) => {
+    selectedWidget.value = widget;
+};
+
+// Función para emitir el evento de actualización del widget al socket
+const emitWidgetUpdated = () => {
+    if (!selectedWidget.value) return;
+
+    socket.emit('flutter-widget-updated', {
+        roomId: roomId.value,
+        widget: selectedWidget.value,
+        userId: currentUser.value,
+        screenId: currentScreen.value?.id
+    });
+};
+
+// Versión sin rebotes de emitWidgetUpdated para evitar eventos de socket excesivos
+const debouncedEmitWidgetUpdated = debounce(emitWidgetUpdated, 300); // 300ms debounce
+
+// Function to update a widget property
+const updateWidgetProperty = (propertyName: string, value: any) => {
+    if (!selectedWidget.value) return;
+
+    selectedWidget.value.props[propertyName] = value;
+
+    // Use debounced emit for better performance
+    debouncedEmitWidgetUpdated();
+};
+
+// Function to update a color property
+const updateColorProperty = (propertyName: string, value: string) => {
+    if (!selectedWidget.value) return;
+
+    // Ensure the value is a valid hex color
+    const hexColor = getHexColor(value);
+    selectedWidget.value.props[propertyName] = hexColor;
+
+    // Use debounced emit for better performance
+    debouncedEmitWidgetUpdated();
+};
+// Función para eliminar un widget del lienzo
+const removeWidget = (widget: FlutterWidget) => {
+    if (screens.value.length > 0 && currentScreen.value && currentScreen.value.elements) {
+        const index = currentScreen.value.elements.indexOf(widget);
+        if (index !== -1) {
+            currentScreen.value.elements.splice(index, 1);
+
+            // Emit widget removed event to socket
+            socket.emit('flutter-widget-removed', {
+                roomId: roomId.value,
+                widgetIndex: index,
+                userId: currentUser.value,
+                screenId: currentScreen.value.id
+            });
+
+            // Clear selection if the removed widget was selected
+            if (selectedWidget.value === widget) {
+                selectedWidget.value = null;
+            }
+        }
+    }
+};
+
+// Function to generate Flutter code
+const generateFlutterCode = () => {
+    let flutterCode = '';
+
+    const generateWidgetCode = (widget: FlutterWidget, indent: string = ''): string => {
+        // If the widget has a code_string property, use it directly
+        if (widget.code_string && widget.code_string.trim() !== '') {
+            console.log('Using code_string for widget:', widget.type);
+
+            // Check if the code_string already includes the widget type
+            if (widget.code_string.trim().startsWith(widget.type)) {
+                return `${indent}${widget.code_string}`;
+            } else {
+                // If not, wrap it with the widget type
+                return `${indent}${widget.type}(\n${indent}  ${widget.code_string}\n${indent})`;
+            }
+        }
+
+        // Otherwise, generate code based on widget properties
+        let code = `${indent}${widget.type}(\n`;
+
+        // Add properties
+        Object.entries(widget.props).forEach(([key, value]) => {
+            // Check if this is a color property
+            const isColorProperty = availableWidgets.value
+                .find((w) => w.type === widget.type)?.properties
+                .find((p: any) => p.name === key)?.type === 'color';
+
+            if (isColorProperty && typeof value === 'string') {
+                // Convert HEX color to Flutter Color
+                if (value.startsWith('#')) {
+                    // Remove # and convert to uppercase
+                    const hexColor = value.substring(1).toUpperCase();
+                    // If it's a 6-digit hex color
+                    if (hexColor.length === 6) {
+                        code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                    } else {
+                        // Fallback for invalid hex colors
+                        code += `${indent}  ${key}: Colors.black,\n`;
+                    }
+                } else if (value.startsWith('rgb')) {
+                    // Convert RGB to HEX and then to Flutter Color
+                    const hexColor = getHexColor(value).substring(1).toUpperCase();
+                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                } else if (value.startsWith('hsl')) {
+                    // Convert HSL to HEX and then to Flutter Color
+                    const hexColor = getHexColor(value).substring(1).toUpperCase();
+                    code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                } else {
+                    // Try to use predefined Flutter colors
+                    const lowerCaseValue = value.toLowerCase();
+                    if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
+                        code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
+                    } else {
+                        // Fallback to black
+                        code += `${indent}  ${key}: Colors.black,\n`;
+                    }
+                }
+            } else if (typeof value === 'string' && !value.includes('(')) {
+                code += `${indent}  ${key}: '${value}',\n`;
+            } else {
+                code += `${indent}  ${key}: ${value},\n`;
+            }
+        });
+
+        // Add children if any
+        if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
+            code += `${indent}  children: [\n`;
+            widget.children.forEach((child) => {
+                code += generateWidgetCode(child, `${indent}    `) + ',\n';
+            });
+            code += `${indent}  ],\n`;
+        }
+
+        code += `${indent})`;
+        return code;
+    };
+
+    // Generate screen classes
+    let screenClasses = '';
+    let routeDefinitions = '';
+    let homeScreenName = '';
+
+    screens.value.forEach((screen) => {
+        // Skip drawer screen as it's handled separately
+        if (screen.isDrawer) {
+            return;
+        }
+
+        // Format screen name for class name (remove spaces, special chars, capitalize)
+        const screenClassName = screen.name
+            .replace(/[^\w\s]/g, '')  // Remove special characters
+            .replace(/\s+/g, '')      // Remove spaces
+            .replace(/^./, match => match.toUpperCase()); // Capitalize first letter
+
+        // Find the home screen
+        if (screen.isHome) {
+            homeScreenName = screenClassName;
+        }
+
+        // Generate code for each widget in this screen
+        let screenWidgetsCode = '';
+        if (screen.elements && Array.isArray(screen.elements)) {
+            screen.elements.forEach((widget) => {
+                screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
+            });
+        }
+
+        // Create a screen class
+        screenClasses += `
+            class ${screenClassName} extends StatelessWidget {
+              const ${screenClassName}({Key? key}) : super(key: key);
+
+              @override
+              Widget build(BuildContext context) {
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text('${screen.name}'),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.menu),
+                        onPressed: () {
+                          // Show navigation drawer
+                          Scaffold.of(context).openDrawer();
+                        },
+                      ),
+                    ],
+                  ),
+                  drawer: NavigationDrawer(),
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ${screenWidgetsCode}
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+            `;
+
+        // Add route definition (skip drawer screen)
+        if (!screen.isDrawer) {
+            routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const ${screenClassName}(),\n`;
+        }
+    });
+
+    // Si no se define ninguna pantalla de inicio, utilice la primera pantalla
+    if (!homeScreenName && screens.value.length > 0) {
+        homeScreenName = 'Screen0';
+    }
+
+    // Create navigation drawer
+    const navigationDrawer = `
+        class NavigationDrawer extends StatelessWidget {
+          @override
+          Widget build(BuildContext context) {
+            return Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  const DrawerHeader(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                    ),
+                    child: Text(
+                      '${projectName.value}',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                      ),
+                    ),
+                  ),
+                  ${screens.value
+                .map(
+                    (screen) => `
+                  ListTile(
+                    title: Text('${screen.name}'),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+                    },
+                  ),`
+                )
+                .join('\n')}
+                ],
+              ),
+            );
+          }
+        }
+        `;
+
+    // Wrap everything in a Flutter app with navigation
+    flutterCode = `
+        // @ts-ignore
+        import 'package:flutter/material.dart';
+
+        void main() {
+          runApp(const MyFlutterApp());
+        }
+
+        class MyFlutterApp extends StatelessWidget {
+          const MyFlutterApp({Key? key}) : super(key: key);
+
+          @override
+          Widget build(BuildContext context) {
+            return MaterialApp(
+              title: '${projectName.value}',
+              theme: ThemeData(
+                primarySwatch: Colors.blue,
+              ),
+              initialRoute: '/${
+                screens.value
+                    .find((s) => s.isHome)
+                    ?.name.toLowerCase()
+                    .replace(/\s+/g, '_') || 'home'
+            }',
+              routes: {
+        ${routeDefinitions}
+              },
+            );
+          }
+        }
+
+        ${navigationDrawer}
+
+        ${screenClasses}
+        `;
+
+    return flutterCode;
+};
+
+// --- DRAG & DROP PARA AGREGAR WIDGETS DENTRO DE OTROS WIDGETS ---
+// Widget que se está arrastrando desde la paleta
+const draggingWidgetType = ref<string | null>(null);
+
+// Variables para el menú de agregar widget hijo
+const showAddChildMenu = ref<string | null>(null);
+const activeAddChildCategory = ref<number>(0);
+
+// Drag and drop utility functions
+const dragUtils = {
+    // Handle drag start from palette
+    onDragStart: (widgetType: string) => {
+        draggingWidgetType.value = widgetType;
+    },
+
+    // Handle drag end
+    onDragEnd: () => {
+        draggingWidgetType.value = null;
+    },
+
+    // Handle drag enter/over
+    onDragOver: (event: DragEvent) => {
+        event.preventDefault();
+        const target = event.currentTarget as HTMLElement;
+        if (target) target.classList.add('dragover');
+    },
+
+    // Handle drag leave
+    onDragLeave: (event: DragEvent) => {
+        event.preventDefault();
+        const target = event.currentTarget as HTMLElement;
+        if (target) target.classList.remove('dragover');
+    },
+
+    // Handle drop
+    onDrop: (event: DragEvent) => {
+        event.preventDefault();
+        const target = event.currentTarget as HTMLElement;
+        if (target) target.classList.remove('dragover');
+    }
+};
+
+// Backward compatibility functions
+const onPaletteDragStart = dragUtils.onDragStart;
+const onPaletteDragEnd = dragUtils.onDragEnd;
+
+// Función para agregar un widget hijo a un widget padre (por id)
+const addChildWidget = (parentId: string, widgetType: string) => {
+    const newWidget = createWidget(widgetType);
+    if (!newWidget) return;
+
+    // Buscar el widget padre recursivamente y agregar el hijo
+    const addToParent = (widgets: FlutterWidget[]): boolean => {
+        for (const widget of widgets) {
+            if (widget.id === parentId) {
+                if (!widget.children) widget.children = [];
+                widget.children.push(newWidget);
+                return true;
+            }
+            if (widget.children && widget.children.length > 0) {
+                if (addToParent(widget.children)) return true;
+            }
+        }
+        return false;
+    };
+
+    // Add the child widget to the parent
+    addToParent(flutterWidgets.value);
+
+    // Emit widget added event to socket
+    emitWidgetAdded(newWidget, currentScreen.value?.id);
+};
+// Computed properties for filtering widgets by category
+const widgetsByActiveCategory = computed(() => {
+    const category = categoriesWidget[activeWidgetCategory.value]?.category;
+    if (!category) return [];
+    return availableWidgets.value.filter((widget) => widget.category === category);
+});
+
+// Flutter code display
+const showFlutterCode = ref<boolean>(false);
+const flutterCode = computed(() => generateFlutterCode());
+const selectedCodeTab = ref<number>(0); // 0 = Full App, 1 = NavigationDrawer, 2+ = Individual Screens
+const setSelectedCodeTab = (tab: number) => { selectedCodeTab.value = tab; };
+
+// State for the NavigationDrawer widget
+const navigationDrawerWidget = ref<FlutterWidget | null>(null);
+
+// Find or create the NavigationDrawer widget
+const findOrCreateNavigationDrawer = () => {
+    // First, try to find the drawer screen
+    const drawerScreen = screens.value.find(screen => screen.isDrawer);
+
+    if (drawerScreen && drawerScreen.elements) {
+        // Look for a Drawer widget in the drawer screen
+        const existingDrawer = drawerScreen.elements.find(widget => widget.type === 'Drawer');
+        if (existingDrawer) {
+            return existingDrawer;
+        }
+    }
+
+    // If not found, create a new one
+    const drawerDef = availableWidgets.value.find(w => w.type === 'Drawer');
+    if (!drawerDef) return null;
+
+    const newDrawer: FlutterWidget = {
+        id: `widget-${widgetIdCounter++}`,
+        type: 'Drawer',
+        props: {},
+        children: []
+    };
+
+    // Initialize properties with default values
+    drawerDef.properties.forEach((prop) => {
+        newDrawer.props[prop.name] = prop.defaultValue;
+    });
+
+    // Add to drawer screen if it exists
+    if (drawerScreen && drawerScreen.elements) {
+        drawerScreen.elements.push(newDrawer);
+    } else {
+        // If drawer screen doesn't exist, create it
+        const drawerElements = [newDrawer];
+        screens.value.unshift({
+            id: `screen-drawer-${Date.now()}`,
+            name: 'Drawer',
+            elements: drawerElements,
+            isHome: false,
+            isDrawer: true
+        });
+    }
+
+    return newDrawer;
+};
+
+// Initialize the NavigationDrawer widget
+const initNavigationDrawer = () => {
+    navigationDrawerWidget.value = findOrCreateNavigationDrawer();
+};
+// Generate code for the NavigationDrawer
+const generateNavigationDrawerCode = () => {
+    // Make sure we have a NavigationDrawer widget
+    if (!navigationDrawerWidget.value) {
+        initNavigationDrawer();
+    }
+
+    if (!navigationDrawerWidget.value) {
+        return '// No NavigationDrawer widget found';
+    }
+
+    // Generate code for the NavigationDrawer
+    return `
+import 'package:flutter/material.dart';
+
+class NavigationDrawer extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: ${navigationDrawerWidget.value.props.backgroundColor ? `Color(0xFF${navigationDrawerWidget.value.props.backgroundColor.substring(1).toUpperCase()})` : 'Colors.white'},
+      width: ${navigationDrawerWidget.value.props.width || 300},
+      elevation: ${navigationDrawerWidget.value.props.elevation || 16},
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text('User Name'),
+            accountEmail: Text('user@example.com'),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(
+                'U',
+                style: TextStyle(fontSize: 40.0, color: Colors.blue),
+              ),
+            ),
+            decoration: BoxDecoration(
+              color: Colors.blue,
+            ),
+          ),
+          ${screens.value
+            .filter(screen => !screen.isDrawer)
+            .map(
+                (screen, index) => `
+          ListTile(
+            leading: Icon(${index === 0 ? 'Icons.home' : `Icons.screen_${index + 1}`}),
+            title: Text('${screen.name}'),
+            trailing: Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+            },
+          ),`
+            )
+            .join('\n')}
+          Divider(),
+          ListTile(
+            leading: Icon(Icons.settings),
+            title: Text('Settings'),
+            onTap: () {
+              // Navigate to settings
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.help),
+            title: Text('Help & Feedback'),
+            onTap: () {
+              // Navigate to help
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+`;
+};
+
+// Generate code for a specific screen
+const generateScreenCode = (screenIndex: number) => {
+    if (screenIndex < 0 || screenIndex >= screens.value.length) {
+        return '';
+    }
+
+    const screen = screens.value[screenIndex];
+
+    // Skip generating code for the drawer screen, as it's handled separately
+    if (screen.isDrawer) {
+        return generateNavigationDrawerCode();
+    }
+
+    // Format screen name for class name
+    const screenClassName = screen.name
+        .replace(/[^\w\s]/g, '')  // Remove special characters
+        .replace(/\s+/g, '')      // Remove spaces
+        .replace(/^./, (match : any) => match.toUpperCase()); // Capitalize first letter
+
+    // Generate code for each widget in this screen
+    let screenWidgetsCode = '';
+    if (screen.widgets && Array.isArray(screen.widgets)) {
+        screen.widgets.forEach((widget : FlutterWidget) => {
+            const generateWidgetCode = (widget: FlutterWidget, indent: string = ''): string => {
+                let code = `${indent}${widget.type}(\n`;
+
+                // Add properties
+                Object.entries(widget.props).forEach(([key, value]) => {
+                    // Check if this is a color property
+                    const isColorProperty = availableWidgets.value
+                        .find((w) => w.type === widget.type)?.properties
+                        .find((p: any) => p.name === key)?.type === 'color';
+
+                    if (isColorProperty && typeof value === 'string') {
+                        // Convert HEX color to Flutter Color
+                        if (value.startsWith('#')) {
+                            // Remove # and convert to uppercase
+                            const hexColor = value.substring(1).toUpperCase();
+                            // If it's a 6-digit hex color
+                            if (hexColor.length === 6) {
+                                code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                            } else {
+                                // Fallback for invalid hex colors
+                                code += `${indent}  ${key}: Colors.black,\n`;
+                            }
+                        } else if (value.startsWith('rgb')) {
+                            // Convert RGB to HEX and then to Flutter Color
+                            const hexColor = getHexColor(value).substring(1).toUpperCase();
+                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                        } else if (value.startsWith('hsl')) {
+                            // Convert HSL to HEX and then to Flutter Color
+                            const hexColor = getHexColor(value).substring(1).toUpperCase();
+                            code += `${indent}  ${key}: Color(0xFF${hexColor}),\n`;
+                        } else {
+                            // Try to use predefined Flutter colors
+                            const lowerCaseValue = value.toLowerCase();
+                            if (['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'grey', 'black', 'white'].includes(lowerCaseValue)) {
+                                code += `${indent}  ${key}: Colors.${lowerCaseValue},\n`;
+                            } else {
+                                // Fallback to black
+                                code += `${indent}  ${key}: Colors.black,\n`;
+                            }
+                        }
+                    } else if (typeof value === 'string' && !value.includes('(')) {
+                        code += `${indent}  ${key}: '${value}',\n`;
+                    } else {
+                        code += `${indent}  ${key}: ${value},\n`;
+                    }
+                });
+
+                // Add children if any
+                if (widget.children && Array.isArray(widget.children) && widget.children.length > 0) {
+                    code += `${indent}  children: [\n`;
+                    widget.children.forEach((child) => {
+                        code += generateWidgetCode(child, `${indent}    `) + ',\n';
+                    });
+                    code += `${indent}  ],\n`;
+                }
+
+                code += `${indent})`;
+                return code;
+            };
+
+            screenWidgetsCode += generateWidgetCode(widget, '      ') + ',\n';
+        });
+    }
+
+    // Create a screen class
+    return `
+import 'package:flutter/material.dart';
+import 'navigation_drawer.dart';
+class ${screenClassName} extends StatelessWidget {
+  const ${screenClassName}({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('${screen.name}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              // Show navigation drawer
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ],
+      ),
+      drawer: NavigationDrawer(),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ${screenWidgetsCode}
+          ],
+        ),
+      ),
+    );
+  }
+}
+`;
+};
+
+// Active widget category for mobile selector
+const activeWidgetCategory = ref<number>(0);
+
+// Toggle between widget palette and widget verification
+const showWidgetVerification = ref<boolean>(false);
+const toggleWidgetVerification = () => {
+    showWidgetVerification.value = !showWidgetVerification.value;
+};
+
+// Flutter widget rendering helper comment
+// These functions were removed as they are no longer needed
+// The widget rendering has been simplified to use static values
+
+// Copy Flutter code to clipboard
+const copyFlutterCode = () => {
+    // Copy either the full app code, NavigationDrawer code, or the selected screen's code
+    let codeToCopy;
+    if (selectedCodeTab.value === 0) {
+        codeToCopy = flutterCode.value;
+    } else if (selectedCodeTab.value === 1) {
+        codeToCopy = generateNavigationDrawerCode();
+    } else {
+        codeToCopy = generateScreenCode(selectedCodeTab.value - 2);
+    }
+
+    navigator.clipboard.writeText(codeToCopy);
+    AlertService.prototype.success('Código copiado al portapapeles');
+};
+
+// Function to download the complete Flutter project
+const downloadFlutterProject = async () => {
+    try {
+        // Show loading message
+        AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
+
+        // Get the code to download based on selected tab
+        let codeToDownload;
+        if (selectedCodeTab.value === 0) {
+            codeToDownload = flutterCode.value;
+        } else if (selectedCodeTab.value === 1) {
+            codeToDownload = generateNavigationDrawerCode();
+        } else {
+            codeToDownload = generateScreenCode(selectedCodeTab.value - 2);
+        }
+
+        // Get project name based on selected tab
+        let downloadProjectName;
+        if (selectedCodeTab.value === 0) {
+            downloadProjectName = projectName.value || 'FlutterProject';
+        } else if (selectedCodeTab.value === 1) {
+            downloadProjectName = 'NavigationDrawer';
+        } else {
+            downloadProjectName = screens.value[selectedCodeTab.value - 2]?.name || 'ScreenProject';
+        }
+
+        // Get elements based on selected tab
+        let elements;
+        if (selectedCodeTab.value === 0) {
+            elements = flutterWidgets.value;
+        } else if (selectedCodeTab.value === 1) {
+            elements = navigationDrawerWidget.value ? [navigationDrawerWidget.value] : [];
+        } else {
+            elements = screens.value[selectedCodeTab.value - 2]?.elements || [];
+        }
+
+        // Send request to backend to generate and download the project
+        const response = await axios.post(
+            '/pizarra/download-flutter-project',
+            {
+                name: downloadProjectName,
+                elements: elements,
+                code: codeToDownload,
+                project_name: downloadProjectName,
+                id: props.pizarra?.id || null
+            },
+            {
+                responseType: 'blob' // Important to set response type for file download
+            }
+        );
+
+        // Create a blob URL from the response
+        const blob = new Blob([response.data], { type: 'application/zip' });
+        const url = window.URL.createObjectURL(blob);
+
+        // Create a temporary link element to trigger the download
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${projectName.value || 'FlutterProject'}.zip`);
+        document.body.appendChild(link);
+
+        // Trigger the download
+        link.click();
+
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+
+        // Show success message
+        AlertService.prototype.success('Éxito', 'Proyecto Flutter descargado correctamente');
+    } catch (error) {
+        console.error('Error downloading Flutter project:', error);
+        AlertService.prototype.error('Error', 'No se pudo descargar el proyecto Flutter');
+    }
+};
+
+
+// Save changes to the pizarraFlutter
+const savePizarraFlutter = async () => {
+    if (!props.pizarra || !props.pizarra.id) return;
+
+    try {
+        // Ensure ID is a valid number
+        if (isNaN(props.pizarra.id)) {
+            console.error('Invalid pizarra ID:', props.pizarra.id);
+            AlertService.prototype.error('Error', 'ID de pizarra inválido');
+            return;
+        }
+
+        // Validate project name
+        if (!projectName.value || projectName.value.trim() === '') {
+            const { value: newName } = await Swal.fire({
+                title: 'Nombre del Proyecto',
+                input: 'text',
+                inputLabel: 'Por favor ingrese un nombre para el proyecto',
+                inputValue: projectName.value || '',
+                showCancelButton: true,
+                inputValidator: (value) => {
+                    if (!value || value.trim() === '') {
+                        return 'El nombre del proyecto es requerido';
+                    }
+                }
+            });
+
+            if (!newName) return; // User cancelled
+            projectName.value = newName;
+        }
+
+        // Ensure we have at least one screen
+        if (screens.value.length === 0) {
+            initializeScreens();
+        }
+
+        // Make sure at least one screen is marked as home
+        if (!screens.value.some((screen) => screen.isHome)) {
+            screens.value[0].isHome = true;
+        }
+
+        // Save both the legacy elements array (for backward compatibility)
+        // and the new screens array
+        const response = await axios.put(`/pizarra/${props.pizarra.id}`, {
+            name: projectName.value,
+            elements: currentScreen.value?.elements || [],
+            screens: screens.value
+        });
+        console.log('Pizarra saved:', response.data);
+
+        // AlertService.prototype.success('Éxito', 'Cambios guardados correctamente');
+    } catch (error) {
+        console.error('Error saving pizarra flutter:', error);
+        AlertService.prototype.error('Error', 'No se pudieron guardar los cambios');
+    }
+};
+// Debounced save function
+const debouncedSave = debounce(() => {
+    if (props.pizarra && props.isCreador && props.pizarra.id) {
+        savePizarraFlutter();
+    }
+}, 1000); // 1 second debounce
+
+// Watch for changes in flutterWidgets and save them
+watch(
+    flutterWidgets,
+    () => {
+        debouncedSave();
+    },
+    { deep: true, flush: 'post' }
+);
+
+// Color utility functions
+const colorUtils = {
+    // Convert any color format to HEX
+    toHex: (color: string): string => {
+        // If already a valid hex color, return it
+        if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color)) {
+            return color.toUpperCase();
+        }
+
+        // Try to parse as RGB
+        const rgbMatch = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+        if (rgbMatch) {
+            const r = parseInt(rgbMatch[1]);
+            const g = parseInt(rgbMatch[2]);
+            const b = parseInt(rgbMatch[3]);
+            return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase()}`;
+        }
+
+        // Try to parse as HSL
+        const hslMatch = color.match(/^hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/i);
+        if (hslMatch) {
+            const h = parseInt(hslMatch[1]) / 360;
+            const s = parseInt(hslMatch[2]) / 100;
+            const l = parseInt(hslMatch[3]) / 100;
+
+            // Convert HSL to RGB
+            let r, g, b;
+            if (s === 0) {
+                r = g = b = l;
+            } else {
+                const hue2rgb = (p: number, q: number, t: number) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1 / 6) return p + (q - p) * 6 * t;
+                    if (t < 1 / 2) return q;
+                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    return p;
+                };
+
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1 / 3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1 / 3);
+            }
+
+            // Convert RGB to HEX
+            const toHex = (x: number) => {
+                const hex = Math.round(x * 255).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            };
+
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+        }
+
+        // Default to black if invalid color
+        return '#000000';
+    },
+
+    // Convert HEX to RGB
+    toRgb: (color: string): string => {
+        // Ensure we have a valid hex color
+        const hex = colorUtils.toHex(color);
+
+        // Parse the hex color
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+
+        return `rgb(${r}, ${g}, ${b})`;
+    },
+
+    // Convert HEX to HSL
+    toHsl: (color: string): string => {
+        // Ensure we have a valid hex color
+        const hex = colorUtils.toHex(color);
+
+        // Parse the hex color
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h = 0, s = 0, l = (max + min) / 2;
+
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+            switch (max) {
+                case r:
+                    h = (g - b) / d + (g < b ? 6 : 0);
+                    break;
+                case g:
+                    h = (b - r) / d + 2;
+                    break;
+                case b:
+                    h = (r - g) / d + 4;
+                    break;
+            }
+
+            h /= 6;
+        }
+
+        // Convert to degrees, percentage, percentage
+        h = Math.round(h * 360);
+        s = Math.round(s * 100);
+        l = Math.round(l * 100);
+
+        return `hsl(${h}, ${s}%, ${l}%)`;
+    }
+};
+// Helper functions for backward compatibility
+const getHexColor = (color: string): string => colorUtils.toHex(color);
+const getRgbColor = (color: string): string => colorUtils.toRgb(color);
+const getHslColor = (color: string): string => colorUtils.toHsl(color);
+
 // Socket event handlers
 onMounted(() => {
     console.log('Mounted PizarraFlutter');
     console.log(props.pizarra);
     applyDarkMode();
-    initializeScreens();
-    initNavigationDrawer();
-    fetchWidgetsFromDB(); // Fetch widgets from the database
+    //initializeScreens();
+    // initNavigationDrawer();
+    //fetchWidgetsFromDB(); // Obtener widgets de la base de datos
     socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
     // Connect to socket
     socketService.on('connect', () => {
@@ -2292,7 +2392,7 @@ onMounted(() => {
     socket.on('flutter-widget-updated', (data) => {
         if (data.userId !== currentUser.value) {
             const widget = ensureWidgetChildren(data.widget);
-            const index = flutterWidgets.value.findIndex((w) => w.id === widget.id);
+            const index = flutterWidgets.value.findIndex((w : any) => w.id === widget.id);
             if (index !== -1) {
                 flutterWidgets.value[index] = widget;
             }
@@ -2689,7 +2789,7 @@ onUnmounted(() => {
                         </button>
                     </div>
 
-                    <!-- Widget palette for mobile -->
+                    <!-- Widget paleta for mobile -->
                     <WidgetPalette
                         v-if="!showWidgetVerification"
                         :categoriesWidget="categoriesWidget"
@@ -2750,19 +2850,9 @@ onUnmounted(() => {
                                 class="mobile-phone-frame transition-colors dark:bg-gray-900 dark:shadow-[0_0_0_10px_#000,0_0_0_11px_#333,0_20px_30px_rgba(0,0,0,0.5)]"
                             >
                                 <!-- Phone status bar -->
-                                <PhoneStatusBar
-                                    :title="currentScreen?.name || 'Pantalla Flutter'"
-                                    :showMenu="true"
-                                    :actions="[]"
-                                    :class="{
-                                        'selected-widget m-2': selectedWidget?.id === 'widget-1'
-                                    }"
-                                    class="cursor-move"
-                                    @click="selectWidget(currentScreen.elements[0])"
-                                />
-                                <br/>
+                                <PhoneStatusBar />
                                 <!-- Phone content area (draggable canvas) -->
-                                <div class="phone-content-area transition-colors bg-sky-50 dark:bg-gray-800 mt-4">
+                                <div class="phone-content-area transition-colors bg-sky-50 dark:bg-gray-800">
                                     <!-- Si la pantalla esta vacia-->
                                     <div
                                         v-if="!currentScreen || !Array.isArray(currentScreen.elements)"
@@ -2813,9 +2903,9 @@ onUnmounted(() => {
                                                 }"
                                                 @click.stop="selectWidget(element)"
                                             >
-<!--                                                <div class="widget-header dark:border-gray-600 dark:bg-gray-800">
+                                                <div v-if="['Container', 'Row', 'Column', 'Scaffold', 'SafeArea', 'Padding'].includes(element.type)" class="widget-header dark:border-gray-600 dark:bg-gray-800">
                                                     <span class="widget-type dark:text-white">Widget: {{ element.type }}</span>
-                                                </div>-->
+                                                </div>
 
                                                 <!-- Realistic Flutter Widget Rendering -->
                                                 <div class="flutter-widget-preview bg-red-100 static">
@@ -2838,18 +2928,27 @@ onUnmounted(() => {
                                                     </div>
 
                                                     <!-- TextField Widget -->
-                                                    <div v-else-if="element.type === 'TextField'"
-                                                         class="flutter-text-field">
-                                                        <div class="text-field-label" v-if="element.props.decoration">
-                                                            Label
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Enter text"
-                                                            :class="{ 'text-field-obscured': element.props.obscureText === true }"
-                                                            :disabled="element.props.enabled === false"
-                                                        />
-                                                    </div>
+                                                    <InputFlutter
+                                                        v-else-if="element.type === 'TextField'"
+                                                        :decoration="element.props.decoration"
+                                                        :keyboardType="element.props.keyboardType"
+                                                        :obscureText="element.props.obscureText"
+                                                        :enabled="element.props.enabled"
+                                                        :value="element.props.value"
+                                                    />
+
+                                                    <!-- AppBar Widget -->
+                                                    <AppBarFlutter
+                                                        v-else-if="element.type === 'AppBar'"
+                                                        :title="element.props.title || 'App Bar'"
+                                                        :showMenu="element.props.automaticallyImplyLeading !== false"
+                                                    />
+
+                                                    <!-- Drawer Widget -->
+                                                    <DrawerFlutter
+                                                        v-else-if="element.type === 'Drawer'"
+                                                        :open="true"
+                                                    />
 
                                                     <!-- Container Widget -->
                                                     <div v-else-if="element.type === 'Container'"
@@ -4139,29 +4238,26 @@ onUnmounted(() => {
                                                     </div>
 
                                                     <!-- Checkbox Widget -->
-                                                    <div v-else-if="element.type === 'Checkbox'"
-                                                         class="flutter-checkbox">
-                                                        <input type="checkbox"
-                                                               :checked="element.props.value === true" />
-                                                        <div
-                                                            class="checkbox-active-color"
-                                                            :style="{ backgroundColor: element.props.activeColor || '#2196F3' }"
-                                                        ></div>
-                                                    </div>
+                                                    <CheckboxFlutter
+                                                        v-else-if="element.type === 'Checkbox'"
+                                                        :value="element.props.value === true"
+                                                        :activeColor="element.props.activeColor"
+                                                    />
+
+                                                    <!-- Select Widget -->
+                                                    <SelectFlutter
+                                                        v-else-if="element.type === 'Select'"
+                                                        :value="element.props.value"
+                                                        :items="element.props.items"
+                                                        :label="element.props.label"
+                                                    />
 
                                                     <!-- DropdownButton Widget -->
-                                                    <div v-else-if="element.type === 'DropdownButton'"
-                                                         class="flutter-dropdown">
-                                                        <select>
-                                                            <option
-                                                                v-for="(item, index) in element.props.items"
-                                                                :key="index"
-                                                                :selected="item === element.props.value"
-                                                            >
-                                                                {{ item }}
-                                                            </option>
-                                                        </select>
-                                                    </div>
+                                                    <DropdownFlutter
+                                                        v-else-if="element.type === 'DropdownButton'"
+                                                        :value="element.props.value"
+                                                        :items="element.props.items"
+                                                    />
 
                                                     <!-- ScrollChildren Widget -->
                                                     <div v-else-if="element.type === 'ScrollChildren'"
@@ -4270,64 +4366,23 @@ onUnmounted(() => {
                                                     </div>
 
                                                     <!-- TableList Widget -->
-                                                    <div v-else-if="element.type === 'TableList'"
-                                                         class="flutter-table-list">
-                                                        <table class="w-full border-collapse">
-                                                            <thead>
-                                                            <tr :style="{ backgroundColor: element.props.headerColor || '#E0E0E0' }">
-                                                                <th
-                                                                    v-for="(column, index) in element.props.columns"
-                                                                    :key="index"
-                                                                    class="p-2 text-left"
-                                                                    :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }"
-                                                                >
-                                                                    {{ column }}
-                                                                </th>
-                                                            </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                            <tr v-for="row in parseInt(element.props.rows)" :key="row">
-                                                                <td
-                                                                    v-for="(column, index) in element.props.columns"
-                                                                    :key="index"
-                                                                    class="p-2"
-                                                                    :style="{ border: element.props.border ? '1px solid #ddd' : 'none' }"
-                                                                >
-                                                                    Cell {{ row }}-{{ index + 1 }}
-                                                                </td>
-                                                            </tr>
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
+                                                    <TableFlutter
+                                                        v-else-if="element.type === 'TableList'"
+                                                        :columns="element.props.columns"
+                                                        :rows="element.props.rows"
+                                                        :border="element.props.border"
+                                                        :headerColor="element.props.headerColor"
+                                                    />
 
                                                     <!-- CardText Widget -->
-                                                    <div v-else-if="element.type === 'CardText'"
-                                                        class="flutter-card-text"
-                                                        :style="{
-                                                            backgroundColor: element.props.color || '#FFFFFF',
-                                                            borderRadius: (element.props.borderRadius || 8) + 'px',
-                                                            boxShadow: `0 ${element.props.elevation || 2}px ${(element.props.elevation || 2) * 2}px rgba(0,0,0,0.1)`,
-                                                            overflow: 'hidden',
-                                                            width: '100%',
-                                                        }"
-                                                    >
-                                                        <div class="card-header border-b border-gray-200 p-3">
-                                                            <h3 class="text-lg font-semibold">
-                                                                {{ element.props.title || 'Card Title' }}
-                                                            </h3>
-                                                            <p class="text-sm text-gray-600">
-                                                                {{ element.props.subtitle || 'Card Subtitle' }}
-                                                            </p>
-                                                        </div>
-                                                        <div class="card-content p-3">
-                                                            <p>
-                                                                {{
-                                                                    element.props.content ||
-                                                                    'Card content goes here with more details about the item.'
-                                                                }}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                                    <ListCardFlutter
+                                                        v-else-if="element.type === 'CardText'"
+                                                        :title="element.props.title"
+                                                        :subtitle="element.props.subtitle"
+                                                        :elevation="element.props.elevation"
+                                                        :color="element.props.color"
+                                                        :borderRadius="element.props.borderRadius"
+                                                    />
 
                                                     <!-- Default Widget Display -->
                                                     <div v-else class="widget-properties">

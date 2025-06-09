@@ -34,6 +34,13 @@ export default defineConfig({
         },
     },
     server: {
-        cors: true
+        cors: true,
+        proxy: {
+            '/api/scan': {
+                target: 'http://192.168.100.21:10000',
+                changeOrigin: true,
+                secure: false
+            }
+        }
     },
 });

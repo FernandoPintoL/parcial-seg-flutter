@@ -2,7 +2,7 @@
 import { Head, usePage, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
-import { ref, defineProps, computed, onMounted } from 'vue';
+import { ref, defineProps, computed, onMounted, PropType } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 // Using any type for now as Pizarra type might not be defined yet
@@ -13,15 +13,15 @@ import { AlertService } from '@/services/AlertService';
 // definir props form
 const props = defineProps({
     ownedPizarras: {
-        type: Array,
+        type: Array as PropType<Pizarra[]>,
         required: true,
     },
     collaboratingPizarras: {
-        type: Array,
+        type: Array as PropType<Pizarra[]>,
         required: true,
     },
     pendingInvitations: {
-        type: Array,
+        type: Array as PropType<Pizarra[]>,
         required: true,
     },
 });
@@ -86,7 +86,7 @@ const createNewPizarra = async () => {
     if (pizarraName) {
         try {
             // Crear la pizarra en el servidor
-            await axios.post('/pizarra', { name: pizarraName }).then((response) => {
+            await axios.post('/pizarra', { name: pizarraName, isHome : true }).then((response) => {
                 console.log('Pizarra creada:', response.data);
                 if (response.status !== 200) {
                     throw new Error('Error al crear la pizarra');
@@ -166,7 +166,6 @@ const rejectInvitation = async (pizarra : Pizarra) => {
 const deletePizarra = async (pizarra : Pizarra, event : any) => {
     // Prevent the click from propagating to the parent (which would open the pizarra)
     event.stopPropagation();
-
     const result = await Swal.fire({
         title: 'Estas seguro?',
         text: '¡No podrás revertir esto!',
@@ -180,8 +179,8 @@ const deletePizarra = async (pizarra : Pizarra, event : any) => {
     if (!result.isConfirmed) {
         return;
     }
-
     try {
+        console.log('Attempting to delete pizarra:', pizarra.id);
         await axios.delete(`/pizarra/${pizarra.id}`);
         // Remove the pizarra from the list
         ownedPizarras.value = ownedPizarras.value.filter((p) => p.id !== pizarra.id);

@@ -1,12 +1,3 @@
-<script setup lang="ts">
-import { Search , Settings } from 'lucide-vue-next';
-import AppBarFlutter from './WidgetsFlutter/AppBarFlutter.vue';
-const props = defineProps<{
-    title: string;
-    actions?: { icon: any; onClick: () => void; tooltip?: string }[];
-    showMenu?: boolean;
-}>();
-</script>
 <template>
     <div class="phone-status-bar transition-colors dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
         <div class="flex items-center justify-between px-4 py-1">
@@ -31,14 +22,6 @@ const props = defineProps<{
                     />
                 </svg>
             </div>
-        </div>
-        <div class="w-full">
-            <AppBarFlutter
-                :title="props.title"
-                :showMenu="props.showMenu"
-                :actions="props.actions"
-                class="h-full"
-            />
         </div>
     </div>
 </template>

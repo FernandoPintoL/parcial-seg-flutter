@@ -1,11 +1,11 @@
 export interface Pizarra {
-    id: number;
+    id?: number;
     name: string;
-    room_id: string;
-    elements: FlutterWidget[];
+    room_id?: string;
+    widgets?: FlutterWidget[];
     user_id: number;
-    pizarra_id: number;
-    created_at: string;
+    pizarra_id?: number;
+    created_at?: string;
     isHome? : boolean;
     isDrawer? : boolean;
 }
@@ -65,10 +65,10 @@ export interface CategoriaWidget{
     label: string;
 }
 export interface PropiedadesWidget{
-    id:number;
-    name:string;
-    type:string;
-    defaultValue:string;
+    id?: number;
+    name: string;
+    type: string;
+    defaultValue: string;
 }
 export interface WhiteboardActivities{
     id: number;

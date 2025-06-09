@@ -20,7 +20,8 @@ Route::get('/dashboard', function () {
     $user = Auth::user();
 
     // Get forms created by the user
-    $ownedForms = \App\Models\Pizarra::where('user_id', $user->id)->get();
+    $ownedForms = \App\Models\Pizarra::where('user_id', $user->id)
+                                        ->where('isHome', true)->get();
 
     // Get forms the user is collaborating on (with accepted status)
     $collaboratingPizarras = $user->collaborating()
