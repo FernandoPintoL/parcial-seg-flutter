@@ -26,6 +26,18 @@ function emitUpdate(key: string | number, value: any) {
     localProps.value[key] = value;
     props.updateWidgetProperty(String(key), value);
 }
+
+function isString(val: unknown): boolean {
+    return typeof val === 'string';
+}
+
+function isNumber(val: unknown): boolean {
+    return typeof val === 'number';
+}
+
+function isBoolean(val: unknown): boolean {
+    return typeof val === 'boolean';
+}
 </script>
 <template>
     <div v-if="selectedWidget" class="w-80 overflow-y-auto rounded-md bg-gray-100 p-4">
@@ -38,7 +50,7 @@ function emitUpdate(key: string | number, value: any) {
                 <!-- String input -->
                 <input
                     v-if="
-                        typeof value === 'string' &&
+                        isString(value) &&
                         !(
                             props.availableWidgets.find((w: any) => w.type === props.selectedWidget.type)?.properties.find((p: any) => p.name === key)?.type ===
                             'select'
@@ -52,7 +64,7 @@ function emitUpdate(key: string | number, value: any) {
 
                 <!-- Number input -->
                 <input
-                    v-else-if="typeof value === 'number'"
+                    v-else-if="isNumber(value)"
                     v-model.number="localProps[key]"
                     type="number"
                     class="rounded-md border px-3 py-2"
@@ -60,7 +72,7 @@ function emitUpdate(key: string | number, value: any) {
                 />
 
                 <!-- Boolean input -->
-                <div v-else-if="typeof value === 'boolean'" class="flex items-center">
+                <div v-else-if="isBoolean(value)" class="flex items-center">
                     <input :id="String(key)" v-model="localProps[key]" type="checkbox" class="mr-2" @change="emitUpdate(key, localProps[key])" />
                     <label :for="String(key)">{{ localProps[key] ? 'Sí' : 'No' }}</label>
                 </div>
