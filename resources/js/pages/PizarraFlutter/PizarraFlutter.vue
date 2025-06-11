@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import './PizarraFlutter.css';
-import { ref, onMounted, onUnmounted, computed, watch, defineProps } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, defineProps, PropType } from 'vue';
 import draggable from 'vuedraggable';
 import { io } from 'socket.io-client';
 import axios from 'axios';
@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget, CategoriaWidget } from '@/types/Pizarra';
+import type { Pizarra, PizarraCollaborators, FlutterWidget, CategoriaWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
 import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
 import type { User } from '@/types/User';
 import { SocketService } from '@/services/SocketService';
@@ -21,8 +21,6 @@ import PhoneStatusBar from '@/pages/PizarraFlutter/PhoneStatusBar.vue';
 import Colaboradores from '@/pages/ColaboradoresFlutter/Colaboradores.vue';
 import FlutterCodeViewer from '@/pages/PizarraFlutter/FlutterCodeViewer.vue';
 import WidgetVerification from '@/pages/PizarraFlutter/WidgetVerification.vue';
-import ColorPicker from '@/components/ColorPicker.vue';
-
 // Import Flutter Widget Components
 import CheckboxFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/CheckboxFlutter.vue';
 import SelectFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/SelectFlutter.vue';
@@ -32,6 +30,7 @@ import TableFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/TableFlutter.vue
 import ListCardFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ListCardFlutter.vue';
 import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
 import DrawerFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DrawerFlutter.vue';
+import WidgetsPropertiesPanel from '@/pages/PizarraFlutter/WidgetsPropertiesPanel.vue';
 
 /**
  * PizarraFlutter Component
@@ -59,15 +58,15 @@ import DrawerFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DrawerFlutter.v
 // Props
 const props = defineProps({
     user: {
-        type: Object as () => User,
+        type: Object as PropType<User>,
         required: true
     },
     pizarra: {
-        type: Object as () => Pizarra,
+        type: Object as PropType<Pizarra>,
         default: null
     },
     creador: {
-        type: Object as () => User,
+        type: Object as PropType<User>,
         default: null
     },
     isCreador: {
@@ -76,19 +75,19 @@ const props = defineProps({
     },
     //definir como pizarra colaboradores
     colaboradores: {
-        type: Array as () => PizarraCollaborators[],
+        type: Array as PropType<PizarraCollaborators[]>,
         default: () => []
     },
     screens: {
-        type: Array as () => Pizarra[],
+        type: Array as PropType<Pizarra[]>,
         default: () => []
     },
     categoriasWidget: {
-        type: Array as () => CategoriaWidget[],
+        type: Array as PropType<CategoriaWidget[]>,
         default: () => []
     },
     widgets : {
-        type: Array as () => FlutterWidget[],
+        type: Array as PropType<FlutterWidget[]>,
         default: () => []
     }
 });
@@ -148,7 +147,7 @@ const handleChatMessage = async (message: string) => {
         await axios.post('/chat/messages', messageData);
     } catch (error) {
         console.error('Error al enviar mensaje:', error);
-        AlertService.prototype.error('Error', 'No se pudo enviar el mensaje');
+        await AlertService.prototype.error('Error', 'No se pudo enviar el mensaje');
     }
 };
 const handleTyping = () => {
@@ -261,12 +260,10 @@ function extractFromFirstImport(inputString: string): string {
  */
 function parseFlutterWidgets(inputCode: string) {
     console.log('Parsing Flutter widgets from code...');
-
+    // Define regex patterns for different widget structures
+    const widgetRegex =
+        /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\b/g;
     try {
-        // Define regex patterns for different widget structures
-        const widgetRegex =
-            /\b(Container|Row|Column|TextField|DropdownButton|Checkbox|Text|Image|Icon|Padding|SafeArea|ScrollChildren|TableList|CardText|Scaffold|AppBar|Center|Form|TextFormField|SizedBox|Drawer|Card|ListTile|FloatingActionButton|Stack|ListView|GridView|Expanded|Flexible|Align|Positioned|Wrap)\b/g;
-
         // This regex captures widget definitions with their content between parentheses
         // It handles nested parentheses by using a non-greedy approach
         const widgetWithContentRegex =
@@ -325,9 +322,18 @@ function parseFlutterWidgets(inputCode: string) {
                         break;
                     case 'select':
                         // Match enum values
-                        const options = prop.options?.map((opt : string) => opt.replace(/\./g, '\\.'));
+                        /*const options = prop.options?.map((opt : string) => opt.replace(/\./g, '\\.'));
                         propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
-                        valueExtractor = (match: RegExpExecArray) => match[1];
+                        valueExtractor = (match: RegExpExecArray) => match[1];*/
+                        // Match enum values
+                        if (Array.isArray((prop as any).options)) {
+                            const options = (prop as any).options.map((opt: string) => opt.replace(/\./g, '\\.'));
+                            propRegex = new RegExp(`${prop.name}\\s*:\\s*(${options.join('|')})`, 'i');
+                            valueExtractor = (match: RegExpExecArray) => match[1];
+                        } else {
+                            propRegex = new RegExp(`${prop.name}\\s*:\\s*([^,}]+)`, 'i');
+                            valueExtractor = (match: RegExpExecArray) => match[1].trim();
+                        }
                         break;
                     default:
                         // For other types, try a generic approach
@@ -354,8 +360,8 @@ function parseFlutterWidgets(inputCode: string) {
         };
 
         // Helper function to convert color name to hex
-        const colorNameToHex = (colorName : any) => {
-            const colorMap = {
+        const colorNameToHex = (colorName : string) => {
+            const colorMap : Record<string, string> = {
                 red: 'FF0000',
                 blue: '0000FF',
                 green: '00FF00',
@@ -378,7 +384,7 @@ function parseFlutterWidgets(inputCode: string) {
         };
 
         // First pass: identify all widgets and their content
-        const widgetDefinitions = [];
+        const widgetDefinitions : FlutterWidget[] = [];
         let widgetMatch;
 
         while ((widgetMatch = widgetWithContentRegex.exec(inputCode)) !== null) {
@@ -407,7 +413,9 @@ function parseFlutterWidgets(inputCode: string) {
                 const childrenMatch = childrenRegex.exec(widgetContent);
                 if (childrenMatch) {
                     // Mark this widget as having children that need to be resolved
-                    newWidget.pendingChildren = childrenMatch[1];
+                    newWidget.pendingChildren = childrenMatch[1].split(',')
+                        .map(child => child.trim())
+                        .filter(child => child.length > 0);
                 }
 
                 // Store the widget definition for further processing
@@ -415,20 +423,20 @@ function parseFlutterWidgets(inputCode: string) {
             }
         }
 
-        // Second pass: create a hierarchy of widgets
-        const rootWidgets = [];
-        const processedWidgets = new Set();
+        // Segundo paso: crear una jerarquía de widgets
+        const rootWidgets : FlutterWidget[] = [];
+        const processedWidgets = new Set<string | number>();
 
         // Process widgets with children first
-        widgetDefinitions.forEach((widget) => {
+        widgetDefinitions.forEach((widget : FlutterWidget) => {
             if (widget.pendingChildren) {
-                // Reset the regex lastIndex to ensure we start from the beginning
+                // Reiniciar el lastIndex del regex para asegurar que empezamos desde el principio
                 childrenWidgetsRegex.lastIndex = 0;
 
-                // Find child widgets mentioned in the children array using our specialized regex
-                const childrenContent = widget.pendingChildren;
-                const childTypes = [];
-                let widgetMatch;
+                // El contenido de los hijos es un string[]
+                const childrenContent = Array.isArray(widget.pendingChildren) ? widget.pendingChildren.join(',') : '';
+                const childTypes: string[] = [];
+                let widgetMatch: RegExpExecArray | null;
 
                 while ((widgetMatch = childrenWidgetsRegex.exec(childrenContent)) !== null) {
                     childTypes.push(widgetMatch[1]);
@@ -436,11 +444,12 @@ function parseFlutterWidgets(inputCode: string) {
 
                 console.log(`Found ${childTypes.length} child widgets in children array for ${widget.type}:`, childTypes);
 
-                childTypes.forEach((childType) => {
+                childTypes.forEach((childType : string) => {
                     // Find a widget of this type that hasn't been processed yet
-                    const childWidget = widgetDefinitions.find((w) => w.type === childType && !processedWidgets.has(w.id));
+                    const childWidget = widgetDefinitions.find((w : FlutterWidget) => w.type === childType && !processedWidgets.has(w.id));
 
                     if (childWidget) {
+                        if (!widget.children) widget.children = [];
                         widget.children.push(childWidget);
                         processedWidgets.add(childWidget.id);
                     }
@@ -451,15 +460,16 @@ function parseFlutterWidgets(inputCode: string) {
         });
 
         // Process widgets with a single child
-        widgetDefinitions.forEach((widget) => {
+        widgetDefinitions.forEach((widget : FlutterWidget) => {
             if (widget.pendingChild) {
                 const childType = widget.pendingChild;
                 console.log(`Processing widget ${widget.type} with child type: ${childType}`);
 
                 // Find a widget of this type that hasn't been processed yet
-                const childWidget = widgetDefinitions.find((w) => w.type === childType && !processedWidgets.has(w.id));
+                const childWidget = widgetDefinitions.find((w : FlutterWidget) => w.type === childType && !processedWidgets.has(w.id));
 
                 if (childWidget) {
+                    if (!widget.children) widget.children = [];
                     widget.children.push(childWidget);
                     processedWidgets.add(childWidget.id);
                 }
@@ -469,7 +479,7 @@ function parseFlutterWidgets(inputCode: string) {
         });
 
         // Add widgets that haven't been assigned as children to the root level
-        widgetDefinitions.forEach((widget) => {
+        widgetDefinitions.forEach((widget : FlutterWidget) => {
             if (!processedWidgets.has(widget.id)) {
                 rootWidgets.push(widget);
                 console.log(`Adding ${widget.type} as a root widget`);
@@ -480,23 +490,34 @@ function parseFlutterWidgets(inputCode: string) {
         console.log(`Found ${rootWidgets.length} root widgets`);
 
         // Helper function to print the widget tree
-        const printWidgetTree = (widget, depth = 0) => {
+        const printWidgetTree = (widget : FlutterWidget, depth = 0) => {
             const indent = '  '.repeat(depth);
             console.log(`${indent}${widget.type} (${widget.id})`);
             if (widget.children && widget.children.length > 0) {
-                widget.children.forEach((child) => printWidgetTree(child, depth + 1));
+                widget.children.forEach((child: FlutterWidget) => printWidgetTree(child, depth + 1));
             }
         };
 
         // Print the widget tree for each root widget
-        rootWidgets.forEach((widget) => {
+        rootWidgets.forEach((widget: FlutterWidget) => {
             printWidgetTree(widget);
         });
 
         // Add root widgets to the canvas
         rootWidgets.forEach((widget) => {
-            flutterWidgets.value.push(widget);
+            if(currentScreen.value) {
+                // Ensure the widget has a unique ID
+                if (!widget.id) {
+                    widget.id = `widget-${widgetIdCounter++}`;
+                }
 
+                // Ensure the widget has a children property initialized as an array
+                if (!widget.children || !Array.isArray(widget.children)) {
+                    widget.children = [];
+                }
+            } else {
+                console.warn('No current screen to add widgets to');
+            }
             // Emit event to socket
             socket.emit('flutter-widget-added', {
                 roomId: roomId.value,
@@ -508,13 +529,13 @@ function parseFlutterWidgets(inputCode: string) {
         // If no widgets were found or processed, fall back to the simple approach
         if (rootWidgets.length === 0) {
             const foundWidgets = new Set<string>();
-            let match;
+            let match : RegExpExecArray | null;
 
             while ((match = widgetRegex.exec(inputCode)) !== null) {
                 foundWidgets.add(match[1]); // Add the widget name
             }
 
-            foundWidgets.forEach((widgetType) => {
+            foundWidgets.forEach((widgetType : string) => {
                 const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
                 if (widgetDefinition) {
                     const newWidget: FlutterWidget = {
@@ -529,7 +550,9 @@ function parseFlutterWidgets(inputCode: string) {
                         newWidget.props[prop.name] = prop.defaultValue;
                     });
 
-                    flutterWidgets.value.push(newWidget);
+                    if (currentScreen.value && Array.isArray(currentScreen.value.elements)) {
+                        currentScreen.value.elements.push(newWidget);
+                    }
 
                     // Emit event to socket
                     socket.emit('flutter-widget-added', {
@@ -568,7 +591,9 @@ function parseFlutterWidgets(inputCode: string) {
                     newWidget.props[prop.name] = prop.defaultValue;
                 });
 
-                flutterWidgets.value.push(newWidget);
+                if (currentScreen.value && Array.isArray(currentScreen.value.elements)) {
+                    currentScreen.value.elements.push(newWidget);
+                }
 
                 console.log(`Added fallback widget: ${widgetType}`);
             }
@@ -595,9 +620,9 @@ const sendAIPrompt = async () => {
     isProcessingAI.value = true;
 
     // Extraer configuración de Azure desde el .env
-    const azureApiUrl = 'https://pinto-maype3p5-eastus2.cognitiveservices.azure.com/'; //import.meta.env.AZURE_API_URL;
-    const azureApiKey = '54FCfTb8CIMMHT5W7T2pTNeicQNxssRuTYYHh1UJQ8BMUyLd4HPjJQQJ99BEACHYHv6XJ3w3AAAAACOGcky8'; //import.meta.env.AZURE_API_KEY;
-    const azureModelName = 'gpt-4.1'; //import.meta.env.AZURE_MODEL_NAME;
+    const azureApiUrl =  import.meta.env.VITE_AZURE_API_URL;
+    const azureApiKey = import.meta.env.VITE_AZURE_API_KEY;
+    const azureModelName = import.meta.env.VITE_AZURE_MODEL_NAME;
 
     try {
         // Validar que las variables de entorno estén definidas
@@ -644,7 +669,7 @@ const sendAIPrompt = async () => {
                     });
 
                     // Show success message
-                    AlertService.prototype.success('Éxito', 'Widgets generados por la IA listos para añadir a la pizarra');
+                    await AlertService.prototype.success('Éxito', 'Widgets generados por la IA listos para añadir a la pizarra');
                 } else {
                     // Add the response to the chat without widgets
                     aiMessages.value.push({
@@ -749,7 +774,7 @@ function parseAIResponseAsJSON(aiResponse: string): any {
     }
 }
 // Agregue widgets generados por IA al lienzo
-const addAIWidgetsToCanvas = (widgets: any) => {
+const addAIWidgetsToCanvas = (widgets: FlutterWidget[]) => {
     if (!widgets || !Array.isArray(widgets) || widgets.length === 0) {
         AlertService.prototype.error('Error', 'No se encontraron widgets generados por la IA');
         return;
@@ -769,7 +794,7 @@ const addAIWidgetsToCanvas = (widgets: any) => {
             }
 
             // Check if this widget type exists in the database
-            const dbWidget = dbWidgets.value.find((w) => w.type === widget.type);
+            const dbWidget = dbWidgets.value.find((w : any) => w.type === widget.type);
             if (dbWidget) {
                 console.log('Found widget in database for AI-generated widget:', dbWidget);
 
@@ -785,8 +810,8 @@ const addAIWidgetsToCanvas = (widgets: any) => {
                 }
 
                 // Merge properties from database if available
-                if (dbWidget.propiedades && Array.isArray(dbWidget.propiedades)) {
-                    dbWidget.propiedades.forEach((prop) => {
+                if (dbWidget.props && Array.isArray(dbWidget.props)) {
+                    dbWidget.props.forEach((prop : Record<string, any>) => {
                         // Only set if the property doesn't already exist in the widget
                         if (!widget.props[prop.name]) {
                             widget.props[prop.name] = prop.value || prop.defaultValue;
@@ -805,6 +830,7 @@ const addAIWidgetsToCanvas = (widgets: any) => {
         }
 
         processedWidgets.forEach((widget) => {
+            if (!currentScreen.value.elements) currentScreen.value.elements = [];
             currentScreen.value.elements.push(widget);
         });
 
@@ -832,8 +858,6 @@ const onChatInputAI = () => {
         user: currentUser.value
     });
 };
-
-
 // Image upload state
 const showImageUpload = ref<boolean>(false);
 const selectedImage = ref<File | null>(null);
@@ -878,15 +902,15 @@ const processImageScanResults = (data: any) => {
     }
 
     // Map the components from the API response to the format expected by addAIWidgetsToCanvas
-    const widgets = data.components.map((component: any) => {
+    return data.components.map((component: any) => {
         // Determine the widget type based on the component type
-        let widgetType = 'Container'; // Default type
         const props: any = {};
+        let type = 'Container'; // Default type
 
         // Convert component type to appropriate widget type
         switch (component.type.toLowerCase()) {
             case 'button':
-                widgetType = 'ElevatedButton';
+                type = 'ElevatedButton';
                 // Extract text from subcomponents if available
                 if (component.subcomponents && component.subcomponents.length > 0) {
                     const textComponent = component.subcomponents.find((sub: any) => sub.type === 'text');
@@ -905,14 +929,14 @@ const processImageScanResults = (data: any) => {
                 break;
 
             case 'text':
-                widgetType = 'Text';
+                type = 'Text';
                 props.data = component.text || 'Text';
                 props.style = 'TextStyle(fontSize: 16.0)';
                 props.textAlign = 'TextAlign.left';
                 break;
 
             case 'textfield':
-                widgetType = 'TextField';
+                type = 'TextField';
                 // Extract hint from subcomponents if available
                 if (component.subcomponents && component.subcomponents.length > 0) {
                     const hintComponent = component.subcomponents.find((sub: any) => sub.type === 'hint');
@@ -931,7 +955,7 @@ const processImageScanResults = (data: any) => {
                 break;
 
             default:
-                widgetType = 'Container';
+                type = 'Container';
                 props.width = 200;
                 props.height = 200;
                 props.color = '#FFFFFF';
@@ -943,7 +967,7 @@ const processImageScanResults = (data: any) => {
         // Create the widget object
         return {
             id: `widget-${widgetIdCounter++}`,
-            type: widgetType,
+            type: type,
             props: props,
             children: [],
             // Add coordinates for positioning
@@ -956,19 +980,16 @@ const processImageScanResults = (data: any) => {
             confidence: component.confidence || 1.0
         };
     });
-
-    return widgets;
 };
-
 const processImage = async () => {
     if (!selectedImage.value) {
-        AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
+        await AlertService.prototype.error('Error', 'No se ha seleccionado ninguna imagen');
         return;
     }
-    const url = "/api/scan";
+    const url = import.meta.env.VITE_URL_SCANNER+"/api/scan";
     try {
         isProcessingImage.value = true;
-        AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
+        await AlertService.prototype.info('Procesando', 'Analizando imagen con ROBOFLOW...');
 
         // Create form data
         const formData = new FormData();
@@ -995,12 +1016,12 @@ const processImage = async () => {
                 addAIWidgetsToCanvas(widgets);
 
                 // Show success message
-                AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
+                await AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
 
                 // Show the results panel
                 showResultsPanel.value = true;
             } else {
-                AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
+                await AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
             }
         } else if (response.data.success) {
             // Legacy response format
@@ -1014,12 +1035,12 @@ const processImage = async () => {
                 addAIWidgetsToCanvas(response.data.widgets);
 
                 // Show success message
-                AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
+                await AlertService.prototype.success('Éxito', 'Imagen procesada correctamente');
 
                 // Show the results panel instead of closing the modal
                 showResultsPanel.value = true;
             } else {
-                AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
+                await AlertService.prototype.warning('Advertencia', 'No se pudieron detectar elementos en la imagen');
             }
 
             // If there's raw code, show it
@@ -1032,16 +1053,15 @@ const processImage = async () => {
                 showAIChat.value = true;
             }
         } else {
-            AlertService.prototype.error('Error', response.data.message || 'Error al procesar la imagen');
+            await AlertService.prototype.error('Error', response.data.message || 'Error al procesar la imagen');
         }
     } catch (error: any) {
         console.error('Error processing image:', error);
-        AlertService.prototype.error('Error', error.response?.data?.message || 'Error al procesar la imagen');
+        await AlertService.prototype.error('Error', error.response?.data?.message || 'Error al procesar la imagen');
     } finally {
         isProcessingImage.value = false;
     }
 };
-
 // Counter for generating unique widget IDs
 let widgetIdCounter = 1;
 // Project name ref
@@ -1075,7 +1095,6 @@ const currentScreen = computed(() => {
     }
     return screens.value[currentScreenIndex.value] || screens.value[0] || { elements: [] };
 });
-
 // Agregar una nueva pantalla
 const addScreen = () => {
     if (!newScreenName.value.trim()) {
@@ -1087,7 +1106,8 @@ const addScreen = () => {
         id: `screen-${Date.now()}`,
         name: newScreenName.value,
         elements: addDefaultWidgets([]),
-        isHome: screens.value.length === 0
+        isHome: screens.value.length === 0,
+        user_id: props.user.id,
     });
 
     // Seleccione la nueva pantalla
@@ -1102,7 +1122,6 @@ const addScreen = () => {
     // Save changes
     debouncedSave();
 };
-
 // Delete a screen
 const deleteScreen = (index: number) => {
     if (screens.value.length <= 1) {
@@ -1141,7 +1160,6 @@ const setHomeScreen = (index: number) => {
     // Save changes
     debouncedSave();
 };
-
 // Select a screen
 const selectScreen = (index: number) => {
     currentScreenIndex.value = index;
@@ -1164,9 +1182,9 @@ const initializeScreens = () => {
         if (drawerDef) {
             console.log('Creating default Drawer widget: ', drawerDef.type);
             const drawerWidget = {
-                id: `widget-${drawerDef.id || Date.now()}`,
+                id: `widget-${(drawerDef as any).id ?? Date.now()}`,
                 type: 'Drawer',
-                props: {},
+                props: {} as Record<string, any>,
                 children: []
             };
             // Initialize properties with default values
@@ -1208,7 +1226,7 @@ const initializeScreens = () => {
                 const drawerWidget = {
                     id: `widget-${widgetIdCounter++}`,
                     type: 'Drawer',
-                    props: {},
+                    props: {} as Record<string, any>,
                     children: []
                 };
 
@@ -1231,21 +1249,20 @@ const initializeScreens = () => {
         }
     }
 }
-
 // Add default widgets (Scaffold only) to a screen
-const addDefaultWidgets = (existingElements = []) => {
+const addDefaultWidgets = (existingElements : FlutterWidget[] = []) : FlutterWidget[] => {
     if (existingElements.length > 0) {
         return existingElements;
     }
 
     // Find widget definitions
-    const scaffoldDef = availableWidgets.value.find(w => w.type === 'Scaffold');
+    const scaffoldDef = availableFlutterWidgets.find((w : FlutterWidgetDefinition) => w.type === 'Scaffold');
 
     // Create default widgets
-    const defaultWidgets = [];
+    const defaultWidgets : FlutterWidget[] = [];
 
     if (scaffoldDef) {
-        const scaffoldWidget = {
+        const scaffoldWidget : FlutterWidget = {
             id: `widget-${widgetIdCounter++}`,
             type: 'Scaffold',
             props: {},
@@ -1253,7 +1270,7 @@ const addDefaultWidgets = (existingElements = []) => {
         };
 
         // Initialize properties with default values
-        scaffoldDef.properties.forEach((prop) => {
+        scaffoldDef.properties?.forEach((prop : {name:string ; defaultValue: any}) => {
             scaffoldWidget.props[prop.name] = prop.defaultValue;
         });
 
@@ -1265,19 +1282,27 @@ const addDefaultWidgets = (existingElements = []) => {
 // Selected widget for editing
 const selectedWidget = ref<FlutterWidget | null>(null);
 // Available Flutter widgets
-const availableWidgets = ref(availableFlutterWidgets);
+const availableWidgets = ref([...availableFlutterWidgets]);
 const dbWidgets = ref<FlutterWidget[]>(props.widgets || []);
-// Fetch widgets from the database
-// Commented out as it's not currently used
-// const fetchWidgetsFromDB = async () => {
-//     try {
-//         const response = await axios.post('/widget/query');
-//         dbWidgets.value = response.data;
-//         console.log('Widgets fetched from DB:', dbWidgets.value);
-//     } catch (error) {
-//         console.error('Error fetching widgets from DB:', error);
-//     }
-// };
+// Suponiendo que availableWidgets es un ref con todos los widgets disponibles
+const inputWidgets = computed(() =>
+    availableWidgets.value.filter(w => w.category === 'input')
+);
+const layoutWidgets = computed(() =>
+    availableWidgets.value.filter(w => w.category === 'layout')
+);
+const displayWidgets = computed(() =>
+    availableWidgets.value.filter(w => w.category === 'containers')
+);
+const handleDragEnter = (event: DragEvent) => {
+    (event.currentTarget as HTMLElement).classList.add('dragover');
+};
+const handleDragLeave = (event: DragEvent) => {
+    (event.currentTarget as HTMLElement).classList.remove('dragover');
+};
+const handleDrop = (event: DragEvent) => {
+    (event.currentTarget as HTMLElement).classList.remove('dragover');
+};
 // Widgets de Flutter en el lienzo
 // Inicializar con un valor calculado correctamente
 // Asegurarse de que todos los widgets tengan identificadores únicos
@@ -1346,8 +1371,8 @@ const createWidget = (widgetType: string): FlutterWidget | null => {
         };
 
         // If the widget has properties in the database, use them
-        if (dbWidget.propiedades && Array.isArray(dbWidget.propiedades)) {
-            dbWidget.propiedades.forEach((prop) => {
+        if (dbWidget.props && Array.isArray(dbWidget.props)) {
+            dbWidget.props.forEach((prop : any) => {
                 newWidget.props[prop.name] = prop.value || prop.defaultValue;
             });
         }
@@ -1356,7 +1381,7 @@ const createWidget = (widgetType: string): FlutterWidget | null => {
     }
 
     // Fallback to the hardcoded widget definition
-    const widgetDefinition = availableWidgets.value.find((w) => w.type === widgetType);
+    const widgetDefinition = availableWidgets.value.find((w : any) => w.type === widgetType);
     if (!widgetDefinition) return null;
 
     const newWidget: FlutterWidget = {
@@ -1373,7 +1398,6 @@ const createWidget = (widgetType: string): FlutterWidget | null => {
 
     return newWidget;
 };
-
 // Helper function to emit widget added event
 const emitWidgetAdded = (widget: FlutterWidget, screenId?: string) => {
     socket.emit('flutter-widget-added', {
@@ -1383,7 +1407,6 @@ const emitWidgetAdded = (widget: FlutterWidget, screenId?: string) => {
         screenId: screenId
     });
 };
-
 // Function to add a widget to the canvas
 const addWidget = (widgetType: string) => {
     const newWidget = createWidget(widgetType);
@@ -1406,10 +1429,9 @@ const addWidget = (widgetType: string) => {
     // Emit widget added event to socket
     emitWidgetAdded(newWidget, currentScreen.value?.id);
 };
-
 // Función antirrebote para limitar la frecuencia con la que se puede llamar a una función
 const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
-    let timeout: number | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     return (...args: Parameters<T>) => {
         if (timeout) {
             clearTimeout(timeout);
@@ -1420,12 +1442,10 @@ const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
         }, delay);
     };
 };
-
 // Function to select a widget for editing
 const selectWidget = (widget: FlutterWidget) => {
     selectedWidget.value = widget;
 };
-
 // Función para emitir el evento de actualización del widget al socket
 const emitWidgetUpdated = () => {
     if (!selectedWidget.value) return;
@@ -1437,10 +1457,8 @@ const emitWidgetUpdated = () => {
         screenId: currentScreen.value?.id
     });
 };
-
 // Versión sin rebotes de emitWidgetUpdated para evitar eventos de socket excesivos
-const debouncedEmitWidgetUpdated = debounce(emitWidgetUpdated, 300); // 300ms debounce
-
+const debouncedEmitWidgetUpdated = debounce(emitWidgetUpdated, 300); //300ms debounce
 // Function to update a widget property
 const updateWidgetProperty = (propertyName: string, value: any) => {
     if (!selectedWidget.value) return;
@@ -1450,14 +1468,12 @@ const updateWidgetProperty = (propertyName: string, value: any) => {
     // Use debounced emit for better performance
     debouncedEmitWidgetUpdated();
 };
-
 // Function to update a color property
 const updateColorProperty = (propertyName: string, value: string) => {
     if (!selectedWidget.value) return;
 
     // Ensure the value is a valid hex color
-    const hexColor = getHexColor(value);
-    selectedWidget.value.props[propertyName] = hexColor;
+    selectedWidget.value.props[propertyName] =getHexColor(value);
 
     // Use debounced emit for better performance
     debouncedEmitWidgetUpdated();
@@ -1484,7 +1500,6 @@ const removeWidget = (widget: FlutterWidget) => {
         }
     }
 };
-
 // Function to generate Flutter code
 const generateFlutterCode = () => {
     let flutterCode = '';
@@ -1716,15 +1731,12 @@ const generateFlutterCode = () => {
 
     return flutterCode;
 };
-
 // --- DRAG & DROP PARA AGREGAR WIDGETS DENTRO DE OTROS WIDGETS ---
 // Widget que se está arrastrando desde la paleta
 const draggingWidgetType = ref<string | null>(null);
-
 // Variables para el menú de agregar widget hijo
 const showAddChildMenu = ref<string | null>(null);
 const activeAddChildCategory = ref<number>(0);
-
 // Drag and drop utility functions
 const dragUtils = {
     // Handle drag start from palette
@@ -1758,11 +1770,9 @@ const dragUtils = {
         if (target) target.classList.remove('dragover');
     }
 };
-
 // Backward compatibility functions
 const onPaletteDragStart = dragUtils.onDragStart;
 const onPaletteDragEnd = dragUtils.onDragEnd;
-
 // Función para agregar un widget hijo a un widget padre (por id)
 const addChildWidget = (parentId: string, widgetType: string) => {
     const newWidget = createWidget(widgetType);
@@ -1784,7 +1794,7 @@ const addChildWidget = (parentId: string, widgetType: string) => {
     };
 
     // Add the child widget to the parent
-    addToParent(flutterWidgets.value);
+    addToParent(flutterWidgets.value ?? []);
 
     // Emit widget added event to socket
     emitWidgetAdded(newWidget, currentScreen.value?.id);
@@ -1795,7 +1805,6 @@ const widgetsByActiveCategory = computed(() => {
     if (!category) return [];
     return availableWidgets.value.filter((widget) => widget.category === category);
 });
-
 // Flutter code display
 const showFlutterCode = ref<boolean>(false);
 const flutterCode = computed(() => generateFlutterCode());
@@ -1804,7 +1813,6 @@ const setSelectedCodeTab = (tab: number) => { selectedCodeTab.value = tab; };
 
 // State for the NavigationDrawer widget
 const navigationDrawerWidget = ref<FlutterWidget | null>(null);
-
 // Find or create the NavigationDrawer widget
 const findOrCreateNavigationDrawer = () => {
     // First, try to find the drawer screen
@@ -1851,7 +1859,6 @@ const findOrCreateNavigationDrawer = () => {
 
     return newDrawer;
 };
-
 // Initialize the NavigationDrawer widget
 const initNavigationDrawer = () => {
     navigationDrawerWidget.value = findOrCreateNavigationDrawer();
@@ -1931,7 +1938,6 @@ class NavigationDrawer extends StatelessWidget {
 }
 `;
 };
-
 // Generate code for a specific screen
 const generateScreenCode = (screenIndex: number) => {
     if (screenIndex < 0 || screenIndex >= screens.value.length) {
@@ -2055,20 +2061,16 @@ class ${screenClassName} extends StatelessWidget {
 }
 `;
 };
-
 // Active widget category for mobile selector
 const activeWidgetCategory = ref<number>(0);
-
 // Toggle between widget palette and widget verification
 const showWidgetVerification = ref<boolean>(false);
 const toggleWidgetVerification = () => {
     showWidgetVerification.value = !showWidgetVerification.value;
 };
-
 // Flutter widget rendering helper comment
 // These functions were removed as they are no longer needed
 // The widget rendering has been simplified to use static values
-
 // Copy Flutter code to clipboard
 const copyFlutterCode = () => {
     // Copy either the full app code, NavigationDrawer code, or the selected screen's code
@@ -2084,12 +2086,11 @@ const copyFlutterCode = () => {
     navigator.clipboard.writeText(codeToCopy);
     AlertService.prototype.success('Código copiado al portapapeles');
 };
-
 // Function to download the complete Flutter project
 const downloadFlutterProject = async () => {
     try {
         // Show loading message
-        AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
+        await AlertService.prototype.info('Procesando', 'Generando proyecto Flutter...');
 
         // Get the code to download based on selected tab
         let codeToDownload;
@@ -2154,14 +2155,12 @@ const downloadFlutterProject = async () => {
         document.body.removeChild(link);
 
         // Show success message
-        AlertService.prototype.success('Éxito', 'Proyecto Flutter descargado correctamente');
+        await AlertService.prototype.success('Éxito', 'Proyecto Flutter descargado correctamente');
     } catch (error) {
         console.error('Error downloading Flutter project:', error);
-        AlertService.prototype.error('Error', 'No se pudo descargar el proyecto Flutter');
+        await AlertService.prototype.error('Error', 'No se pudo descargar el proyecto Flutter');
     }
 };
-
-
 // Save changes to the pizarraFlutter
 const savePizarraFlutter = async () => {
     if (!props.pizarra || !props.pizarra.id) return;
@@ -2170,7 +2169,7 @@ const savePizarraFlutter = async () => {
         // Ensure ID is a valid number
         if (isNaN(props.pizarra.id)) {
             console.error('Invalid pizarra ID:', props.pizarra.id);
-            AlertService.prototype.error('Error', 'ID de pizarra inválido');
+            await AlertService.prototype.error('Error', 'ID de pizarra inválido');
             return;
         }
 
@@ -2215,7 +2214,7 @@ const savePizarraFlutter = async () => {
         // AlertService.prototype.success('Éxito', 'Cambios guardados correctamente');
     } catch (error) {
         console.error('Error saving pizarra flutter:', error);
-        AlertService.prototype.error('Error', 'No se pudieron guardar los cambios');
+        await AlertService.prototype.error('Error', 'No se pudieron guardar los cambios');
     }
 };
 // Debounced save function
@@ -2357,9 +2356,6 @@ onMounted(() => {
     console.log('Mounted PizarraFlutter');
     console.log(props.pizarra);
     applyDarkMode();
-    //initializeScreens();
-    // initNavigationDrawer();
-    //fetchWidgetsFromDB(); // Obtener widgets de la base de datos
     socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
     // Connect to socket
     socketService.on('connect', () => {
@@ -2385,22 +2381,26 @@ onMounted(() => {
 
     socket.on('flutter-widget-added', (data) => {
         if (data.userId !== currentUser.value) {
-            flutterWidgets.value.push(ensureWidgetChildren(data.widget));
+            if (flutterWidgets.value) {
+                flutterWidgets.value.push(ensureWidgetChildren(data.widget));
+            }
         }
     });
 
     socket.on('flutter-widget-updated', (data) => {
         if (data.userId !== currentUser.value) {
             const widget = ensureWidgetChildren(data.widget);
-            const index = flutterWidgets.value.findIndex((w : any) => w.id === widget.id);
-            if (index !== -1) {
-                flutterWidgets.value[index] = widget;
+            if (flutterWidgets.value && Array.isArray(flutterWidgets.value)) {
+                const index = flutterWidgets.value.findIndex((w: any) => w.id === widget.id);
+                if (index !== -1) {
+                    flutterWidgets.value[index] = widget;
+                }
             }
         }
     });
 
     socket.on('flutter-widget-removed', (data) => {
-        if (data.userId !== currentUser.value) {
+        if (data.userId !== currentUser.value && flutterWidgets.value) {
             flutterWidgets.value.splice(data.widgetIndex, 1);
         }
     });
@@ -2428,38 +2428,6 @@ onMounted(() => {
         // Update online collaborators list
         onlineCollaborators.value = data.users.filter((user: string) => user !== props.user.name);
     });
-
-    // Listen for chat messages
-    /*socket.on('chatMessage', (data) => {
-        console.log('Received chat message:', data);
-
-        // Add message to chat if from another user
-        if (data.user !== currentUser.value) {
-            chatMessages.value.push({
-                text: data.text,
-                user: data.user,
-                timestamp: data.timestamp
-            });
-
-            // Show notification if chat is not open
-            if (!showFloatingChat.value) {
-                AlertService.prototype.info('Nuevo Mensajes', `Nuevo mensaje de ${data.user}: ${data.text}`);
-            }
-        }
-    });*/
-
-    // Listen for typing events
-    /*socket.on('typing', (data) => {
-        if (data.user !== currentUser.value) {
-            chatTyping.typing = data.user + ' está escribiendo...';
-
-            // Clear typing message after 2 seconds
-            if (chatTyping.timeout) clearTimeout(chatTyping.timeout);
-            chatTyping.timeout = setTimeout(() => {
-                chatTyping.typing = '';
-            }, 2000);
-        }
-    });*/
 
     // Listen for collaborator acceptance events
     socket.on('collaboratorAccepted', (data) => {
@@ -2880,7 +2848,7 @@ onUnmounted(() => {
                                         ghost-class="ghost-widget"
                                         chosen-class="chosen-widget"
                                     >
-                                        <template #item="{ element }">
+                                        <template v-slot:item="{ element }">
                                             <div
                                                 class="mobile-widget relative cursor-move transition-colors dark:bg-gray-700 dark:shadow-gray-900"
                                                 :class="{
@@ -2966,10 +2934,10 @@ onUnmounted(() => {
                                                             overflowY: 'auto',
                                                             maxHeight: '400px',
                                                         }"
-                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                        @dragenter.prevent="handleDragEnter"
+                                                        @dragover.prevent="handleDragEnter"
+                                                        @dragleave.prevent="handleDragLeave"
+                                                        @drop.prevent="handleDrop"
                                                     >
                                                         <div
                                                             v-if="
@@ -3208,8 +3176,7 @@ onUnmounted(() => {
                                                                      class="flutter-text-field">
                                                                     <div class="text-field-label"
                                                                          v-if="child.props.decoration">
-                                                                        {{ child.props.decoration.includes('labelText') ? 'Label' : ''
-                                                                        }}
+                                                                        {{ child.props.decoration.includes('labelText') ? 'Label' : ''}}
                                                                         <span
                                                                             class="text-field-hint"
                                                                             v-if="child.props.decoration.includes('hintText')"
@@ -3708,10 +3675,10 @@ onUnmounted(() => {
                                                             justifyContent: 'flex-start',
                                                             alignItems: 'center',
                                                         }"
-                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                         @dragenter.prevent="handleDragEnter"
+                                                         @dragover.prevent="handleDragEnter"
+                                                         @dragleave.prevent="handleDragLeave"
+                                                         @drop.prevent="handleDrop"
                                                     >
                                                         <div
                                                             v-if="
@@ -3964,10 +3931,10 @@ onUnmounted(() => {
                                                             justifyContent: 'flex-start',
                                                             alignItems: 'center',
                                                         }"
-                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                         @dragenter.prevent="handleDragEnter"
+                                                         @dragover.prevent="handleDragEnter"
+                                                         @dragleave.prevent="handleDragLeave"
+                                                         @drop.prevent="handleDrop"
                                                     >
                                                         <div
                                                             v-if="
@@ -4272,10 +4239,10 @@ onUnmounted(() => {
                                                             backgroundColor: 'rgba(0, 0, 0, 0.02)',
                                                             borderRadius: '4px',
                                                         }"
-                                                        @dragenter.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragover.prevent="$event.currentTarget?.classList.add('dragover')"
-                                                        @dragleave.prevent="$event.currentTarget?.classList.remove('dragover')"
-                                                        @drop.prevent="$event.currentTarget?.classList.remove('dragover')"
+                                                         @dragenter.prevent="handleDragEnter"
+                                                         @dragover.prevent="handleDragEnter"
+                                                         @dragleave.prevent="handleDragLeave"
+                                                         @drop.prevent="handleDrop"
                                                     >
                                                         <div
                                                             v-if="
@@ -4482,140 +4449,15 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Properties panel -->
-                    <div v-if="selectedWidget" class="w-80 overflow-y-auto rounded-md bg-gray-100 p-4">
-                        <h2 class="mb-4 text-lg font-semibold">Propiedades</h2>
-
-                        <div class="flex flex-col gap-4">
-                            <div v-for="(value, key) in selectedWidget.props" :key="key" class="flex flex-col gap-1">
-                                <label class="text-sm font-medium">{{ key }}</label>
-
-                                <!-- String input -->
-                                <input
-                                    v-if="
-                                        typeof value === 'string' &&
-                                        !(
-                                            availableWidgets
-                                                .find((w: any) => w.type === selectedWidget.type)
-                                                ?.properties.find((p: any) => p.name === key)?.type === 'select'
-                                        )
-                                    "
-                                    v-model="selectedWidget.props[key]"
-                                    type="text"
-                                    class="rounded-md border px-3 py-2"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                />
-
-                                <!-- Number input -->
-                                <input
-                                    v-else-if="typeof value === 'number'"
-                                    v-model.number="selectedWidget.props[key]"
-                                    type="number"
-                                    class="rounded-md border px-3 py-2"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                />
-
-                                <!-- Boolean input -->
-                                <div v-else-if="typeof value === 'boolean'" class="flex items-center">
-                                    <input
-                                        :id="key"
-                                        v-model="selectedWidget.props[key]"
-                                        type="checkbox"
-                                        class="mr-2"
-                                        @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                    />
-                                    <label :for="key">{{ selectedWidget.props[key] ? 'Sí' : 'No' }}</label>
-                                </div>
-
-                                <!-- Color input with @ckpack/vue-color -->
-                                <div
-                                    v-else-if="
-                                        availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)
-                                            ?.type === 'color'
-                                    "
-                                    class="flex flex-col gap-2"
-                                >
-                                    <ColorPicker
-                                        v-model="selectedWidget.props[key]"
-                                        @change="updateColorProperty(key, $event)"
-                                    />
-                                    <div class="grid grid-cols-3 gap-2 text-xs">
-                                        <div class="rounded border p-1 dark:border-gray-600">
-                                            <span class="font-semibold">HEX:</span>
-                                            {{ getHexColor(selectedWidget.props[key]) }}
-                                        </div>
-                                        <div class="rounded border p-1 dark:border-gray-600">
-                                            <span class="font-semibold">RGB:</span>
-                                            {{ getRgbColor(selectedWidget.props[key]) }}
-                                        </div>
-                                        <div class="rounded border p-1 dark:border-gray-600">
-                                            <span class="font-semibold">HSL:</span>
-                                            {{ getHslColor(selectedWidget.props[key]) }}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Select input -->
-                                <select
-                                    v-else-if="
-                                        availableWidgets.find((w: any) => w.type === selectedWidget.type)?.properties.find((p: any) => p.name === key)
-                                            ?.type === 'select'
-                                    "
-                                    v-model="selectedWidget.props[key]"
-                                    class="rounded-md border px-3 py-2"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                >
-                                    <option
-                                        v-for="option in availableWidgets
-                                            .find((w: any) => w.type === selectedWidget.type)
-                                            ?.properties.find((p: any) => p.name === key)?.options"
-                                        :key="option"
-                                        :value="option"
-                                    >
-                                        {{ option }}
-                                    </option>
-                                </select>
-
-                                <!-- Array input -->
-                                <div v-else-if="Array.isArray(value)" class="flex flex-col gap-2">
-                                    <div v-for="(item, index) in value" :key="index" class="flex gap-2">
-                                        <input
-                                            v-model="selectedWidget.props[key][index]"
-                                            type="text"
-                                            class="flex-1 rounded-md border px-3 py-2"
-                                            @change="updateWidgetProperty(key, [...selectedWidget.props[key]])"
-                                        />
-                                        <button
-                                            @click="
-                                                selectedWidget.props[key].splice(index, 1);
-                                                updateWidgetProperty(key, [...selectedWidget.props[key]]);
-                                            "
-                                            class="rounded-md bg-red-500 px-3 py-2 text-white hover:bg-red-600"
-                                        >
-                                            -
-                                        </button>
-                                    </div>
-                                    <button
-                                        @click="
-                                            selectedWidget.props[key].push('');
-                                            updateWidgetProperty(key, [...selectedWidget.props[key]]);
-                                        "
-                                        class="rounded-md bg-blue-500 px-3 py-2 text-white hover:bg-blue-600"
-                                    >
-                                        + Agregar
-                                    </button>
-                                </div>
-
-                                <!-- Default fallback -->
-                                <input
-                                    v-else
-                                    v-model="selectedWidget.props[key]"
-                                    type="text"
-                                    class="rounded-md border px-3 py-2"
-                                    @change="updateWidgetProperty(key, selectedWidget.props[key])"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                    <WidgetsPropertiesPanel
+                        :selectedWidget="selectedWidget"
+                        :availableWidgets="availableWidgets"
+                        :updateWidgetProperty="updateWidgetProperty"
+                        :updateColorProperty="updateColorProperty"
+                        :getHexColor="getHexColor"
+                        :getRgbColor="getRgbColor"
+                        :getHslColor="getHslColor"
+                    />
                 </div>
             </div>
 

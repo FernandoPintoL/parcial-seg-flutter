@@ -1,9 +1,10 @@
 export interface Pizarra {
-    id?: number;
+    id?: number | any;
     name: string;
     room_id?: string;
     widgets?: FlutterWidget[];
-    user_id: number;
+    elements?: FlutterWidget[];
+    user_id?: number;
     pizarra_id?: number;
     created_at?: string;
     isHome? : boolean;
@@ -32,14 +33,14 @@ export interface PizarraCollaborators{
     status: string;
 }
 export interface FlutterWidget {
-    id : number;
+    id : number | string;
     type: string;
-    label: string;
-    icon: string;
-    code_string: string;
-    categoria_widget_id: number;
-    categoria: CategoriaWidget;
-    propiedades: Record<string, any>;
+    label?: string;
+    icon?: string;
+    code_string?: string;
+    categoria_widget_id?: number;
+    categoria?: CategoriaWidget;
+    props: Record<string, any>;
     children?: FlutterWidget[];
     pendingChild?: any; // For widgets that can have children but are not yet defined
     pendingChildren?: any[]; // For widgets that can have multiple children but are not yet defined

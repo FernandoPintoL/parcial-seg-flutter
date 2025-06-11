@@ -6,7 +6,7 @@ import axios from 'axios';
 
 const props = defineProps<{
     socket: Socket;
-    roomId: string;
+    roomId: string | null;
     currentUser: string;
     showChat: boolean;
 }>();
