@@ -8,6 +8,7 @@ const props = defineProps<{
   enabled?: boolean;
   value?: string;
   onChanged?: (value: string) => void;
+  label?: string; // Add direct label prop
 }>();
 
 const inputValue = ref(props.value || '');
@@ -20,8 +21,12 @@ function handleInput(event: Event) {
   }
 }
 
-// Extract label from decoration if provided
+// Use direct label prop if provided, otherwise extract from decoration
 const label = computed(() => {
+  // If direct label prop is provided, use it
+  if (props.label !== undefined) return props.label;
+
+  // Otherwise, extract from decoration if provided
   if (!props.decoration) return '';
 
   const labelMatch = props.decoration.match(/labelText:\s*["']([^"']*)["']/);

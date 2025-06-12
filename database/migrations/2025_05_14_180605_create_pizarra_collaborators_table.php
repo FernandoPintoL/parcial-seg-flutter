@@ -18,7 +18,7 @@ return new class extends Migration
             $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');
             $table->timestamps();
             // Ensure a user can only be invited once to a pizarra
-            $table->unique(['pizarra_id']);
+            $table->unique(['pizarra_id', 'user_id']);
         });
     }
 

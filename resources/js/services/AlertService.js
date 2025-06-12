@@ -11,17 +11,15 @@ export class AlertService{
             position: 'top-end',
             title: title,
             text: message,
-            timer: time,
             showCloseButton: true,
         });
     }
     error(title = this.error_text, message, time = 3000){
         return Swal.fire({
-            position: 'top-end',
+            position: 'top-left',
             icon: 'error',
             title: title,
             text: message,
-            timer: time,
             showCloseButton: true,
         });
     }

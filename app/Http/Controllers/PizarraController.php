@@ -33,35 +33,95 @@ class PizarraController extends Controller
 
         // For GET requests, the parameters are in the query string
 
-        // Create a temporary directory to store the project
-        $tempDir = storage_path('app/temp/' . uniqid('flutter_project_'));
-        if (!file_exists($tempDir)) {
-            mkdir($tempDir, 0755, true);
+        try {
+            // Get required data with memory efficiency
+            $projectName = $request->input('project_name', 'flutter_project');
+            $code = $request->input('code', '');
+            $downloadType = $request->input('download_type', 'complete'); // 'complete' or 'individual'
+
+            // If downloading individual files, create a single file and return it
+            if ($downloadType === 'individual') {
+                // Extract class name from the code to use as filename
+                $className = $this->extractClassName($code);
+                $fileName = $className ? $className . '.dart' : $projectName . '.dart';
+
+                // Create a temporary file
+                $filePath = storage_path('app/temp/' . $fileName);
+                file_put_contents($filePath, $code);
+
+                // Return the file for download
+                return response()->download($filePath, $fileName, [
+                    'Content-Type' => 'text/plain',
+                ])->deleteFileAfterSend(true);
+            }
+
+            // For complete download, create the full project structure
+            // Create a temporary directory to store the project
+            $tempDir = storage_path('app/temp/' . uniqid('flutter_project_'));
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            // Create the project structure with memory efficiency
+            $this->createFlutterProjectStructure($tempDir, $projectName, $code);
+
+            // Create a zip file
+            $zipFileName = $projectName . '.zip';
+            $zipFilePath = storage_path('app/temp/' . $zipFileName);
+
+            // Create the zip archive with memory efficiency
+            $zip = new \ZipArchive();
+            if ($zip->open($zipFilePath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === TRUE) {
+                $this->addDirToZip($zip, $tempDir, '');
+                $zip->close();
+
+                // Clean up the temporary directory to free memory
+                $this->deleteDirectory($tempDir);
+
+                // Return the zip file for download
+                return response()->download($zipFilePath, $zipFileName, [
+                    'Content-Type' => 'application/zip',
+                ])->deleteFileAfterSend(true);
+            } else {
+                // Clean up on error
+                $this->deleteDirectory($tempDir);
+                return response()->json(['error' => 'Failed to create zip file'], 500);
+            }
+        } catch (\Exception $e) {
+            // Log the error
+            \Log::error('Error creating Flutter project: ' . $e->getMessage());
+
+            // Clean up any temporary files that might have been created
+            if (isset($tempDir) && file_exists($tempDir)) {
+                $this->deleteDirectory($tempDir);
+            }
+
+            return response()->json([
+                'error' => 'Failed to create Flutter project',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Extract class name from Flutter code
+     *
+     * @param string $code
+     * @return string|null
+     */
+    private function extractClassName($code)
+    {
+        // Match class declaration pattern
+        if (preg_match('/class\s+(\w+)\s+extends/', $code, $matches)) {
+            return $matches[1];
         }
 
-        // Create the project structure
-        $this->createFlutterProjectStructure($tempDir, $request->project_name, $request->code);
-
-        // Create a zip file
-        $zipFileName = $request->project_name . '.zip';
-        $zipFilePath = storage_path('app/temp/' . $zipFileName);
-
-        // Create the zip archive
-        $zip = new \ZipArchive();
-        if ($zip->open($zipFilePath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === TRUE) {
-            $this->addDirToZip($zip, $tempDir, '');
-            $zip->close();
-        } else {
-            return response()->json(['error' => 'Failed to create zip file'], 500);
+        // If no class found, try to extract a meaningful name from the code
+        if (preg_match('/\/\/\s*(\w+)/', $code, $matches)) {
+            return $matches[1];
         }
 
-        // Clean up the temporary directory
-        $this->deleteDirectory($tempDir);
-
-        // Return the zip file for download
-        return response()->download($zipFilePath, $zipFileName, [
-            'Content-Type' => 'application/zip',
-        ])->deleteFileAfterSend(true);
+        return null;
     }
 
     /**
@@ -164,6 +224,10 @@ class PizarraController extends Controller
             'image' => 'required|image|max:5120', // Max 5MB
         ]);
 
+        // Variables to track resources for cleanup
+        $tempDir = null;
+        $imagePath = null;
+
         try {
             // Get the uploaded image
             $image = $request->file('image');
@@ -183,15 +247,29 @@ class PizarraController extends Controller
             $modelId = env('ROBFLOW_MODEL_ID');
 
             if (!$roboflowApiKey || !$modelId) {
+                // Clean up resources before returning
+                if ($tempDir && file_exists($tempDir)) {
+                    $this->deleteDirectory($tempDir);
+                }
+
                 return response()->json([
                     'success' => false,
                     'message' => 'ROBOFLOW API key or model ID not configured',
                 ], 500);
             }
 
-            // Prepare the image for ROBOFLOW
-            $imageData = file_get_contents($imagePath);
+            // Prepare the image for ROBOFLOW - read in chunks to reduce memory usage
+            $imageData = '';
+            $handle = fopen($imagePath, 'rb');
+            while (!feof($handle)) {
+                $imageData .= fread($handle, 8192); // Read in 8KB chunks
+            }
+            fclose($handle);
+
             $base64Image = base64_encode($imageData);
+
+            // Free up memory
+            $imageData = null;
 
             // Call ROBOFLOW API
             $response = \Illuminate\Support\Facades\Http::withHeaders([
@@ -202,6 +280,12 @@ class PizarraController extends Controller
 
             if (!$response->successful()) {
                 \Log::error('ROBOFLOW API error: ' . $response->body());
+
+                // Clean up resources before returning
+                if ($tempDir && file_exists($tempDir)) {
+                    $this->deleteDirectory($tempDir);
+                }
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Error al procesar la imagen con ROBOFLOW: ' . $response->body(),
@@ -220,8 +304,13 @@ class PizarraController extends Controller
             // Generate a URL for the processed image (if ROBOFLOW returns one)
             $processedImageUrl = $roboflowData['image'] ?? $imageUrl;
 
-            // Clean up the temporary directory
-            $this->deleteDirectory($tempDir);
+            // Clean up the temporary directory to free memory
+            if ($tempDir && file_exists($tempDir)) {
+                $this->deleteDirectory($tempDir);
+            }
+
+            // Free up large variables
+            $base64Image = null;
 
             // Return the response with both the original image, processed image, and widgets
             return response()->json([
@@ -234,6 +323,12 @@ class PizarraController extends Controller
             ]);
         } catch (\Exception $e) {
             \Log::error('Error scanning image: ' . $e->getMessage());
+
+            // Clean up resources in case of error
+            if ($tempDir && file_exists($tempDir)) {
+                $this->deleteDirectory($tempDir);
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al procesar la imagen: ' . $e->getMessage(),
@@ -632,21 +727,33 @@ class PizarraController extends Controller
     {
         $pizarra->name = $request->name;
 
-        // Update elements (legacy support)
-        /*if ($request->has('elements')) {
-            $pizarra->elements = $request->elements;
+        // Update elements (legacy support) - handle large data more efficiently
+        if ($request->has('elements')) {
+            // Store elements directly without additional processing
+            $pizarra->elements = $request->input('elements');
         }
+
+        // Handle screens data efficiently
         if ($request->has('screens')) {
-            $pizarra->screens = $request->screens;
-        }*/
+            // Store screens directly without additional processing
+            $pizarra->screens = $request->input('screens');
+        }
+
         if($pizarra->id === null){
             return response()->json(['error' => 'Pizarra not found'], 404);
         }else{
             $pizarra->pizarra_id = $pizarra->id;
         }
+
+        // Save with reduced memory usage
         $pizarra->save();
 
-        return response()->json($pizarra);
+        // Return minimal response to reduce memory usage
+        return response()->json([
+            'id' => $pizarra->id,
+            'name' => $pizarra->name,
+            'updated_at' => $pizarra->updated_at
+        ]);
     }
 
     /**
@@ -708,7 +815,7 @@ class PizarraController extends Controller
 
         // Create the collaboration
         $collaboration = PizarraCollaborator::create([
-            'pizarra_flutter_id' => $pizarra->id,
+            'pizarra_id' => $pizarra->id,
             'user_id' => $userToInvite->id,
             'status' => 'pending',
         ]);
@@ -786,10 +893,8 @@ class PizarraController extends Controller
      */
     public function leaveCollaboration(Pizarra $pizarra)
     {
-        // Find the pizarra and ensure the current user is a collaborator
-//        $pizarra = Pizarra::findOrFail($id);
-        // Find the collaboration
-        $collaboration = Pizarra::where('pizarra_id', $pizarra->id)
+        // Find the collaboration and ensure it belongs to the current user
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
@@ -862,7 +967,7 @@ class PizarraController extends Controller
         } else {
             // Create a new collaboration with pending status
             PizarraCollaborator::create([
-                'pizarra_flutter_id' => $form->id,
+                'pizarra_id' => $form->id,
                 'user_id' => $user->id,
                 'status' => 'pending',
             ]);

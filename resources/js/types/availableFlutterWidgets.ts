@@ -1,19 +1,66 @@
 import type { CategoriaWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
 
-export const categoriesWidget : CategoriaWidget[] = [
-    { id : 1, category: 'widgets', label: 'Widgets Básicos' },
-    { id : 2, category: 'layout', label: 'Layouts y Organización' },
-    { id : 3, category: 'input', label: 'Entrada de Datos (Formularios)' },
-    { id : 4, category: 'plataforma', label: 'Especificos de Plataforma' },
-    { id : 5, category: 'containers', label: 'Contenedores y Decoración' },
-    { id : 6, category: 'navegation', label: 'Navegación y Rutas' },
-    { id : 7, category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' }
-    // { category: 'animation', label: 'Animaciones' },
-    // { category: 'list', label: 'Listas Avanzadas' },
+export const categoriesWidget: CategoriaWidget[] = [
+    { id: 3, category: 'input', label: 'Entrada de Datos (Formularios)' },
+    { id: 2, category: 'layout', label: 'Layouts y Organización' },
+    { id: 6, category: 'navegation', label: 'Navegación y Rutas' },
+    /*{ id: 1, category: 'widgets', label: 'Widgets Básicos' },
+    { id: 4, category: 'plataforma', label: 'Especificos de Plataforma' },
+    { id: 5, category: 'containers', label: 'Contenedores y Decoración' },
+    { id: 7, category: 'material-cupertino', label: 'Material Design y Cupertino (iOS)' },
+    { category: 'animation', label: 'Animaciones' },
+    { category: 'list', label: 'Listas Avanzadas' },*/
 ];
 
 export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
-    // Select Widget (New)
+    //Navegación y Rutas
+    {
+        type: 'Drawer',
+        category: 'navegation',
+        label: 'Drawer',
+        properties: [
+            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'width', type: 'number', defaultValue: 300 },
+            { name: 'elevation', type: 'number', defaultValue: 16 },
+            { name: 'headerColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'headerHeight', type: 'number', defaultValue: 150 },
+            { name: 'userName', type: 'string', defaultValue: 'User Name' },
+            { name: 'userEmail', type: 'string', defaultValue: 'user@example.com' },
+            { name: 'avatarColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'avatarText', type: 'string', defaultValue: 'U' },
+            { name: 'navigationItems', type: 'array', defaultValue: ['Inicio', 'Configuración', 'Ayuda'] },
+        ],
+        hasChildren: true,
+    },
+    {
+        type: 'AppBar',
+        category: 'navegation',
+        label: 'App Bar',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
+            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'textColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'elevation', type: 'number', defaultValue: 4 },
+            { name: 'centerTitle', type: 'boolean', defaultValue: false },
+            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true },
+        ],
+        hasChildren: true,
+    },
+    {
+        type: 'AppBarFlutter',
+        category: 'navegation',
+        label: 'App Bar Flutter',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
+            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'textColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'elevation', type: 'number', defaultValue: 4 },
+            { name: 'centerTitle', type: 'boolean', defaultValue: false },
+            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true },
+        ],
+        hasChildren: true,
+    },
+    // inputs y widgets
     {
         type: 'Select',
         category: 'input',
@@ -22,159 +69,150 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
             { name: 'label', type: 'string', defaultValue: 'Select an option' },
             { name: 'value', type: 'string', defaultValue: '' },
             { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
         ],
-        hasChildren: false
-    },
-    // Especificos de Plataforma
-    {
-        type: 'SafeArea',
-        category: 'plataforma',
-        label: 'SafeArea',
-        properties: [
-            { name: 'top', type: 'boolean', defaultValue: true },
-            { name: 'bottom', type: 'boolean', defaultValue: true },
-            { name: 'left', type: 'boolean', defaultValue: true },
-            { name: 'right', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'Scaffold',
-        category: 'plataforma',
-        label: 'Scaffold',
-        properties: [
-            { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
-            { name: 'extendBody', type: 'boolean', defaultValue: false },
-            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false },
-            { name: 'drawer', type: 'string', defaultValue: 'Drawer()' },
-            { name: 'appBar', type: 'string', defaultValue: 'AppBar(title: Text("Scaffold App Bar"))' },
-            { name: 'body', type: 'string', defaultValue: 'Center(child: Text("Scaffold Body"))' },
-            { name: 'bottomNavigationBar', type: 'string', defaultValue: 'BottomNavigationBar(items: [BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home")])' }
-
-        ],
-        hasChildren: true
-    },
-    //Material Design y Cupertino (iOS)
-    {
-        type: 'AppBar',
-        category: 'layout',
-        label: 'App Bar',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'elevation', type: 'number', defaultValue: 4 },
-            { name: 'centerTitle', type: 'boolean', defaultValue: false },
-            { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: true
+        hasChildren: false,
     },
     {
         type: 'ElevatedButton',
-        category: 'material-cupertino',
+        category: 'input',
         label: 'Elevated Button',
         properties: [
+            { name: 'label', type: 'string', defaultValue: 'Elevated Button' },
             { name: 'onPressed', type: 'string', defaultValue: '() {}' },
             { name: 'child', type: 'string', defaultValue: 'Text("Elevated Button")' },
-            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Colors.blue))' }
+            {
+                name: 'style',
+                type: 'string',
+                defaultValue: 'ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Colors.blue))',
+            },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
-    {
-        type: 'TextButton',
-        category: 'material-cupertino',
-        label: 'Text Button',
-        properties: [
-            { name: 'onPressed', type: 'string', defaultValue: '() {}' },
-            { name: 'child', type: 'string', defaultValue: 'Text("Text Button")' },
-            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(foregroundColor: MaterialStateProperty.all<Color>(Colors.blue))' }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'OutlinedButton',
-        category: 'material-cupertino',
-        label: 'Outlined Button',
-        properties: [
-            { name: 'onPressed', type: 'string', defaultValue: '() {}' },
-            { name: 'child', type: 'string', defaultValue: 'Text("Outlined Button")' },
-            { name: 'style', type: 'string', defaultValue: 'ButtonStyle(side: MaterialStateProperty.all<BorderSide>(BorderSide(color: Colors.blue)))' }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'FloatingActionButton',
-        category: 'material-cupertino',
-        label: 'Floating Action Button',
-        properties: [
-            { name: 'child', type: 'string', defaultValue: 'Icon(Icons.add)' },
-            { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
-            { name: 'foregroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'tooltip', type: 'string', defaultValue: 'Floating Action Button' },
-            { name: 'mini', type: 'boolean', defaultValue: false },
-            { name: 'elevation', type: 'number', defaultValue: 6 }
-        ],
-        hasChildren: false
-    },
-    // Input widgets
     {
         type: 'TextField',
         category: 'input',
         label: 'Text Field',
         properties: [
+            { name: 'label', type: 'string', defaultValue: 'Label' },
             { name: 'decoration', type: 'string', defaultValue: 'InputDecoration(labelText: "Label")' },
             { name: 'controller', type: 'string', defaultValue: 'TextEditingController()' },
             {
                 name: 'keyboardType',
                 type: 'select',
                 defaultValue: 'TextInputType.text',
-                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone']
+                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone'],
             },
-            { name: 'obscureText', type: 'boolean', defaultValue: false }
+            { name: 'obscureText', type: 'boolean', defaultValue: false },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
     {
         type: 'TextFormField',
         category: 'input',
         label: 'Text Form Field',
         properties: [
-            { name: 'decoration', type: 'string', defaultValue: 'InputDecoration(labelText: "Label", hintText: "Enter text")' },
+            { name: 'label', type: 'string', defaultValue: 'Label' },
+            {
+                name: 'decoration',
+                type: 'string',
+                defaultValue: 'InputDecoration(labelText: "Label", hintText: "Enter text")',
+            },
             { name: 'controller', type: 'string', defaultValue: 'TextEditingController()' },
-            { name: 'validator', type: 'string', defaultValue: '(value) => value == null || value.isEmpty ? "Please enter some text" : null' },
+            {
+                name: 'validator',
+                type: 'string',
+                defaultValue: '(value) => value == null || value.isEmpty ? "Please enter some text" : null',
+            },
             {
                 name: 'keyboardType',
                 type: 'select',
                 defaultValue: 'TextInputType.text',
-                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone']
+                options: ['TextInputType.text', 'TextInputType.number', 'TextInputType.email', 'TextInputType.phone'],
             },
             { name: 'obscureText', type: 'boolean', defaultValue: false },
-            { name: 'enabled', type: 'boolean', defaultValue: true }
+            { name: 'enabled', type: 'boolean', defaultValue: true },
         ],
-        hasChildren: false
-    },
-    {
-        type: 'Form',
-        category: 'input',
-        label: 'Form',
-        properties: [
-            { name: 'key', type: 'string', defaultValue: 'GlobalKey<FormState>()' },
-            { name: 'autovalidateMode', type: 'select', defaultValue: 'AutovalidateMode.disabled',
-                options: ['AutovalidateMode.disabled', 'AutovalidateMode.always', 'AutovalidateMode.onUserInteraction'] }
-        ],
-        hasChildren: true
+        hasChildren: false,
     },
     {
         type: 'Checkbox',
-        category: 'input',
         label: 'Checkbox',
+        category: 'input',
         properties: [
             { name: 'value', type: 'boolean', defaultValue: false },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
-            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' }
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'checkColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'size', type: 'number', defaultValue: 24 },
+            { name: 'focusColor', type: 'color', defaultValue: '#BBDEFB' },
+            { name: 'hoverColor', type: 'color', defaultValue: '#E3F2FD' },
+            { name: 'isEnabled', type: 'boolean', defaultValue: true },
+            { name: 'borderColor', type: 'color', defaultValue: '#757575' },
+            { name: 'label', type: 'string', defaultValue: '' },
+            { name: 'disabled', type: 'boolean', defaultValue: false }
         ],
-        hasChildren: false
+        hasChildren: false,
+    },
+    {
+        type: 'CheckboxListTile',
+        category: 'input',
+        label: 'Checkbox List Tile',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'Checkbox List Tile' },
+            { name: 'value', type: 'boolean', defaultValue: false },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+            { name: 'secondary', type: 'string', defaultValue: 'Icon(Icons.check)' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            {
+                name: 'items',
+                type: 'array',
+                defaultValue: [
+                    { id: '1', label: 'Option 1', value: false },
+                    { id: '2', label: 'Option 2', value: false },
+                    { id: '3', label: 'Option 3', value: false },
+                ],
+            },
+            { name: 'orientation', type: 'select', defaultValue: 'vertical', options: ['vertical', 'horizontal'] },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'Radio',
+        category: 'input',
+        label: 'Radio Button',
+        properties: [
+            { name: 'value', type: 'string', defaultValue: 'Option 1' },
+            { name: 'groupValue', type: 'string', defaultValue: '' },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'title', type: 'string', defaultValue: 'Radio Button' },
+            { name: 'disabled', type: 'boolean', defaultValue: false },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'RadioListTile',
+        category: 'input',
+        label: 'Radio List Tile',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'Radio List Tile' },
+            { name: 'value', type: 'string', defaultValue: 'Option 1' },
+            { name: 'groupValue', type: 'string', defaultValue: '' },
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+            { name: 'secondary', type: 'string', defaultValue: 'Icon(Icons.radio_button_checked)' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            {
+                name: 'items',
+                type: 'array',
+                defaultValue: [
+                    { id: '1', label: 'Option 1', value: '1' },
+                    { id: '2', label: 'Option 2', value: '2' },
+                    { id: '3', label: 'Option 3', value: '3' },
+                ],
+            },
+            { name: 'orientation', type: 'select', defaultValue: 'vertical', options: ['vertical', 'horizontal'] },
+        ],
+        hasChildren: false,
     },
     {
         type: 'DropdownButton',
@@ -183,22 +221,21 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         properties: [
             { name: 'value', type: 'string', defaultValue: 'Option 1' },
             { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
-    // table
     {
-        type: 'DataTable',
+        type: 'TableList',
         category: 'input',
-        label: 'Data Table',
+        label: 'Table List',
         properties: [
             { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
             { name: 'rows', type: 'number', defaultValue: 3 },
-            { name: 'sortColumnIndex', type: 'number', defaultValue: null },
-            { name: 'sortAscending', type: 'boolean', defaultValue: true }
+            { name: 'border', type: 'boolean', defaultValue: true },
+            { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
     {
         type: 'Switch',
@@ -207,9 +244,13 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         properties: [
             { name: 'value', type: 'boolean', defaultValue: false },
             { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
-            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' }
+            { name: 'label', type: 'string', defaultValue: '' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'inactiveColor', type: 'color', defaultValue: '#bdbdbd' },
+            { name: 'thumbColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'disabled', type: 'boolean', defaultValue: false },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
     {
         type: 'Slider',
@@ -219,9 +260,9 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
             { name: 'value', type: 'number', defaultValue: 0.5 },
             { name: 'min', type: 'number', defaultValue: 0.0 },
             { name: 'max', type: 'number', defaultValue: 1.0 },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
         ],
-        hasChildren: false
+        hasChildren: false,
     },
     {
         type: 'SwitchListTile',
@@ -229,15 +270,154 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         label: 'Switch List Tile',
         properties: [
             { name: 'title', type: 'string', defaultValue: 'Switch List Tile' },
+            { name: 'subtitle', type: 'string', defaultValue: '' },
             { name: 'value', type: 'boolean', defaultValue: false },
-            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' }
+            { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+            { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+            { name: 'inactiveColor', type: 'color', defaultValue: '#bdbdbd' },
+            { name: 'thumbColor', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'disabled', type: 'boolean', defaultValue: false },
         ],
-        hasChildren : false
+        hasChildren: false,
     },
-    // Widgets Basicos
+    {
+        type: 'Card',
+        category: 'input',
+        label: 'Card',
+        properties: [
+            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'elevation', type: 'number', defaultValue: 2 },
+            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
+            { name: 'borderRadius', type: 'number', defaultValue: 8 },
+            { name: 'width', type: 'number', defaultValue: 300 },
+            { name: 'height', type: 'number', defaultValue: null },
+            { name: 'title', type: 'string', defaultValue: 'Card Title' },
+            { name: 'subtitle', type: 'string', defaultValue: '' },
+            { name: 'content', type: 'string', defaultValue: 'Card content goes here. You can display information in this area.' },
+            { name: 'showImage', type: 'boolean', defaultValue: false },
+            { name: 'imageUrl', type: 'string', defaultValue: 'https://via.placeholder.com/300x150' },
+            { name: 'imageHeight', type: 'number', defaultValue: 150 },
+            { name: 'showDivider', type: 'boolean', defaultValue: true },
+            { name: 'showActions', type: 'boolean', defaultValue: true },
+            { name: 'actionButtons', type: 'array', defaultValue: [
+                { text: 'ACTION 1', icon: 'favorite' },
+                { text: 'ACTION 2', icon: 'share' }
+            ] },
+        ],
+        hasChildren: true,
+    },
+    //listCard
+    {
+        type: 'ListCard',
+        category: 'input',
+        label: 'List Card',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'List Card Title' },
+            { name: 'subtitle', type: 'string', defaultValue: 'List Card Subtitle' },
+            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
+            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
+            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'elevation', type: 'number', defaultValue: 2 },
+            { name: 'borderRadius', type: 'number', defaultValue: 8 },
+            { name: 'showImage', type: 'boolean', defaultValue: false },
+            { name: 'imageUrl', type: 'string', defaultValue: '' },
+            { name: 'imageHeight', type: 'number', defaultValue: 150 },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'ListTitle',
+        category: 'input',
+        label: 'List Title',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
+            { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
+            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
+            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
+            { name: 'dense', type: 'boolean', defaultValue: false },
+            { name: 'enabled', type: 'boolean', defaultValue: true },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'CardText',
+        category: 'input',
+        label: 'Card Text',
+        properties: [
+            { name: 'title', type: 'string', defaultValue: 'Card Title' },
+            { name: 'subtitle', type: 'string', defaultValue: 'Card Subtitle' },
+            {
+                name: 'content',
+                type: 'string',
+                defaultValue: 'Card content goes here with more details about the item.',
+            },
+            { name: 'elevation', type: 'number', defaultValue: 2 },
+            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+            { name: 'borderRadius', type: 'number', defaultValue: 8 },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'Text',
+        category: 'input',
+        label: 'Text',
+        properties: [
+            { name: 'data', type: 'string', defaultValue: 'Hello World' },
+            { name: 'style', type: 'string', defaultValue: 'TextStyle(fontSize: 16.0)' },
+            {
+                name: 'textAlign',
+                type: 'select',
+                defaultValue: 'TextAlign.left',
+                options: ['TextAlign.left', 'TextAlign.center', 'TextAlign.right', 'TextAlign.justify'],
+            },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'Image',
+        category: 'input',
+        label: 'Image',
+        properties: [
+            { name: 'src', type: 'string', defaultValue: 'https://placehold.co/150' },
+            { name: 'width', type: 'number', defaultValue: 150 },
+            { name: 'height', type: 'number', defaultValue: 150 },
+            {
+                name: 'fit',
+                type: 'select',
+                defaultValue: 'BoxFit.cover',
+                options: ['BoxFit.cover', 'BoxFit.contain', 'BoxFit.fill', 'BoxFit.fitWidth', 'BoxFit.fitHeight', 'BoxFit.none', 'BoxFit.scaleDown'],
+            },
+            { name: 'borderRadius', type: 'number', defaultValue: 0 },
+            { name: 'borderColor', type: 'color', defaultValue: 'transparent' },
+            { name: 'borderWidth', type: 'number', defaultValue: 0 },
+            { name: 'opacity', type: 'number', defaultValue: 1.0 },
+            { name: 'boxShadow', type: 'string', defaultValue: 'none' },
+            { name: 'alt', type: 'string', defaultValue: 'Image' },
+            { name: 'showErrorPlaceholder', type: 'boolean', defaultValue: false },
+        ],
+        hasChildren: false,
+    },
+    {
+        type: 'Icon',
+        category: 'input',
+        label: 'Icon',
+        properties: [
+            { name: 'name', type: 'string', defaultValue: 'star' },
+            { name: 'size', type: 'number', defaultValue: 24 },
+            { name: 'color', type: 'color', defaultValue: '#000000' },
+            { name: 'opacity', type: 'number', defaultValue: 1.0 },
+            { name: 'disabled', type: 'boolean', defaultValue: false },
+            { name: 'iconSet', type: 'select', defaultValue: 'material', options: ['material', 'fontawesome'] },
+            { name: 'rotate', type: 'number', defaultValue: 0 },
+            { name: 'filled', type: 'boolean', defaultValue: true },
+            { name: 'shadow', type: 'string', defaultValue: 'none' },
+        ],
+        hasChildren: false,
+    },
+    //layouts y organización
     {
         type: 'Container',
-        category: 'widgets',
+        category: 'layout',
         label: 'Container',
         properties: [
             { name: 'width', type: 'number', defaultValue: 200 },
@@ -249,65 +429,18 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
                 name: 'alignment',
                 type: 'select',
                 defaultValue: 'Alignment.center',
-                options: ['Alignment.center', 'Alignment.topLeft', 'Alignment.topRight', 'Alignment.bottomLeft', 'Alignment.bottomRight']
-            }
+                options: ['Alignment.center', 'Alignment.topLeft', 'Alignment.topRight', 'Alignment.bottomLeft', 'Alignment.bottomRight'],
+            },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
         type: 'Padding',
-        category: 'widgets',
+        category: 'layout',
         label: 'Padding',
-        properties: [
-            { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' }
-        ],
-        hasChildren: true
+        properties: [{ name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(16.0)' }],
+        hasChildren: true,
     },
-    {
-        type: 'Text',
-        category: 'widgets',
-        label: 'Text',
-        properties: [
-            { name: 'data', type: 'string', defaultValue: 'Hello World' },
-            { name: 'style', type: 'string', defaultValue: 'TextStyle(fontSize: 16.0)' },
-            {
-                name: 'textAlign',
-                type: 'select',
-                defaultValue: 'TextAlign.left',
-                options: ['TextAlign.left', 'TextAlign.center', 'TextAlign.right', 'TextAlign.justify']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Image',
-        category: 'widgets',
-        label: 'Image',
-        properties: [
-            { name: 'src', type: 'string', defaultValue: 'https://via.placeholder.com/150' },
-            { name: 'width', type: 'number', defaultValue: 150 },
-            { name: 'height', type: 'number', defaultValue: 150 },
-            {
-                name: 'fit',
-                type: 'select',
-                defaultValue: 'BoxFit.cover',
-                options: ['BoxFit.cover', 'BoxFit.contain', 'BoxFit.fill', 'BoxFit.fitWidth', 'BoxFit.fitHeight', 'BoxFit.none', 'BoxFit.scaleDown']
-            }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'Icon',
-        category: 'widgets',
-        label: 'Icon',
-        properties: [
-            { name: 'icon', type: 'string', defaultValue: 'Icons.star' },
-            { name: 'size', type: 'number', defaultValue: 24 },
-            { name: 'color', type: 'color', defaultValue: '#000000' }
-        ],
-        hasChildren: false
-    },
-    // Layout widgets
     {
         type: 'Row',
         category: 'layout',
@@ -317,16 +450,29 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
                 name: 'mainAxisAlignment',
                 type: 'select',
                 defaultValue: 'MainAxisAlignment.start',
-                options: ['MainAxisAlignment.start', 'MainAxisAlignment.center', 'MainAxisAlignment.end', 'MainAxisAlignment.spaceBetween', 'MainAxisAlignment.spaceAround', 'MainAxisAlignment.spaceEvenly']
+                options: [
+                    'MainAxisAlignment.start',
+                    'MainAxisAlignment.center',
+                    'MainAxisAlignment.end',
+                    'MainAxisAlignment.spaceBetween',
+                    'MainAxisAlignment.spaceAround',
+                    'MainAxisAlignment.spaceEvenly',
+                ],
             },
             {
                 name: 'crossAxisAlignment',
                 type: 'select',
                 defaultValue: 'CrossAxisAlignment.center',
-                options: ['CrossAxisAlignment.start', 'CrossAxisAlignment.center', 'CrossAxisAlignment.end', 'CrossAxisAlignment.stretch', 'CrossAxisAlignment.baseline']
-            }
+                options: [
+                    'CrossAxisAlignment.start',
+                    'CrossAxisAlignment.center',
+                    'CrossAxisAlignment.end',
+                    'CrossAxisAlignment.stretch',
+                    'CrossAxisAlignment.baseline',
+                ],
+            },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
         type: 'Column',
@@ -337,36 +483,49 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
                 name: 'mainAxisAlignment',
                 type: 'select',
                 defaultValue: 'MainAxisAlignment.start',
-                options: ['MainAxisAlignment.start', 'MainAxisAlignment.center', 'MainAxisAlignment.end', 'MainAxisAlignment.spaceBetween', 'MainAxisAlignment.spaceAround', 'MainAxisAlignment.spaceEvenly']
+                options: [
+                    'MainAxisAlignment.start',
+                    'MainAxisAlignment.center',
+                    'MainAxisAlignment.end',
+                    'MainAxisAlignment.spaceBetween',
+                    'MainAxisAlignment.spaceAround',
+                    'MainAxisAlignment.spaceEvenly',
+                ],
             },
             {
                 name: 'crossAxisAlignment',
                 type: 'select',
                 defaultValue: 'CrossAxisAlignment.center',
-                options: ['CrossAxisAlignment.start', 'CrossAxisAlignment.center', 'CrossAxisAlignment.end', 'CrossAxisAlignment.stretch', 'CrossAxisAlignment.baseline']
-            }
+                options: [
+                    'CrossAxisAlignment.start',
+                    'CrossAxisAlignment.center',
+                    'CrossAxisAlignment.end',
+                    'CrossAxisAlignment.stretch',
+                    'CrossAxisAlignment.baseline',
+                ],
+            },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
         type: 'Center',
-        category: 'widgets',
+        category: 'layout',
         label: 'Center',
         properties: [
             { name: 'widthFactor', type: 'number', defaultValue: null },
-            { name: 'heightFactor', type: 'number', defaultValue: null }
+            { name: 'heightFactor', type: 'number', defaultValue: null },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
         type: 'SizedBox',
-        category: 'widgets',
+        category: 'layout',
         label: 'Sized Box',
         properties: [
             { name: 'width', type: 'number', defaultValue: 100 },
-            { name: 'height', type: 'number', defaultValue: 100 }
+            { name: 'height', type: 'number', defaultValue: 100 },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
         type: 'ScrollChildren',
@@ -377,87 +536,66 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
                 name: 'scrollDirection',
                 type: 'select',
                 defaultValue: 'Axis.vertical',
-                options: ['Axis.vertical', 'Axis.horizontal']
+                options: ['Axis.vertical', 'Axis.horizontal'],
             },
             { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
             {
                 name: 'physics',
                 type: 'select',
                 defaultValue: 'ClampingScrollPhysics()',
-                options: ['ClampingScrollPhysics()', 'BouncingScrollPhysics()', 'AlwaysScrollableScrollPhysics()']
-            }
+                options: ['ClampingScrollPhysics()', 'BouncingScrollPhysics()', 'AlwaysScrollableScrollPhysics()'],
+            },
         ],
-        hasChildren: true
+        hasChildren: true,
     },
     {
-        type: 'TableList',
+        type: 'SafeArea',
         category: 'layout',
-        label: 'Table List',
+        label: 'SafeArea',
         properties: [
-            { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
-            { name: 'rows', type: 'number', defaultValue: 3 },
-            { name: 'border', type: 'boolean', defaultValue: true },
-            { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' }
+            { name: 'top', type: 'boolean', defaultValue: true },
+            { name: 'bottom', type: 'boolean', defaultValue: true },
+            { name: 'left', type: 'boolean', defaultValue: true },
+            { name: 'right', type: 'boolean', defaultValue: true },
         ],
-        hasChildren: false
+        hasChildren: true,
     },
-    //Navegación y Rutas
     {
-        type: 'Drawer',
-        category: 'navegation',
-        label: 'Drawer',
+        type: 'Scaffold',
+        category: 'layout',
+        label: 'Scaffold',
         properties: [
             { name: 'backgroundColor', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'width', type: 'number', defaultValue: 300 },
-            { name: 'elevation', type: 'number', defaultValue: 16 }
-        ],
-        hasChildren: true
-    },
-    // Containers and Decoration
-    {
-        type: 'Card',
-        category: 'layout',
-        label: 'Card',
-        properties: [
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'elevation', type: 'number', defaultValue: 1 },
-            { name: 'margin', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
-            { name: 'shape', type: 'string', defaultValue: 'RoundedRectangleBorder(borderRadius: BorderRadius.circular(4.0))' }
-        ],
-        hasChildren: true
-    },
-    {
-        type: 'ListTitle',
-        category: 'containers',
-        label: 'List Title',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
-            { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
-            { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
-            { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
-            { name: 'dense', type: 'boolean', defaultValue: false },
-            { name: 'enabled', type: 'boolean', defaultValue: true }
-        ],
-        hasChildren: false
-    },
-    {
-        type: 'CardText',
-        category: 'containers',
-        label: 'Card Text',
-        properties: [
-            { name: 'title', type: 'string', defaultValue: 'Card Title' },
-            { name: 'subtitle', type: 'string', defaultValue: 'Card Subtitle' },
+            { name: 'resizeToAvoidBottomInset', type: 'boolean', defaultValue: true },
+            { name: 'extendBody', type: 'boolean', defaultValue: false },
+            { name: 'extendBodyBehindAppBar', type: 'boolean', defaultValue: false },
+            { name: 'drawer', type: 'string', defaultValue: 'Drawer()' },
+            { name: 'appBar', type: 'string', defaultValue: 'AppBar(title: Text("Scaffold App Bar"))' },
+            { name: 'body', type: 'string', defaultValue: 'Center(child: Text("Scaffold Body"))' },
             {
-                name: 'content',
+                name: 'bottomNavigationBar',
                 type: 'string',
-                defaultValue: 'Card content goes here with more details about the item.'
+                defaultValue: 'BottomNavigationBar(items: [BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home")])',
             },
-            { name: 'elevation', type: 'number', defaultValue: 2 },
-            { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
-            { name: 'borderRadius', type: 'number', defaultValue: 8 }
         ],
-        hasChildren: false
-    }
+        hasChildren: true,
+    },
+    {
+        type: 'Form',
+        category: 'layout',
+        label: 'Form',
+        properties: [
+            { name: 'key', type: 'string', defaultValue: 'GlobalKey<FormState>()' },
+            {
+                name: 'autovalidateMode',
+                type: 'select',
+                defaultValue: 'AutovalidateMode.disabled',
+                options: ['AutovalidateMode.disabled', 'AutovalidateMode.always', 'AutovalidateMode.onUserInteraction'],
+            },
+        ],
+        hasChildren: true,
+    },
+
 ];
 
-export const FlutterCode = "// Flutter code snippet template";
+export const FlutterCode = '// Flutter code snippet template';

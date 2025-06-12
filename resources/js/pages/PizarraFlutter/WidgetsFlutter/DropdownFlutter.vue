@@ -45,7 +45,7 @@ function closeDropdown() {
 </script>
 
 <template>
-  <div class="dropdown-flutter">
+  <div class="dropdown-flutter p-2">
     <div class="dropdown-button" @click.stop="toggleDropdown" @blur="closeDropdown" tabindex="0">
       <span class="dropdown-selected">{{ selectedValue || 'Select an option' }}</span>
       <span class="dropdown-arrow" :class="{ 'open': isOpen }">▼</span>

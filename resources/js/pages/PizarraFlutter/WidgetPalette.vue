@@ -8,9 +8,8 @@ defineEmits(['update:activeWidgetCategory', 'addWidget', 'onPaletteDragStart', '
 </script>
 
 <template>
-    <div class="hidden w-64 overflow-hidden rounded-md bg-gray-100 transition-colors dark:bg-gray-700 md:block">
+    <div class="hidden w-64 overflow-hidden rounded-md bg-gray-100 transition-colors dark:bg-gray-700 md:block max-h-96">
         <div class="mobile-widget-selector desktop-widget-selector dark:border-gray-600">
-            <h2 class="widget-selector-title dark:bg-gray-800 dark:text-white">Flutter Widgets</h2>
             <div class="widget-category-tabs dark:border-gray-600 dark:bg-gray-800">
                 <button
                     v-for="(category, index) in categoriesWidget"
