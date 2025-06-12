@@ -138,10 +138,53 @@ export class WidgetService {
      * @returns The generated code string
      */
     static generateDefaultCodeString(widget: FlutterWidget, availableWidgets: any[]): string {
+        // Special case for Text widget to use the correct format
+        if (widget.type === 'Text') {
+            let textContent = widget.props.data || 'Text';
+            let textStyle = '';
+            let textAlign = '';
+
+            // Process other properties for Text widget
+            Object.entries(widget.props).forEach(([key, value]) => {
+                if (key === 'data') {
+                    textContent = value as string;
+                } else if (key === 'style') {
+                    textStyle = `style: ${value},`;
+                } else if (key === 'textAlign') {
+                    // Remove quotes from TextAlign values
+                    if (typeof value === 'string' && value.includes('TextAlign.')) {
+                        textAlign = `textAlign: ${value.replace(/['"]/g, '')},`;
+                    } else {
+                        textAlign = `textAlign: ${value},`;
+                    }
+                }
+            });
+
+            // Generate Text widget with correct format
+            return `Text(
+  "${textContent}",
+  ${textStyle}
+  ${textAlign}
+)`;
+        }
+
         let code = `${widget.type}(\n`;
 
         // Add properties
         Object.entries(widget.props).forEach(([key, value]) => {
+            // Skip properties for Text widget as they're handled separately
+            if (widget.type === 'Text' && (key === 'data' || key === 'style' || key === 'textAlign')) {
+                return;
+            }
+
+            // Skip label and validator properties for TextFormField
+            if (widget.type === 'TextFormField' && (key === 'label' || key === 'validator')) {
+                return;
+            }
+
+            // Check if this is a TextAlign property
+            const isTextAlignProperty = key === 'textAlign' && typeof value === 'string' && value.includes('TextAlign.');
+
             // Check if this is a color property
             const isColorProperty = availableWidgets
                 .find((w) => w.type === widget.type)?.properties
@@ -177,8 +220,11 @@ export class WidgetService {
                         code += `  ${key}: Colors.black,\n`;
                     }
                 }
+            } else if (isTextAlignProperty) {
+                // Remove quotes from TextAlign values
+                code += `  ${key}: ${(value as string).replace(/['"]/g, '')},\n`;
             } else if (typeof value === 'string' && !value.includes('(')) {
-                code += `  ${key}: '${value}',\n`;
+                code += `  ${key}: "${value}",\n`;
             } else {
                 code += `  ${key}: ${value},\n`;
             }
@@ -187,16 +233,22 @@ export class WidgetService {
         // Handle special cases for certain widget types
         switch (widget.type) {
             case 'Text':
-                // For Text widgets, ensure the data property is included
-                if (!widget.props.data) {
-                    code += `  data: 'Text',\n`;
-                }
+                // Text widgets are handled separately above
                 break;
             case 'TextField':
             case 'TextFormField':
-                // For TextField and TextFormField widgets, ensure the decoration property is included
-                if (!widget.props.decoration) {
-                    code += `  decoration: InputDecoration(labelText: '${widget.props.label || "Label"}'),\n`;
+                // For TextField widgets, ensure the decoration property is included
+                if (widget.type === 'TextField' && !widget.props.decoration) {
+                    code += `  decoration: InputDecoration(labelText: "${widget.props.label || "TextField:"}", hintText: ""),\n`;
+                }
+                // Add other required properties for TextFormField
+                if (widget.type === 'TextFormField') {
+                    // Always add these properties in the correct order
+                    code += `  decoration: InputDecoration(labelText: "${widget.props.label || "TextField:"}", hintText: ""),\n`;
+                    code += `  controller: TextEditingController(),\n`;
+                    code += `  keyboardType: TextInputType.text,\n`;
+                    code += `  obscureText: false,\n`;
+                    code += `  enabled: true,\n`;
                 }
                 break;
             case 'ElevatedButton':
@@ -206,7 +258,10 @@ export class WidgetService {
                     code += `  onPressed: () {},\n`;
                 }
                 if (!widget.props.child) {
-                    code += `  child: Text('Button'),\n`;
+                    code += `  child: Text("Button"),\n`;
+                }
+                if (!widget.props.style) {
+                    code += `  style: ButtonStyle(backgroundColor: MaterialStateProperty.all(Colors.blue)),\n`;
                 }
                 break;
             case 'Container':
@@ -235,31 +290,55 @@ export class WidgetService {
             case 'AppBarFlutter':
                 // For AppBar widgets, ensure title property is included
                 if (!widget.props.title) {
-                    code += `  title: Text('App Bar'),\n`;
+                    code += `  title: Text("App Bar"),\n`;
                 }
                 break;
             case 'Scaffold':
                 // For Scaffold widgets, ensure appBar and body properties are included
                 if (!widget.props.appBar) {
-                    code += `  appBar: AppBar(title: Text('Scaffold App Bar')),\n`;
+                    code += `  appBar: AppBar(title: Text("Scaffold App Bar")),\n`;
                 }
                 if (!widget.props.body) {
-                    code += `  body: Center(child: Text('Scaffold Body')),\n`;
+                    code += `  body: Center(child: Text("Scaffold Body")),\n`;
                 }
                 break;
             case 'Drawer':
                 // For Drawer widgets, ensure child property is included
                 if (!widget.props.child) {
-                    code += `  child: ListView(children: [ListTile(title: Text('Drawer Item'))]),\n`;
+                    code += `  child: ListView(children: [ListTile(title: Text("Drawer Item"))]),\n`;
                 }
                 break;
             case 'TableFlutter':
                 // For TableFlutter widgets, ensure columns and rows properties are included
                 if (!widget.props.columns) {
-                    code += `  columns: ['Column 1', 'Column 2', 'Column 3'],\n`;
+                    code += `  columns: ["Column 1", "Column 2", "Column 3"],\n`;
                 }
                 if (!widget.props.rows) {
                     code += `  rows: 3,\n`;
+                }
+                break;
+            case 'DropdownButton':
+                // For DropdownButton widgets, ensure value, items, and onChanged properties are included
+                if (!widget.props.value) {
+                    code += `  value: "Option 1",\n`;
+                }
+                if (!widget.props.items) {
+                    code += `  items: ["Option 1", "Option 2", "Option 3"].map<DropdownMenuItem<String>>((String value) {\n`;
+                    code += `    return DropdownMenuItem<String>(\n`;
+                    code += `      value: value,\n`;
+                    code += `      child: Text(value),\n`;
+                    code += `    );\n`;
+                    code += `  }).toList(),\n`;
+                } else if (Array.isArray(widget.props.items)) {
+                    code += `  items: ${JSON.stringify(widget.props.items)}.map<DropdownMenuItem<String>>((String value) {\n`;
+                    code += `    return DropdownMenuItem<String>(\n`;
+                    code += `      value: value,\n`;
+                    code += `      child: Text(value),\n`;
+                    code += `    );\n`;
+                    code += `  }).toList(),\n`;
+                }
+                if (!widget.props.onChanged) {
+                    code += `  onChanged: (String? newValue) {},\n`;
                 }
                 break;
         }

@@ -8,13 +8,13 @@ defineEmits(['update:activeWidgetCategory', 'addWidget', 'onPaletteDragStart', '
 </script>
 
 <template>
-    <div class="hidden w-64 overflow-hidden rounded-md bg-gray-100 transition-colors dark:bg-gray-700 md:block max-h-96">
+    <div class="w-full sm:w-auto overflow-hidden rounded-md bg-gray-100 transition-colors dark:bg-gray-700 max-h-screen sm:max-h-96">
         <div class="mobile-widget-selector desktop-widget-selector dark:border-gray-600">
-            <div class="widget-category-tabs dark:border-gray-600 dark:bg-gray-800">
+            <div class="widget-category-tabs dark:border-gray-600 dark:bg-gray-800 overflow-x-auto flex flex-nowrap">
                 <button
                     v-for="(category, index) in categoriesWidget"
                     :key="category.category"
-                    class="widget-category-tab dark:text-gray-300 dark:hover:bg-gray-700"
+                    class="widget-category-tab dark:text-gray-300 dark:hover:bg-gray-700 whitespace-nowrap"
                     :class="{
                         'active-tab': activeWidgetCategory === index,
                         'dark:border-blue-400 dark:text-blue-400': activeWidgetCategory === index,
@@ -24,7 +24,7 @@ defineEmits(['update:activeWidgetCategory', 'addWidget', 'onPaletteDragStart', '
                     {{ category.label }}
                 </button>
             </div>
-            <div class="widget-grid">
+            <div class="widget-grid overflow-y-auto max-h-[60vh]">
                 <button
                     v-for="widget in widgetsByActiveCategory"
                     :key="widget.type"

@@ -587,9 +587,9 @@ const addAIWidgetsToCanvas = async (widgets: FlutterWidget[]) => {
                         widget.props.label = labelMatch[1];
                     }
                 } else if (widget.type === 'Select' || widget.type === 'DropdownButton') {
-                    // If it's a DropdownButton, convert it to Select type
-                    if (widget.type === 'DropdownButton') {
-                        widget.type = 'Select';
+                    // If it's a Select, convert it to DropdownButton type for Flutter 3.0.0 compatibility
+                    if (widget.type === 'Select') {
+                        widget.type = 'DropdownButton';
                     }
 
                     // Extract label from hint for Select
@@ -996,6 +996,11 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
 
     // Add properties
     Object.entries(widget.props).forEach(([key, value]) => {
+        // Skip label and validator properties for TextFormField
+        if (widget.type === 'TextFormField' && (key === 'label' || key === 'validator')) {
+            return;
+        }
+
         // Check if this is a color property
         const isColorProperty =
             availableWidgets.value.find((w) => w.type === widget.type)?.properties.find((p: any) => p.name === key)?.type === 'color';
@@ -1031,7 +1036,7 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
                 }
             }
         } else if (typeof value === 'string' && !value.includes('(')) {
-            code += `  ${key}: '${value}',\n`;
+            code += `  ${key}: "${value}",\n`;
         } else {
             code += `  ${key}: ${value},\n`;
         }
@@ -1047,9 +1052,18 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
             break;
         case 'TextField':
         case 'TextFormField':
-            // For TextField and TextFormField widgets, ensure the decoration property is included
-            if (!widget.props.decoration) {
-                code += `  decoration: InputDecoration(labelText: '${widget.props.label || 'Label'}'),\n`;
+            // For TextField widgets, ensure the decoration property is included
+            if (widget.type === 'TextField' && !widget.props.decoration) {
+                code += `  decoration: InputDecoration(labelText: "${widget.props.label || "TextField:"}", hintText: ""),\n`;
+            }
+            // Add other required properties for TextFormField
+            if (widget.type === 'TextFormField') {
+                // Always add these properties in the correct order
+                code += `  decoration: InputDecoration(labelText: "${widget.props.label || "TextField:"}", hintText: ""),\n`;
+                code += `  controller: TextEditingController(),\n`;
+                code += `  keyboardType: TextInputType.text,\n`;
+                code += `  obscureText: false,\n`;
+                code += `  enabled: true,\n`;
             }
             break;
         case 'ElevatedButton':
@@ -1059,7 +1073,10 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
                 code += `  onPressed: () {},\n`;
             }
             if (!widget.props.child) {
-                code += `  child: Text('Button'),\n`;
+                code += `  child: Text("Button"),\n`;
+            }
+            if (!widget.props.style) {
+                code += `  style: ButtonStyle(backgroundColor: MaterialStateProperty.all(Colors.blue)),\n`;
             }
             break;
         case 'Container':
@@ -1088,31 +1105,55 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
         case 'AppBarFlutter':
             // For AppBar widgets, ensure title property is included
             if (!widget.props.title) {
-                code += `  title: Text('App Bar'),\n`;
+                code += `  title: Text("App Bar"),\n`;
             }
             break;
         case 'Scaffold':
             // For Scaffold widgets, ensure appBar and body properties are included
             if (!widget.props.appBar) {
-                code += `  appBar: AppBar(title: Text('Scaffold App Bar')),\n`;
+                code += `  appBar: AppBar(title: Text("Scaffold App Bar")),\n`;
             }
             if (!widget.props.body) {
-                code += `  body: Center(child: Text('Scaffold Body')),\n`;
+                code += `  body: Center(child: Text("Scaffold Body")),\n`;
             }
             break;
         case 'Drawer':
             // For Drawer widgets, ensure child property is included
             if (!widget.props.child) {
-                code += `  child: ListView(children: [ListTile(title: Text('Drawer Item'))]),\n`;
+                code += `  child: ListView(children: [ListTile(title: Text("Drawer Item"))]),\n`;
             }
             break;
         case 'TableFlutter':
             // For TableFlutter widgets, ensure columns and rows properties are included
             if (!widget.props.columns) {
-                code += `  columns: ['Column 1', 'Column 2', 'Column 3'],\n`;
+                code += `  columns: ["Column 1", "Column 2", "Column 3"],\n`;
             }
             if (!widget.props.rows) {
                 code += `  rows: 3,\n`;
+            }
+            break;
+        case 'DropdownButton':
+            // For DropdownButton widgets, ensure value, items, and onChanged properties are included
+            if (!widget.props.value) {
+                code += `  value: "Option 1",\n`;
+            }
+            if (!widget.props.items) {
+                code += `  items: ["Option 1", "Option 2", "Option 3"].map<DropdownMenuItem<String>>((String value) {\n`;
+                code += `    return DropdownMenuItem<String>(\n`;
+                code += `      value: value,\n`;
+                code += `      child: Text(value),\n`;
+                code += `    );\n`;
+                code += `  }).toList(),\n`;
+            } else if (Array.isArray(widget.props.items)) {
+                code += `  items: ${JSON.stringify(widget.props.items)}.map<DropdownMenuItem<String>>((String value) {\n`;
+                code += `    return DropdownMenuItem<String>(\n`;
+                code += `      value: value,\n`;
+                code += `      child: Text(value),\n`;
+                code += `    );\n`;
+                code += `  }).toList(),\n`;
+            }
+            if (!widget.props.onChanged) {
+                code += `  onChanged: (String? newValue) {},\n`;
             }
             break;
     }
@@ -1458,12 +1499,12 @@ class NavigationDrawer extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: Text('${navigationDrawerWidget.value.props.userName || 'User Name'}'),
-            accountEmail: Text('${navigationDrawerWidget.value.props.userEmail || 'user@example.com'}'),
+            accountName: Text("${navigationDrawerWidget.value.props.userName || 'User Name'}"),
+            accountEmail: Text("${navigationDrawerWidget.value.props.userEmail || 'user@example.com'}"),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
               child: Text(
-                '${navigationDrawerWidget.value.props.avatarText || 'U'}',
+                "${navigationDrawerWidget.value.props.avatarText || 'U'}",
                 style: TextStyle(
                   fontSize: 40.0,
                   color: ${
@@ -1488,7 +1529,7 @@ class NavigationDrawer extends StatelessWidget {
                   (screen, index) => `
           ListTile(
             leading: Icon(${index === 0 ? 'Icons.home' : `Icons.screen_${index + 1}`}),
-            title: Text('${screen.name}'),
+            title: Text("${screen.name}"),
             trailing: Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
@@ -1499,14 +1540,14 @@ class NavigationDrawer extends StatelessWidget {
           Divider(),
           ListTile(
             leading: Icon(Icons.settings),
-            title: Text('Settings'),
+            title: Text("Settings"),
             onTap: () {
               // Navigate to settings
             },
           ),
           ListTile(
             leading: Icon(Icons.help),
-            title: Text('Help & Feedback'),
+            title: Text("Help & Feedback"),
             onTap: () {
               // Navigate to help
             },
@@ -1561,7 +1602,7 @@ class Home extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text("Home"),
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -1626,7 +1667,7 @@ class ${screenClassName} extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('${screen.name}'),
+        title: const Text("${screen.name}"),
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -2330,6 +2371,7 @@ onUnmounted(() => {
                     <!-- Widget palette (desktop version with mobile-like style) -->
                     <WidgetPalette
                         v-if="!showWidgetVerification"
+                        class="hidden md:block"
                         :categoriesWidget="categoriesWidget"
                         :activeWidgetCategory="activeWidgetCategory"
                         :widgetsByActiveCategory="widgetsByActiveCategory"

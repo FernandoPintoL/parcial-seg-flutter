@@ -486,7 +486,7 @@ class PizarraController extends Controller
         $code .= "  Widget build(BuildContext context) {\n";
         $code .= "    return Scaffold(\n";
         $code .= "      appBar: AppBar(\n";
-        $code .= "        title: const Text('Flutter UI from ROBOFLOW'),\n";
+        $code .= "        title: const Text(\"Flutter UI from ROBOFLOW\"),\n";
         $code .= "      ),\n";
         $code .= "      body: Center(\n";
         $code .= "        child: Column(\n";
@@ -529,7 +529,7 @@ class PizarraController extends Controller
                        "            )";
             case 'Text':
                 return "Text(\n" .
-                       "              '" . ($props['data'] ?? 'Text Content') . "',\n" .
+                       "              \"" . ($props['data'] ?? 'Text Content') . "\",\n" .
                        "              style: " . ($props['style'] ?? 'null') . ",\n" .
                        "            )";
             case 'Image':

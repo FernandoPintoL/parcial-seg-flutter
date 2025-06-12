@@ -67,7 +67,7 @@ export class CodeGenerationService {
               Widget build(BuildContext context) {
                 return Scaffold(
                   appBar: AppBar(
-                    title: const Text('${screen.name}'),
+                    title: const Text("${screen.name}"),
                     actions: [
                       IconButton(
                         icon: const Icon(Icons.menu),
@@ -122,7 +122,7 @@ export class CodeGenerationService {
                       color: Colors.blue,
                     ),
                     child: Text(
-                      '${projectName}',
+                      "${projectName}",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -133,7 +133,7 @@ export class CodeGenerationService {
                 .map(
                     (screen) => `
                   ListTile(
-                    title: Text('${screen.name}'),
+                    title: Text("${screen.name}"),
                     onTap: () {
                       Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
                     },
@@ -244,7 +244,7 @@ class ${screenClassName} extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('${screen.name}'),
+        title: const Text("${screen.name}"),
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -300,12 +300,12 @@ class NavigationDrawer extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: Text('${drawerWidget.props.userName || 'User Name'}'),
-            accountEmail: Text('${drawerWidget.props.userEmail || 'user@example.com'}'),
+            accountName: Text("${drawerWidget.props.userName || 'User Name'}"),
+            accountEmail: Text("${drawerWidget.props.userEmail || 'user@example.com'}"),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
               child: Text(
-                '${drawerWidget.props.avatarText || 'U'}',
+                "${drawerWidget.props.avatarText || 'U'}",
                 style: TextStyle(
                   fontSize: 40.0,
                   color: ${drawerWidget.props.avatarColor ?
@@ -324,14 +324,14 @@ class NavigationDrawer extends StatelessWidget {
           Divider(),
           ListTile(
             leading: Icon(Icons.settings),
-            title: Text('Settings'),
+            title: Text("Settings"),
             onTap: () {
               // Navigate to settings
             },
           ),
           ListTile(
             leading: Icon(Icons.help),
-            title: Text('Help & Feedback'),
+            title: Text("Help & Feedback"),
             onTap: () {
               // Navigate to help
             },
