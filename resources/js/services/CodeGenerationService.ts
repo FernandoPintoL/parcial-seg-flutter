@@ -14,7 +14,6 @@ export class CodeGenerationService {
         let flutterCode = '';
         // Generate screen classes
         let screenClasses = '';
-        let routeDefinitions = '';
         let homeScreenName = '';
 
         screens.forEach((screen) => {
@@ -97,10 +96,6 @@ export class CodeGenerationService {
             `;
             }
 
-            // Add route definition (skip drawer screen)
-            if (!screen.isDrawer) {
-                routeDefinitions += `    '/${screen.name.toLowerCase().replace(/\s+/g, '_')}': (context) => const ${screenClassName}(),\n`;
-            }
         });
 
         // Si no se define ninguna pantalla de inicio, utilice la primera pantalla
@@ -152,28 +147,21 @@ export class CodeGenerationService {
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyFlutterApp());
+  runApp(const MyApp());
 }
 
-class MyFlutterApp extends StatelessWidget {
-  const MyFlutterApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
+  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '${projectName}',
+      title: 'Flutter Demo',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      initialRoute: '/${
-        screens
-            .find((s) => s.isHome)
-            ?.name.toLowerCase()
-            .replace(/\s+/g, '_') || 'home'
-      }',
-      routes: {
-${routeDefinitions}
-      },
+      home: const ${homeScreenName || 'App'}(),
     );
   }
 }

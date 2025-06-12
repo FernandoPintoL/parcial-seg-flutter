@@ -12,6 +12,8 @@ const props = defineProps<{
     copyFlutterCode: () => void;
     setSelectedCodeTab: (tab: number) => void;
     initNavigationDrawer: () => void;
+    improvedCode?: string;
+    generateImprovedCode?: () => void;
 }>();
 
 /**
@@ -116,6 +118,14 @@ function escapeHTML(code: string): string {
             >
                 {{ screen.name }}
             </button>
+            <button
+                v-if="props.generateImprovedCode"
+                @click="() => { props.setSelectedCodeTab(-1); props.generateImprovedCode?.(); }"
+                class="px-4 py-2 text-sm"
+                :class="props.selectedCodeTab === -1 ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-400 hover:text-white'"
+            >
+                Código Mejorado
+            </button>
         </div>
         <div v-if="props.selectedCodeTab === 0" class="max-h-96 overflow-auto text-sm">
 <!--            <pre class="code-block" v-html="formatCode(props.flutterCode)"></pre>-->
@@ -124,6 +134,14 @@ function escapeHTML(code: string): string {
         <div v-else-if="props.selectedCodeTab === 1" class="max-h-96 overflow-auto text-sm">
 <!--            <pre class="code-block" v-html="formatCode(props.generateNavigationDrawerCode())"></pre>-->
             <pre class="code-block">{{ props.generateNavigationDrawerCode() }}</pre>
+        </div>
+        <div v-else-if="props.selectedCodeTab === -1" class="max-h-96 overflow-auto text-sm">
+            <div v-if="props.improvedCode" class="mb-2">
+                <pre class="code-block">{{ props.improvedCode }}</pre>
+            </div>
+            <div v-else class="flex justify-center items-center h-32">
+                <p class="text-gray-400">Generando código mejorado compatible con Flutter 3.0.0 y Dart 2.17.0...</p>
+            </div>
         </div>
         <div v-else class="max-h-96 overflow-auto text-sm">
 <!--            <pre class="code-block" v-html="formatCode(props.generateScreenCode(props.selectedCodeTab - 2))"></pre>-->

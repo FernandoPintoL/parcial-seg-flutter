@@ -1449,9 +1449,39 @@ const widgetsByActiveCategory = computed(() => {
 // Flutter code display
 const showFlutterCode = ref<boolean>(false);
 const flutterCode = computed(() => generateFlutterCode());
-const selectedCodeTab = ref<number>(0); // 0 = Full App, 1 = NavigationDrawer, 2+ = Individual Screens
+const selectedCodeTab = ref<number>(0); // 0 = Full App, 1 = NavigationDrawer, 2+ = Individual Screens, -1 = Improved Code
 const setSelectedCodeTab = (tab: number) => {
     selectedCodeTab.value = tab;
+};
+
+// Improved code for Flutter 3.0.0 and Dart 2.17.0
+const improvedCode = ref<string>('');
+const generateImprovedCode = async () => {
+    // Reset the improved code
+    improvedCode.value = '';
+
+    // Get the code to improve based on the previously selected tab
+    let codeToImprove = '';
+    if (selectedCodeTab.value === -1) {
+        // If we're already on the improved code tab, use the full app code
+        codeToImprove = flutterCode.value;
+    } else if (selectedCodeTab.value === 0) {
+        codeToImprove = flutterCode.value;
+    } else if (selectedCodeTab.value === 1) {
+        codeToImprove = generateNavigationDrawerCode();
+    } else {
+        codeToImprove = generateScreenCode(selectedCodeTab.value - 2);
+    }
+
+    try {
+        // Send the code to Azure for correction
+        const corrected = await AIService.correctFlutterCode(codeToImprove);
+        improvedCode.value = corrected;
+    } catch (error) {
+        console.error('Error generating improved code:', error);
+        AlertService.prototype.error('Error', 'No se pudo generar el código mejorado');
+        improvedCode.value = 'Error: No se pudo generar el código mejorado. Por favor, inténtalo de nuevo.';
+    }
 };
 
 // State for the NavigationDrawer widget
@@ -1715,12 +1745,14 @@ const stripHtmlTags = (html: string): string => {
 };
 // Copy Flutter code to clipboard
 const copyFlutterCode = () => {
-    // Copy either the full app code, NavigationDrawer code, or the selected screen's code
+    // Copy either the full app code, NavigationDrawer code, improved code, or the selected screen's code
     let codeToCopy;
     if (selectedCodeTab.value === 0) {
         codeToCopy = flutterCode.value;
     } else if (selectedCodeTab.value === 1) {
         codeToCopy = generateNavigationDrawerCode();
+    } else if (selectedCodeTab.value === -1) {
+        codeToCopy = improvedCode.value;
     } else {
         codeToCopy = generateScreenCode(selectedCodeTab.value - 2);
     }
@@ -1746,6 +1778,8 @@ const downloadFlutterProject = async (downloadType = 'complete') => {
             codeToDownload = flutterCode.value;
         } else if (selectedCodeTab.value === 1) {
             codeToDownload = generateNavigationDrawerCode();
+        } else if (selectedCodeTab.value === -1) {
+            codeToDownload = improvedCode.value;
         } else {
             codeToDownload = generateScreenCode(selectedCodeTab.value - 2);
         }
@@ -1759,6 +1793,8 @@ const downloadFlutterProject = async (downloadType = 'complete') => {
             downloadProjectName = projectName.value || 'FlutterProject';
         } else if (selectedCodeTab.value === 1) {
             downloadProjectName = 'NavigationDrawer';
+        } else if (selectedCodeTab.value === -1) {
+            downloadProjectName = 'ImprovedFlutterCode';
         } else {
             downloadProjectName = screens.value[selectedCodeTab.value - 2]?.name || 'ScreenProject';
         }
@@ -1769,6 +1805,10 @@ const downloadFlutterProject = async (downloadType = 'complete') => {
             elements = flutterWidgets.value;
         } else if (selectedCodeTab.value === 1) {
             elements = navigationDrawerWidget.value ? [navigationDrawerWidget.value] : [];
+        } else if (selectedCodeTab.value === -1) {
+            // For improved code, use the same elements as the previously selected tab
+            // If we were already on the improved code tab, use the full app elements
+            elements = flutterWidgets.value;
         } else {
             elements = screens.value[selectedCodeTab.value - 2]?.elements || [];
         }
@@ -2348,6 +2388,8 @@ onUnmounted(() => {
                 :copyFlutterCode="copyFlutterCode"
                 :setSelectedCodeTab="setSelectedCodeTab"
                 :initNavigationDrawer="initNavigationDrawer"
+                :improvedCode="improvedCode"
+                :generateImprovedCode="generateImprovedCode"
             />
 
             <div v-if="!showFlutterCode" class="flex h-full flex-1 flex-col gap-4">

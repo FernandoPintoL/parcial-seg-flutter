@@ -5,6 +5,86 @@ import { FlutterWidget } from '@/types/Pizarra';
 
 export class AIService {
     /**
+     * Sends Flutter code to Azure for correction to make it compatible with Flutter 3.0.0 and Dart 2.17.0
+     * @param flutterCode The Flutter code to correct
+     * @returns The corrected Flutter code
+     */
+    static async correctFlutterCode(flutterCode: string): Promise<string> {
+        console.log('Sending Flutter code for correction:', flutterCode);
+
+        // Extract configuration from environment
+        const azureApiUrl = import.meta.env.VITE_AZURE_API_URL;
+        const azureApiKey = import.meta.env.VITE_AZURE_API_KEY;
+        const azureModelName = import.meta.env.VITE_AZURE_MODEL_NAME;
+        const azureDeploymentName = import.meta.env.VITE_AZURE_DEPLOYMENT_NAME || azureModelName;
+
+        try {
+            // Validate environment variables
+            if (!azureApiUrl || !azureApiKey || !azureModelName) {
+                throw new Error('La configuración de Azure no está completa en el archivo .env.');
+            }
+
+            // Send the Flutter code to Azure for correction
+            const response = await axios.post(
+                `${azureApiUrl}/openai/deployments/${azureDeploymentName}/chat/completions?api-version=2023-05-15`,
+                {
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'Eres un experto en Flutter y Dart. Tu tarea es corregir el código Flutter proporcionado para que sea compatible con Flutter 3.0.0 y Dart 2.17.0. Debes mantener la misma funcionalidad pero asegurarte de que el código siga las mejores prácticas y sea compatible con estas versiones específicas. Responde ÚNICAMENTE con el código corregido, sin explicaciones adicionales.'
+                        },
+                        {
+                            role: 'user',
+                            content: `Por favor, corrige este código Flutter para que sea compatible con Flutter 3.0.0 y Dart 2.17.0:\n\n${flutterCode}`
+                        }
+                    ],
+                    max_tokens: 2000,
+                    temperature: 0.3
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'api-key': azureApiKey
+                    }
+                }
+            );
+
+            if (response.data && response.data.choices) {
+                let correctedCode = response.data.choices[0].message.content;
+                console.log('Corrected Flutter code (raw):', correctedCode);
+
+                // Remove markdown code block markers
+                const codeBlockRegex = /```(?:dart|flutter)?\s*([\s\S]*?)\s*```/g;
+                const codeBlocks = [];
+                let match;
+
+                while ((match = codeBlockRegex.exec(correctedCode)) !== null) {
+                    if (match[1] && match[1].trim()) {
+                        codeBlocks.push(match[1].trim());
+                    }
+                }
+
+                if (codeBlocks.length > 0) {
+                    correctedCode = codeBlocks.join('\n\n');
+                    console.log(`Extracted ${codeBlocks.length} code blocks from markdown`);
+                }
+
+                console.log('Corrected Flutter code (processed):', correctedCode);
+
+                // Show success message
+                await AlertService.prototype.success('Éxito', 'Código Flutter mejorado generado correctamente');
+
+                return correctedCode;
+            } else {
+                throw new Error('No se recibió una respuesta válida de Azure.');
+            }
+        } catch (error) {
+            console.error('Error correcting Flutter code:', error);
+            await AlertService.prototype.error('Error', 'No se pudo corregir el código Flutter');
+            return 'Error: No se pudo corregir el código Flutter. Por favor, inténtalo de nuevo.';
+        }
+    }
+    /**
      * Extracts Flutter code from an AI response
      * @param inputString The AI response text
      * @returns The extracted Flutter code
