@@ -78,15 +78,18 @@ export class CodeGenerationService {
                     ],
                   ),
                   drawer: NavigationDrawer(),
-                  body: Center(
-                    child: Form(
-                      key: GlobalKey<FormState>(),
-                      autovalidateMode: AutovalidateMode.disabled,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ${screenWidgetsCode}
-                        ],
+                  body: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Form(
+                        key: GlobalKey<FormState>(),
+                        autovalidateMode: AutovalidateMode.disabled,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ${screenWidgetsCode}
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -109,33 +112,36 @@ export class CodeGenerationService {
           @override
           Widget build(BuildContext context) {
             return Drawer(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  const DrawerHeader(
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                    ),
-                    child: Text(
-                      "${projectName}",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    const DrawerHeader(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                      ),
+                      child: Text(
+                        "${projectName}",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                        ),
                       ),
                     ),
-                  ),
-                  ${screens
-                .map(
-                    (screen) => `
-                  ListTile(
-                    title: Text("${screen.name}"),
-                    onTap: () {
-                      Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
-                    },
-                  ),`
-                )
-                .join('\n')}
-                ],
+                    ${screens
+                  .map(
+                      (screen) => `
+                    ListTile(
+                      title: Text("${screen.name}"),
+                      onTap: () {
+                        Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
+                      },
+                    ),`
+                  )
+                  .join('\n')}
+                  ],
+                ),
               ),
             );
           }
@@ -244,12 +250,15 @@ class ${screenClassName} extends StatelessWidget {
         ],
       ),
       drawer: const NavigationDrawer(),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
 ${screenWidgetsCode}
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -284,47 +293,50 @@ class NavigationDrawer extends StatelessWidget {
       backgroundColor: ${drawerWidget.props.backgroundColor ? `Color(0xFF${drawerWidget.props.backgroundColor.substring(1).toUpperCase()})` : 'Colors.white'},
       width: ${drawerWidget.props.width || 300},
       elevation: ${drawerWidget.props.elevation || 16},
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          UserAccountsDrawerHeader(
-            accountName: Text("${drawerWidget.props.userName || 'User Name'}"),
-            accountEmail: Text("${drawerWidget.props.userEmail || 'user@example.com'}"),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                "${drawerWidget.props.avatarText || 'U'}",
-                style: TextStyle(
-                  fontSize: 40.0,
-                  color: ${drawerWidget.props.avatarColor ?
-                    `Color(0xFF${drawerWidget.props.avatarColor.substring(1).toUpperCase()})` :
-                    'Colors.blue'}
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: Text("${drawerWidget.props.userName || 'User Name'}"),
+              accountEmail: Text("${drawerWidget.props.userEmail || 'user@example.com'}"),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Text(
+                  "${drawerWidget.props.avatarText || 'U'}",
+                  style: TextStyle(
+                    fontSize: 40.0,
+                    color: ${drawerWidget.props.avatarColor ?
+                      `Color(0xFF${drawerWidget.props.avatarColor.substring(1).toUpperCase()})` :
+                      'Colors.blue'}
+                  ),
                 ),
               ),
+              decoration: BoxDecoration(
+                color: ${drawerWidget.props.headerColor ?
+                  `Color(0xFF${drawerWidget.props.headerColor.substring(1).toUpperCase()})` :
+                  'Colors.blue'},
+              ),
             ),
-            decoration: BoxDecoration(
-              color: ${drawerWidget.props.headerColor ?
-                `Color(0xFF${drawerWidget.props.headerColor.substring(1).toUpperCase()})` :
-                'Colors.blue'},
+            // Add screen navigation items here
+            Divider(),
+            ListTile(
+              leading: Icon(Icons.settings),
+              title: Text("Settings"),
+              onTap: () {
+                // Navigate to settings
+              },
             ),
-          ),
-          // Add screen navigation items here
-          Divider(),
-          ListTile(
-            leading: Icon(Icons.settings),
-            title: Text("Settings"),
-            onTap: () {
-              // Navigate to settings
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.help),
-            title: Text("Help & Feedback"),
-            onTap: () {
-              // Navigate to help
-            },
-          ),
-        ],
+            ListTile(
+              leading: Icon(Icons.help),
+              title: Text("Help & Feedback"),
+              onTap: () {
+                // Navigate to help
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
