@@ -469,6 +469,75 @@ export class ImageProcessingService {
                     props.onChanged = '(value) {}';
                     break;
 
+                case 'table':
+                case 'Table':
+                    type = 'Table';
+                    console.log('Processing Table component:', component);
+
+                    // Process table structure if available
+                    if (component.estructure && component.estructure.type === 'Table' && component.estructure.children) {
+                        console.log('Found table structure in component.estructure');
+                        // Extract columns from the first row
+                        const columns: string[] = [];
+                        const rows: any[] = [];
+
+                        // Process each row in the table
+                        component.estructure.children.forEach((row: any) => {
+                            if (row.type === 'TableRow' && row.children && row.children.length > 0) {
+                                const rowData: string[] = [];
+
+                                // Process each cell in the row
+                                row.children.forEach((cell: any) => {
+                                    if (cell.type === 'TableCell' && cell.child) {
+                                        // Extract text from the cell
+                                        const cellText = cell.child.text || '';
+                                        rowData.push(cellText);
+
+                                        // If this is the first row, use it for column headers
+                                        if (rows.length === 0) {
+                                            columns.push(cellText);
+                                        }
+                                    }
+                                });
+
+                                // Add the row data if it's not empty
+                                if (rowData.length > 0) {
+                                    rows.push(rowData);
+                                }
+                            }
+                        });
+
+                        // Log the extracted table data for debugging
+                        console.log('Extracted table columns:', columns);
+                        console.log('Extracted table rows:', rows);
+
+                        // Set the table properties
+                        props.columns = columns.length > 0 ? columns : ['Column 1', 'Column 2', 'Column 3'];
+                        props.rows = rows.length > 0 ? rows : [
+                            ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                            ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3']
+                        ];
+                        props.border = true;
+                        props.headerColor = '#E0E0E0';
+                        props.cellPadding = 8;
+                        props.borderColor = '#BDBDBD';
+                        props.textAlign = 'center';
+                    } else {
+                        // Default table properties if structure is not available
+                        props.columns = ['Column 1', 'Column 2', 'Column 3'];
+                        props.rows = [
+                            ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                            ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3'],
+                            ['Row 3, Col 1', 'Row 3, Col 2', 'Row 3, Col 3']
+                        ];
+                        props.border = true;
+                        props.headerColor = '#E0E0E0';
+                        props.cellPadding = 8;
+                        props.borderColor = '#BDBDBD';
+                        props.textAlign = 'center';
+                    }
+                    break;
+
                 default:
                     // If type is not recognized, try to map it to a supported widget type based on patterns
                     const lowerType = component.type.toLowerCase();
@@ -523,6 +592,62 @@ export class ImageProcessingService {
                         props.groupValue = labelText || 'Options';
                         props.title = labelText || 'Options';
                         props.options = '[{"label": "Option 1", "value": "1"}, {"label": "Option 2", "value": "2"}]';
+                    }
+                    // Check for table patterns or if the component has a table structure
+                    else if (lowerType.includes('table') || component.estructure?.type === 'Table') {
+                        type = 'Table';
+                        // Process table structure if available
+                        if (component.estructure && component.estructure.type === 'Table' && component.estructure.children) {
+                            // Extract columns from the first row
+                            const columns: string[] = [];
+                            const rows: any[] = [];
+
+                            // Process each row in the table
+                            component.estructure.children.forEach((row: any) => {
+                                if (row.type === 'TableRow' && row.children && row.children.length > 0) {
+                                    const rowData: string[] = [];
+
+                                    // Process each cell in the row
+                                    row.children.forEach((cell: any) => {
+                                        if (cell.type === 'TableCell' && cell.child) {
+                                            // Extract text from the cell
+                                            const cellText = cell.child.text || '';
+                                            rowData.push(cellText);
+
+                                            // If this is the first row, use it for column headers
+                                            if (rows.length === 0) {
+                                                columns.push(cellText);
+                                            }
+                                        }
+                                    });
+
+                                    // Add the row data if it's not empty
+                                    if (rowData.length > 0) {
+                                        rows.push(rowData);
+                                    }
+                                }
+                            });
+
+                            // Set the table properties
+                            props.columns = columns.length > 0 ? columns : ['Column 1', 'Column 2', 'Column 3'];
+                            props.rows = rows.length > 0 ? rows : [
+                                ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                                ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3']
+                            ];
+                        } else {
+                            // Default table properties if structure is not available
+                            props.columns = ['Column 1', 'Column 2', 'Column 3'];
+                            props.rows = [
+                                ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                                ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3'],
+                                ['Row 3, Col 1', 'Row 3, Col 2', 'Row 3, Col 3']
+                            ];
+                        }
+                        props.border = true;
+                        props.headerColor = '#E0E0E0';
+                        props.cellPadding = 8;
+                        props.borderColor = '#BDBDBD';
+                        props.textAlign = 'center';
                     }
                     // Default to Container if no pattern matches
                     else {

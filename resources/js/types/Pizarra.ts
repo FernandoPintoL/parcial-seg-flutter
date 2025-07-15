@@ -9,6 +9,7 @@ export interface Pizarra {
     created_at?: string;
     isHome? : boolean;
     isDrawer? : boolean;
+    users: Record<string, any>;
 }
 /*export interface PizarraScreen {
     id: string;

@@ -18,6 +18,24 @@ watch(
     () => props.selectedWidget,
     (newVal) => {
         localProps.value = { ...newVal?.props };
+
+        // Debug: Log widget type and properties
+        if (newVal) {
+            console.log('Selected widget type:', newVal.type);
+            console.log('Selected widget properties:', newVal.props);
+
+            // Check if widget type exists in availableWidgets
+            const widgetDef = props.availableWidgets.find((w: any) => w.type === newVal.type);
+            console.log('Widget definition found:', widgetDef ? 'yes' : 'no');
+
+            if (widgetDef) {
+                // Check if each property exists in the widget definition
+                Object.keys(newVal.props).forEach(key => {
+                    const propDef = widgetDef.properties.find((p: any) => p.name === key);
+                    console.log(`Property '${key}' definition found:`, propDef ? 'yes' : 'no', propDef ? `(type: ${propDef.type})` : '');
+                });
+            }
+        }
     },
     { immediate: true, deep: true },
 );
@@ -50,11 +68,15 @@ function isBoolean(val: unknown): boolean {
                 <!-- String input -->
                 <input
                     v-if="
-                        isString(value) &&
+                        (isString(value) &&
                         !(
                             props.availableWidgets.find((w: any) => w.type === props.selectedWidget.type)?.properties.find((p: any) => p.name === key)?.type ===
                             'select'
-                        )
+                        )) ||
+                        // Special case for Card widgets to ensure string properties are displayed correctly
+                        (props.selectedWidget.type === 'Card' && ['title', 'subtitle', 'content', 'imageUrl', 'margin'].includes(key)) ||
+                        (props.selectedWidget.type === 'CardText' && ['title', 'subtitle', 'content'].includes(key)) ||
+                        (props.selectedWidget.type === 'ListCard' && ['title', 'subtitle', 'leading', 'trailing', 'imageUrl'].includes(key))
                     "
                     v-model="localProps[key]"
                     type="text"
@@ -64,7 +86,12 @@ function isBoolean(val: unknown): boolean {
 
                 <!-- Number input -->
                 <input
-                    v-else-if="isNumber(value)"
+                    v-else-if="isNumber(value) ||
+                        // Special case for Card widgets to ensure number properties are displayed correctly
+                        (props.selectedWidget.type === 'Card' && ['elevation', 'borderRadius', 'width', 'height', 'imageHeight'].includes(key)) ||
+                        (props.selectedWidget.type === 'CardText' && ['elevation', 'borderRadius', 'width', 'height'].includes(key)) ||
+                        (props.selectedWidget.type === 'ListCard' && ['elevation', 'borderRadius', 'width', 'height', 'imageHeight'].includes(key))
+                    "
                     v-model.number="localProps[key]"
                     type="number"
                     class="rounded-md border px-3 py-2"
@@ -72,7 +99,12 @@ function isBoolean(val: unknown): boolean {
                 />
 
                 <!-- Boolean input -->
-                <div v-else-if="isBoolean(value)" class="flex items-center">
+                <div v-else-if="isBoolean(value) ||
+                    // Special case for Card widgets to ensure boolean properties are displayed correctly
+                    (props.selectedWidget.type === 'Card' && ['showImage', 'showDivider', 'showActions'].includes(key)) ||
+                    (props.selectedWidget.type === 'CardText' && ['showImage', 'showDivider', 'showActions'].includes(key)) ||
+                    (props.selectedWidget.type === 'ListCard' && ['showImage'].includes(key))
+                " class="flex items-center">
                     <input :id="String(key)" v-model="localProps[key]" type="checkbox" class="mr-2" @change="emitUpdate(key, localProps[key])" />
                     <label :for="String(key)">{{ localProps[key] ? 'Sí' : 'No' }}</label>
                 </div>
@@ -81,7 +113,11 @@ function isBoolean(val: unknown): boolean {
                 <div
                     v-else-if="
                         props.availableWidgets.find((w: any) => w.type === props.selectedWidget.type)?.properties.find((p: any) => p.name === key)?.type ===
-                        'color'
+                        'color' ||
+                        // Special case for Card widgets to ensure color properties are displayed correctly
+                        (props.selectedWidget.type === 'Card' && key === 'color') ||
+                        (props.selectedWidget.type === 'CardText' && key === 'color') ||
+                        (props.selectedWidget.type === 'ListCard' && key === 'color')
                     "
                     class="flex flex-col gap-2"
                 >
@@ -124,7 +160,10 @@ function isBoolean(val: unknown): boolean {
                 </select>
 
                 <!-- Array input -->
-                <div v-else-if="Array.isArray(value)" class="flex flex-col gap-2">
+                <div v-else-if="Array.isArray(value) ||
+                    // Special case for Card widgets to ensure array properties are displayed correctly
+                    (props.selectedWidget.type === 'Card' && ['actionButtons'].includes(key))
+                " class="flex flex-col gap-2">
                     <div v-for="(item, index) in value" :key="index" class="flex gap-2">
                         <input
                             v-model="localProps[key][index]"

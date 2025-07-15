@@ -44,7 +44,7 @@ class ChatController extends Controller
             'is_system_message' => 'boolean',
         ]);
 
-        // Find the form
+        // Find the pizarra
         $pizarra = Pizarra::findOrFail($validated['pizarra_id']);
 
         // Check if user has access to this form
@@ -62,7 +62,7 @@ class ChatController extends Controller
         // Load the user relationship
         $message->load('user:id,name,email');
 
-        return response()->json($message, 201);
+        return response()->json($message, 200);
     }
 
     /**

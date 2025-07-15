@@ -37,7 +37,7 @@ export default defineConfig({
         cors: true,
         proxy: {
             '/api/scan': {
-                target: 'http://192.168.100.21:10000',
+                target: process.env.VITE_URL_SCANNER,
                 changeOrigin: true,
                 secure: false
             }

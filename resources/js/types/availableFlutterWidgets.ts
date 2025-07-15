@@ -595,6 +595,25 @@ export const availableFlutterWidgets: FlutterWidgetDefinition[] = [
         ],
         hasChildren: true,
     },
+    {
+        type: 'Table',
+        category: 'input',
+        label: 'Table',
+        properties: [
+            { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
+            { name: 'rows', type: 'array', defaultValue: [
+                ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3'],
+                ['Row 3, Col 1', 'Row 3, Col 2', 'Row 3, Col 3']
+            ] },
+            { name: 'border', type: 'boolean', defaultValue: true },
+            { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' },
+            { name: 'cellPadding', type: 'number', defaultValue: 8 },
+            { name: 'borderColor', type: 'color', defaultValue: '#BDBDBD' },
+            { name: 'textAlign', type: 'select', defaultValue: 'center', options: ['left', 'center', 'right'] },
+        ],
+        hasChildren: false,
+    },
 
 ];
 

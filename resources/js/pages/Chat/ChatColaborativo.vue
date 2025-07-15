@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, defineProps, reactive, onMounted } from 'vue';
+import { ref, defineProps, reactive, onMounted, watch } from 'vue';
 import type { Chats } from '@/types/Pizarra';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';
@@ -9,6 +9,7 @@ const props = defineProps<{
     roomId: string | null;
     currentUser: string;
     showChat: boolean;
+    socketUrl?: string; // URL for socket server
 }>();
 
 // Variables del chat
@@ -29,9 +30,13 @@ const emit = defineEmits<{
 // Función para cargar mensajes históricos
 async function loadChatMessages() {
     try {
-        const response = await axios.get(`/chat/messages/${props.roomId}`);
-        chatMessages.value = response.data;
-        scrollToBottom();
+        // Use the provided socketUrl or fallback to default
+        const baseUrl = props.socketUrl || 'http://localhost:4000';
+        const response = await axios.get(`${baseUrl}/chat-history/${props.roomId}`);
+        if (response.data && response.data.success && response.data.messages) {
+            chatMessages.value = response.data.messages;
+            scrollToBottom();
+        }
     } catch (error) {
         console.error('Error al cargar mensajes:', error);
     }
@@ -56,25 +61,61 @@ function onSubmit() {
 }
 
 // Función para el evento de typing
-function onInput(e: Event) {
+function onInput() {
     emit('typing');
 }
 
+// Watch for changes to showChat prop
+watch(() => props.showChat, (newValue) => {
+    if (newValue === true) {
+        // When chat is opened, scroll to bottom
+        setTimeout(scrollToBottom, 100); // Small delay to ensure DOM is updated
+    }
+});
+
 onMounted(() => {
     loadChatMessages();
+
+    // If chat is already open when component is mounted, scroll to bottom
+    if (props.showChat) {
+        setTimeout(scrollToBottom, 100);
+    }
+
     // Escucha el evento de mensajes del servidor
     props.socket.on('chatMessage', (message: Chats) => {
-        chatMessages.value.push(message);
-        scrollToBottom();
+        try {
+            chatMessages.value.push(message);
+            scrollToBottom();
+        } catch (error) {
+            console.error('Error al procesar mensaje de chat:', error);
+        }
     });
 
-    // Escucha el evento de usuarios escribiendo
-    props.socket.on('userTyping', (typingInfo: { user: string }) => {
-        chatTyping.typing = `${typingInfo.user} está escribiendo...`;
-        if (chatTyping.timeout) clearTimeout(chatTyping.timeout);
-        chatTyping.timeout = setTimeout(() => {
-            chatTyping.typing = '';
-        }, 3000);
+    // Escucha el evento de historial de chat
+    props.socket.on('chatHistory', (data: { messages: Chats[], roomId: string }) => {
+        try {
+            if (data && data.messages && data.roomId === props.roomId) {
+                chatMessages.value = data.messages;
+                scrollToBottom();
+            }
+        } catch (error) {
+            console.error('Error al procesar historial de chat:', error);
+        }
+    });
+
+    // Escucha el evento de usuarios escribiendo (escribiendo = typing in Spanish)
+    props.socket.on('escribiendo', (typingInfo: { user: string }) => {
+        try {
+            if (typingInfo && typingInfo.user) {
+                chatTyping.typing = `${typingInfo.user} está escribiendo...`;
+                if (chatTyping.timeout) clearTimeout(chatTyping.timeout);
+                chatTyping.timeout = setTimeout(() => {
+                    chatTyping.typing = '';
+                }, 3000);
+            }
+        } catch (error) {
+            console.error('Error al procesar evento de escritura:', error);
+        }
     });
 });
 </script>
@@ -103,15 +144,15 @@ onMounted(() => {
                 v-for="(msg, index) in chatMessages"
                 :key="index"
                 class="mb-3"
-                :class="msg.user_name === currentUser ? 'text-right' : 'text-left'"
+                :class="(msg.user_name || msg.user) === currentUser ? 'text-right' : 'text-left'"
             >
                 <div
                     class="inline-block px-3 py-2 rounded-lg max-w-[80%]"
-                    :class="msg.user_name === currentUser ? 'bg-blue-100 dark:bg-blue-900 dark:bg-opacity-30' : 'bg-gray-100 dark:bg-gray-700'"
+                    :class="(msg.user_name || msg.user) === currentUser ? 'bg-blue-100 dark:bg-blue-900 dark:bg-opacity-30' : 'bg-gray-100 dark:bg-gray-700'"
                 >
-                    <div class="font-semibold text-xs text-gray-600 dark:text-gray-300">{{ msg.user_name }}</div>
-                    <div class="dark:text-white">{{ msg.message }}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ new Date(msg.created_at).toLocaleTimeString() }}
+                    <div class="font-semibold text-xs text-gray-600 dark:text-gray-300">{{ msg.user_name || msg.user }}</div>
+                    <div class="dark:text-white">{{ msg.message || msg.text }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ new Date(msg.created_at || msg.timestamp).toLocaleTimeString() }}
                     </div>
                 </div>
             </div>

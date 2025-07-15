@@ -20,7 +20,8 @@ const socketOptions = {
  */
 export function getSocketConfig(useLocal = false) {
     // Check if environment variables are defined
-    const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
+    const envLocalSocketUrl = import.meta.env.VITE_SOCKET_URL_LOCAL;
+    const envOnlineSocketUrl = import.meta.env.VITE_SOCKET_URL_ONLINE;
     const envUseLocalSocket = import.meta.env.VITE_USE_LOCAL_SOCKET === 'true';
 
     // Determine which socket URL to use
@@ -28,11 +29,13 @@ export function getSocketConfig(useLocal = false) {
 
     if (useLocal || envUseLocalSocket) {
         // Use local socket server if explicitly requested
-        socketUrl = envSocketUrl || SOCKET_LOCAL_URL;
+        socketUrl = envLocalSocketUrl || SOCKET_LOCAL_URL;
     } else {
         // Otherwise use production socket server
-        socketUrl = envSocketUrl || SOCKET_PROD_URL;
+        socketUrl = envOnlineSocketUrl || SOCKET_PROD_URL;
     }
+
+    console.log(`Using socket URL: ${socketUrl}, local: ${useLocal || envUseLocalSocket}`);
 
     return {
         url: socketUrl,

@@ -259,7 +259,7 @@ const processProps = (props: ElementProps): ElementProps => {
 
         <!-- DataTable Widget -->
         <TableFlutter
-            v-else-if="element.type === 'DataTable' || element.type === 'TableFlutter' || element.type === 'TableList'"
+            v-else-if="element.type === 'DataTable' || element.type === 'TableFlutter' || element.type === 'TableList' || element.type === 'Table'"
             v-bind="processProps(element.props)"
         />
 

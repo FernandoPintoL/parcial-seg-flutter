@@ -17,6 +17,393 @@ use Inertia\Inertia;
 class PizarraController extends Controller
 {
     /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $user = auth()->user();
+
+        // Get pizarras created by the user
+        $ownedPizarras = Pizarra::where('user_id', $user->id)
+            ->where('isHome', true)->get();
+
+        // Get pizarras the user is collaborating on (with accepted status)
+        $collaboratingPizarras = $user->collaborating()
+            ->wherePivot('status', 'accepted')
+            ->get();
+
+        // Get pending invitations
+        $pendingInvitations = $user->collaborating()
+            ->wherePivot('status', 'pending')
+            ->get();
+
+        return Inertia::render('PizarraFlutter/Index', [
+            'ownedPizarras' => $ownedPizarras,
+            'collaboratingPizarras' => $collaboratingPizarras,
+            'pendingInvitations' => $pendingInvitations
+        ]);
+    }
+
+    /**
+     * Display a listing of the Flutter pizarras.
+     */
+    public function indexFlutter()
+    {
+        $pizarras = Pizarra::where(function ($query) {
+                $query->where('user_id', Auth::id())
+                    ->orWhereHas('collaborators', function ($query) {
+                        $query->where('user_id', Auth::id())
+                            ->where('status', 'accepted');
+                    });
+            })
+            ->get();
+
+        return Inertia::render('PizarraFlutter/Index', [
+            'pizarras' => $pizarras
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return Inertia::render('PizarraFlutter/Create');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(StorePizarraRequest $request)
+    {
+        $isHome = $request->isHome ?? false;
+        $pizarra = null;
+        if($isHome){
+            $pizarra = Pizarra::create([
+                'name' => $request->name,
+                'user_id' => auth()->id(),
+                'isHome' => $request->isHome,
+                'screens' => $request->screen ?? json_encode([]),
+                'elements' => $request->elements ?? json_encode([]),
+            ]);
+            $pizarra->update([
+                'room_id' => 'room_'.$pizarra->id,
+            ]);
+        }else{
+            $pizarra = Pizarra::create([
+                'name' => $request->name,
+                'user_id' => auth()->id(),
+                'isHome' => false,
+                'pizarra_id' => $request->pizarra_id, // id de la pizarra padre
+                'screens' => $request->screen ?? json_encode([]),
+                'elements' => $request->elements ?? json_encode([]),
+            ]);
+        }
+        return response()->json($pizarra, 200);
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Pizarra $pizarra)
+    {
+        // Check if user is authorized to view this pizarra
+        if (!$pizarra->isCollaboratingOrPropietario(Auth::id())) {
+            abort(403, 'Unauthorized action.');
+        }
+        return Inertia::render('PizarraFlutter/Index', [
+            'user' => auth()->user(),
+            'pizarra' => $pizarra,
+            'isCreador' => $pizarra->user_id === auth()->id(),
+            'creador' => $pizarra->user,
+        ]);
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Pizarra $pizarra)
+    {
+        // verifica si el usuario esta autenticado redireccionar a la pagina de login
+        if (!Auth::check()) {
+            return redirect()->route('login')->with('redirect', route('pizarra.edit', $pizarra->id));
+        }
+
+        // verifica si no es colaborador o propietario
+        if ($pizarra->user_id !== Auth::id() && !$pizarra->collaborators()->where('user_id', Auth::id())->exists()) {
+            abort(403, 'Acción no autorizada.');
+        }
+
+        return Inertia::render('PizarraFlutter/PizarraFlutter', [
+            'user' => auth()->user(),
+            'pizarra' => $pizarra,
+            'isCreador' => $pizarra->user_id === auth()->id(),
+            'creador' => $pizarra->user,
+            'collaborators' => $pizarra->collaborators(),
+            'screens' => $pizarra->pizarraHijas()->get(),
+            'widgets' => Widget::with('categoria')->get(),
+            'categoriasWidget' => CategoriaWidget::all(),
+        ]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(UpdatePizarraRequest $request, Pizarra $pizarra)
+    {
+        // Check if user is authorized to update this pizarra
+        if ($pizarra->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $pizarra->name = $request->name;
+
+        // Update elements (legacy support) - handle large data more efficiently
+        if ($request->has('elements')) {
+            // Store elements directly without additional processing
+            $pizarra->elements = $request->input('elements');
+        }
+
+        // Handle screens data efficiently
+        if ($request->has('screens')) {
+            // Store screens directly without additional processing
+            $pizarra->screens = $request->input('screens');
+        }
+
+        if($pizarra->id === null){
+            return response()->json(['error' => 'Pizarra not found'], 404);
+        }else{
+            $pizarra->pizarra_id = $pizarra->id;
+        }
+
+        // Save with reduced memory usage
+        $pizarra->save();
+
+        // Return minimal response to reduce memory usage
+        return response()->json([
+            'id' => $pizarra->id,
+            'name' => $pizarra->name,
+            'updated_at' => $pizarra->updated_at
+        ]);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Pizarra $pizarra)
+    {
+        // Check if user is authorized to delete this pizarra
+        if ($pizarra->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        if ($pizarra->user_id !== auth()->id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        Pizarra::where('pizarra_id', $pizarra->id)->delete();
+        $pizarra->delete();
+
+        return response()->json(['message' => 'Pizarra deleted successfully'], 200);
+    }
+
+    /**
+     * Remove the specified child pizarra from storage.
+     */
+    public function destroyHija(Pizarra $pizarra)
+    {
+        // Check if user is authorized to delete this pizarra
+        if ($pizarra->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Check if user is authorized to delete this pizarra
+        if ($pizarra->user_id !== auth()->id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $pizarra_hija = Pizarra::where('pizarra_id', $pizarra->id)->first();
+        $pizarra_hija->delete();
+
+        return redirect()->route('pizarra.edit', $pizarra->id)
+            ->with('message', 'Pizarra hija eliminada con éxito');
+    }
+
+    /**
+     * Invite a user to collaborate on a pizarra.
+     */
+    public function inviteCollaborator(Request $request, Pizarra $pizarra)
+    {
+        if ($pizarra->user_id !== Auth::id()) {
+            return response()->json(['message' => 'No estás autorizado a invitar colaboradores a esta pizarra.'], 403);
+        }
+
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Comprueba si el usuario ya es colaborador.
+        if ($pizarra->collaborators()->where('user_id', $user->id)->exists()) {
+            return response()->json(['message' => 'El usuario ya es colaborador'], 422);
+        }
+
+        // Crear el registro de colaboración
+        $pizarra->collaborators()->attach($user->id, ['status' => 'pending']);
+
+        // Send notification to the user
+        $user->notify(new PizarraInvitation($pizarra, Auth::user()));
+
+        return response()->json(['message' => 'Invitación enviada exitosamente']);
+    }
+    /**
+     * Accept an invitation to collaborate on a pizarra.
+     */
+    public function acceptInvitation(Pizarra $pizarra)
+    {
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
+            ->where('user_id', Auth::id())
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$collaboration) {
+            abort(404, 'Invitación no encontrada.');
+        }
+
+        $collaboration->update(['status' => 'accepted']);
+
+        return response()->json(['message' => 'Invitation accepted successfully']);
+    }
+
+    /**
+     * Reject an invitation to collaborate on a pizarra.
+     */
+    public function rejectInvitation(Pizarra $pizarra)
+    {
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
+            ->where('user_id', Auth::id())
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$collaboration) {
+            abort(404, 'Invitación no encontrada.');
+        }
+
+        $collaboration->delete();
+
+        return response()->json(['message' => 'Invitación rechazada exitosamente']);
+    }
+
+    /**
+     * Deja una colaboración en una pizarra.
+     */
+    public function leaveCollaboration(Pizarra $pizarra)
+    {
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
+            ->where('user_id', Auth::id())
+            ->where('status', 'accepted')
+            ->first();
+
+        if (!$collaboration) {
+            abort(404, 'Collaboration not found.');
+        }
+
+        $collaboration->delete();
+
+        return response()->json(['message' => 'Left collaboration successfully']);
+    }
+
+    /**
+     * Get the collaborators of a pizarra.
+     */
+    public function getCollaborators(Pizarra $pizarra){
+        // Comprobar si el usuario está autorizado para ver colaboradores
+        if (!$pizarra->isCollaboratingOrPropietario(Auth::id())) {
+            abort(403, 'Acción no autorizada.');
+        }
+
+        $collaborators = $pizarra->collaborators()->with('user')->get();
+
+        return response()->json(['collaborators' => $collaborators]);
+    }
+
+    /**
+     * Manejar un enlace de invitación.
+     */
+    public function handleInviteLink(Pizarra $pizarra)
+    {
+        // Compruebe si el usuario está autenticado
+        if (!Auth::check()) {
+            // Redirect to login page with a redirect back to this page after login
+            return redirect()->route('login')->with('redirect', route('pizarra-flutter.invite-link', $pizarra->id));
+        }
+        // Comprueba si el usuario ya es colaborador.
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if ($collaboration) {
+            if ($collaboration->status === 'accepted') {
+                return redirect()->route('pizarra.index');
+            } elseif ($collaboration->status === 'rejected') {
+                // Update status to pending
+                $collaboration->update(['status' => 'pending']);
+            }
+        }
+
+        // Create a pending collaboration
+        $pizarra->collaborators()->attach(Auth::id(), ['status' => 'pending']);
+
+        // Redirect to pizarra flutter index with the invitation highlighted
+        return redirect()->route('pizarra.index')
+            ->with('highlight_invitation', $pizarra->id)
+            ->with('message', 'Has sido invitado a colaborar en "' . $pizarra->name . '". Por favor revise sus invitaciones pendientes.');
+    }
+
+    /**
+     * Handle an invitation link for Angular pizarras.
+     */
+    public function handleInviteLinkAngular(Pizarra $pizarra)
+    {
+        // Check if user is already a collaborator
+        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
+            ->where('user_id', Auth::id())
+            ->first();
+
+        if ($collaboration) {
+            if ($collaboration->status === 'accepted') {
+                return redirect()->route('pizarra.angular.show', $pizarra);
+            } else {
+                return Inertia::render('PizarraAngular/InvitationPending', [
+                    'pizarra' => $pizarra->load('user')
+                ]);
+            }
+        }
+
+        // Create a pending collaboration
+        $pizarra->collaborators()->attach(Auth::id(), ['status' => 'pending']);
+
+        return Inertia::render('PizarraAngular/InvitationPending', [
+            'pizarra' => $pizarra->load('user')
+        ]);
+    }
+
+    /**
+     * Scan an image and extract text.
+     */
+    public function scanImage(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|image|max:2048'
+        ]);
+
+        // Process the image and extract text
+        // This is a placeholder implementation
+        $text = "Extracted text from image";
+
+        return response()->json(['text' => $text]);
+    }
+
+    /**
      * Generate and download a complete Flutter project
      *
      * @param Request $request
@@ -32,7 +419,6 @@ class PizarraController extends Controller
         ]);*/
 
         // For GET requests, the parameters are in the query string
-
         try {
             // Get required data with memory efficiency
             $projectName = $request->input('project_name', 'flutter_project');
@@ -125,6 +511,77 @@ class PizarraController extends Controller
     }
 
     /**
+     * Extract all StatelessWidget classes from Flutter code
+     *
+     * @param string $code
+     * @return array
+     */
+    private function extractStatelessWidgetClasses($code)
+    {
+        $classes = [];
+
+        // Regular expression to match class declarations that extend StatelessWidget
+        $pattern = '/class\s+(\w+)\s+extends\s+StatelessWidget\s*{([^{}]*({[^{}]*})*[^{}]*)*}/s';
+
+        if (preg_match_all($pattern, $code, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $className = $match[1];
+                $classCode = $match[0];
+                $classes[$className] = $classCode;
+            }
+        }
+
+        return $classes;
+    }
+
+    /**
+     * Extract all Screen classes from Flutter code
+     * A Screen class is a StatelessWidget that typically has a Scaffold in its build method
+     *
+     * @param string $code
+     * @return array
+     */
+    private function extractScreenClasses($code)
+    {
+        // First, extract all StatelessWidget classes
+        $classes = $this->extractStatelessWidgetClasses($code);
+        $screenClasses = [];
+
+        // Identify which classes are screens (typically contain Scaffold or are named with "Screen")
+        foreach ($classes as $className => $classCode) {
+            // Check if the class contains a Scaffold widget or has "Screen" in its name
+            if (strpos($classCode, 'Scaffold(') !== false ||
+                strpos($className, 'Screen') !== false ||
+                $className === 'Home' ||
+                $className === 'NavigationDrawer') {
+                $screenClasses[$className] = $classCode;
+            }
+        }
+
+        return $screenClasses;
+    }
+
+    /**
+     * Convert a string to snake_case
+     *
+     * @param string $input
+     * @return string
+     */
+    private function toSnakeCase($input)
+    {
+        // Replace any non-alphanumeric characters with underscores
+        $output = preg_replace('/[^a-zA-Z0-9]/', '_', $input);
+
+        // Convert camelCase to snake_case
+        $output = preg_replace('/([a-z])([A-Z])/', '$1_$2', $output);
+
+        // Convert to lowercase
+        $output = strtolower($output);
+
+        return $output;
+    }
+
+    /**
      * Create the Flutter project structure
      *
      * @param string $dir
@@ -140,20 +597,209 @@ class PizarraController extends Controller
             mkdir($libDir, 0755, true);
         }
 
-        // Create the main.dart file
-        $mainDartContent = "import 'package:flutter/material.dart';\nimport 'my_flutter_app.dart';\n\nvoid main() {\n  runApp(MaterialApp(\n    title: '$projectName',\n    theme: ThemeData(\n      primarySwatch: Colors.blue,\n    ),\n    home: const MyFlutterApp(),\n  ));\n}\n";
-        file_put_contents($libDir . '/main.dart', $mainDartContent);
+        // Extract all Screen classes from the code
+        $screenClasses = $this->extractScreenClasses($code);
 
-        // Create the my_flutter_app.dart file with the generated code
-        file_put_contents($libDir . '/my_flutter_app.dart', $code);
+        // Extract all StatelessWidget classes that are not screens
+        $allClasses = $this->extractStatelessWidgetClasses($code);
+        $otherWidgetClasses = array_diff_key($allClasses, $screenClasses);
 
-        // Create the pubspec.yaml file
-        $pubspecContent = "name: " . strtolower(str_replace(' ', '_', $projectName)) . "\ndescription: A new Flutter project.\n\npublish_to: 'none'\n\nversion: 1.0.0+1\n\nenvironment:\n  sdk: '>=3.0.0 <4.0.0'\n\ndependencies:\n  flutter:\n    sdk: flutter\n  cupertino_icons: ^1.0.2\n\ndev_dependencies:\n  flutter_test:\n    sdk: flutter\n  flutter_lints: ^2.0.0\n\nflutter:\n  uses-material-design: true\n";
+        // Find the NavigationDrawer class
+        $navigationDrawerClass = null;
+        $otherClasses = [];
+
+        foreach ($screenClasses as $className => $classCode) {
+            if ($className === 'NavigationDrawer') {
+                $navigationDrawerClass = $classCode;
+            } else {
+                $otherClasses[$className] = $classCode;
+            }
+        }
+
+        // Create the navigation_drawer.dart file if found
+        if ($navigationDrawerClass) {
+            $navigationDrawerContent = "import 'package:flutter/material.dart';\n\n" . $navigationDrawerClass;
+            file_put_contents($libDir . '/navigation_drawer.dart', $navigationDrawerContent);
+        }
+
+        // Create a file for each Screen class
+        foreach ($otherClasses as $className => $classCode) {
+            // Create file with the same name as the class (snake_case)
+            $fileName = $this->toSnakeCase($className) . '.dart';
+
+            // Add necessary imports
+            $fileContent = "import 'package:flutter/material.dart';\n";
+
+            // Add import for NavigationDrawer if it's used in the class
+            if ($navigationDrawerClass && strpos($classCode, 'NavigationDrawer') !== false) {
+                $fileContent .= "import 'navigation_drawer.dart';\n";
+            }
+
+            // Add imports for other screens if they're referenced in this screen
+            foreach ($otherClasses as $otherClassName => $otherClassCode) {
+                if ($otherClassName !== $className && strpos($classCode, $otherClassName) !== false) {
+                    $fileContent .= "import '" . $this->toSnakeCase($otherClassName) . ".dart';\n";
+                }
+            }
+
+            // Add the class code
+            $fileContent .= "\n" . $classCode;
+
+            file_put_contents($libDir . '/' . $fileName, $fileContent);
+        }
+
+        // Create a file for each non-screen StatelessWidget class
+        if (!empty($otherWidgetClasses)) {
+            // Create widgets directory if it doesn't exist
+            $widgetsDir = $libDir . '/widgets';
+            if (!file_exists($widgetsDir)) {
+                mkdir($widgetsDir, 0755, true);
+            }
+
+            foreach ($otherWidgetClasses as $className => $classCode) {
+                // Create file with the same name as the class (snake_case)
+                $fileName = $this->toSnakeCase($className) . '.dart';
+
+                // Add necessary imports
+                $fileContent = "import 'package:flutter/material.dart';\n";
+
+                // Add import for NavigationDrawer if it's used in the class
+                if ($navigationDrawerClass && strpos($classCode, 'NavigationDrawer') !== false) {
+                    $fileContent .= "import '../navigation_drawer.dart';\n";
+                }
+
+                // Add the class code
+                $fileContent .= "\n" . $classCode;
+
+                file_put_contents($widgetsDir . '/' . $fileName, $fileContent);
+            }
+        }
+
+        // Use the corrected Flutter code from Azure for main.dart
+        file_put_contents($libDir . '/main.dart', $code);
+
+        // Create a backup of the full code for reference
+        file_put_contents($libDir . '/my_flutter_app_backup.dart', $code);
+
+        // Create standard Flutter project directories
+        $directories = [
+            $dir . '/android',
+            $dir . '/android/app',
+            $dir . '/android/app/src',
+            $dir . '/android/app/src/main',
+            $dir . '/android/app/src/main/res',
+            $dir . '/android/app/src/main/res/drawable',
+            $dir . '/android/app/src/main/res/values',
+            $dir . '/ios',
+            $dir . '/ios/Runner',
+            $dir . '/ios/Runner/Assets.xcassets',
+            $dir . '/web',
+            $dir . '/test',
+            $dir . '/assets',
+            $dir . '/assets/images',
+            $dir . '/assets/fonts',
+        ];
+
+        foreach ($directories as $directory) {
+            if (!file_exists($directory)) {
+                mkdir($directory, 0755, true);
+            }
+        }
+
+        // Create basic Android files
+        $androidManifestContent = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n    <!-- The INTERNET permission is required for development. Specifically,\n         the Flutter tool needs it to communicate with the running application\n         to allow setting breakpoints, to provide hot reload, etc.\n    -->\n    <uses-permission android:name=\"android.permission.INTERNET\"/>\n    <application\n        android:label=\"$projectName\"\n        android:icon=\"@mipmap/ic_launcher\">\n        <activity\n            android:name=\"com.fpl.example.flutterprueba.MainActivity\"\n            android:exported=\"true\"\n            android:launchMode=\"singleTop\"\n            android:theme=\"@style/LaunchTheme\"\n            android:configChanges=\"orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode\"\n            android:hardwareAccelerated=\"true\"\n            android:windowSoftInputMode=\"adjustResize\">\n            <meta-data\n              android:name=\"io.flutter.embedding.android.NormalTheme\"\n              android:resource=\"@style/NormalTheme\"\n              />\n            <intent-filter>\n                <action android:name=\"android.intent.action.MAIN\"/>\n                <category android:name=\"android.intent.category.LAUNCHER\"/>\n            </intent-filter>\n        </activity>\n        <meta-data\n            android:name=\"flutterEmbedding\"\n            android:value=\"2\" />\n    </application>\n</manifest>\n";
+        file_put_contents($dir . '/android/app/src/main/AndroidManifest.xml', $androidManifestContent);
+
+        // Create MainActivity.java file with v2 embedding
+        $packagePath = str_replace('.', '/', "com.fpl.example.flutterprueba");
+        $mainActivityDir = $dir . '/android/app/src/main/java/' . $packagePath;
+        if (!file_exists($mainActivityDir)) {
+            mkdir($mainActivityDir, 0755, true);
+        }
+
+        $mainActivityContent = "package com.fpl.example.flutterprueba;\n\nimport io.flutter.embedding.android.FlutterActivity;\n\npublic class MainActivity extends FlutterActivity {\n}\n";
+        file_put_contents($mainActivityDir . '/MainActivity.java', $mainActivityContent);
+
+        $androidStylesContent = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <style name=\"LaunchTheme\" parent=\"@android:style/Theme.Light.NoTitleBar\">\n        <item name=\"android:windowBackground\">@drawable/launch_background</item>\n    </style>\n    <style name=\"NormalTheme\" parent=\"@android:style/Theme.Light.NoTitleBar\">\n        <item name=\"android:windowBackground\">@android:color/white</item>\n    </style>\n</resources>\n";
+        file_put_contents($dir . '/android/app/src/main/res/values/styles.xml', $androidStylesContent);
+
+        $launchBackgroundContent = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<layer-list xmlns:android=\"http://schemas.android.com/apk/res/android\">\n    <item android:drawable=\"@android:color/white\" />\n</layer-list>\n";
+        file_put_contents($dir . '/android/app/src/main/res/drawable/launch_background.xml', $launchBackgroundContent);
+
+        // Create basic iOS files
+        $infoContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>CFBundleDevelopmentRegion</key>\n\t<string>en</string>\n\t<key>CFBundleExecutable</key>\n\t<string>Runner</string>\n\t<key>CFBundleIdentifier</key>\n\t<string>com.example." . strtolower(str_replace(' ', '_', $projectName)) . "</string>\n\t<key>CFBundleInfoDictionaryVersion</key>\n\t<string>6.0</string>\n\t<key>CFBundleName</key>\n\t<string>$projectName</string>\n\t<key>CFBundlePackageType</key>\n\t<string>APPL</string>\n\t<key>CFBundleShortVersionString</key>\n\t<string>1.0</string>\n\t<key>CFBundleSignature</key>\n\t<string>????</string>\n\t<key>CFBundleVersion</key>\n\t<string>1</string>\n\t<key>LSRequiresIPhoneOS</key>\n\t<true/>\n\t<key>UILaunchStoryboardName</key>\n\t<string>LaunchScreen</string>\n\t<key>UIMainStoryboardFile</key>\n\t<string>Main</string>\n\t<key>UISupportedInterfaceOrientations</key>\n\t<array>\n\t\t<string>UIInterfaceOrientationPortrait</string>\n\t\t<string>UIInterfaceOrientationLandscapeLeft</string>\n\t\t<string>UIInterfaceOrientationLandscapeRight</string>\n\t</array>\n\t<key>UISupportedInterfaceOrientations~ipad</key>\n\t<array>\n\t\t<string>UIInterfaceOrientationPortrait</string>\n\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>\n\t\t<string>UIInterfaceOrientationLandscapeLeft</string>\n\t\t<string>UIInterfaceOrientationLandscapeRight</string>\n\t</array>\n\t<key>UIViewControllerBasedStatusBarAppearance</key>\n\t<false/>\n</dict>\n</plist>\n";
+        file_put_contents($dir . '/ios/Runner/Info.plist', $infoContent);
+
+        // Create web files
+        $indexHtmlContent = "<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <meta content=\"IE=Edge\" http-equiv=\"X-UA-Compatible\">\n  <meta name=\"description\" content=\"$projectName\">\n\n  <!-- iOS meta tags & icons -->\n  <meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n  <meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black\">\n  <meta name=\"apple-mobile-web-app-title\" content=\"$projectName\">\n  <link rel=\"apple-touch-icon\" href=\"icons/Icon-192.png\">\n\n  <!-- Favicon -->\n  <link rel=\"icon\" type=\"image/png\" href=\"favicon.png\"/>\n\n  <title>$projectName</title>\n  <link rel=\"manifest\" href=\"manifest.json\">\n</head>\n<body>\n  <script>\n    window.addEventListener('load', function(ev) {\n      // Download main.dart.js\n      _flutter.loader.loadEntrypoint({\n        serviceWorker: {\n          serviceWorkerVersion: serviceWorkerVersion,\n        },\n        onEntrypointLoaded: function(engineInitializer) {\n          engineInitializer.initializeEngine().then(function(appRunner) {\n            appRunner.runApp();\n          });\n        }\n      });\n    });\n  </script>\n</body>\n</html>\n";
+        file_put_contents($dir . '/web/index.html', $indexHtmlContent);
+
+        $manifestContent = "{\n    \"name\": \"$projectName\",\n    \"short_name\": \"$projectName\",\n    \"start_url\": \".\",\n    \"display\": \"standalone\",\n    \"background_color\": \"#0175C2\",\n    \"theme_color\": \"#0175C2\",\n    \"description\": \"$projectName\",\n    \"orientation\": \"portrait-primary\",\n    \"prefer_related_applications\": false,\n    \"icons\": [\n        {\n            \"src\": \"icons/Icon-192.png\",\n            \"sizes\": \"192x192\",\n            \"type\": \"image/png\"\n        },\n        {\n            \"src\": \"icons/Icon-512.png\",\n            \"sizes\": \"512x512\",\n            \"type\": \"image/png\"\n        }\n    ]\n}\n";
+        file_put_contents($dir . '/web/manifest.json', $manifestContent);
+
+        // Create test file
+        $testContent = "import 'package:flutter_test/flutter_test.dart';\n\nvoid main() {\n  testWidgets('Counter increments smoke test', (WidgetTester tester) async {\n    // Build our app and trigger a frame.\n    // await tester.pumpWidget(const MyApp());\n\n    // Verify that our counter starts at 0.\n    // expect(find.text('0'), findsOneWidget);\n    // expect(find.text('1'), findsNothing);\n\n    // Tap the '+' icon and trigger a frame.\n    // await tester.tap(find.byIcon(Icons.add));\n    // await tester.pump();\n\n    // Verify that our counter has incremented.\n    // expect(find.text('0'), findsNothing);\n    // expect(find.text('1'), findsOneWidget);\n  });\n}\n";
+        file_put_contents($dir . '/test/widget_test.dart', $testContent);
+
+        // Define the flutter-prueba directory path
+        $flutterPruebaDir = 'D:\\proysw\\segundo-parcial-sw\\flutter-prueba';
+
+        // Copy the pubspec.yaml file from flutter-prueba
+        $pubspecContent = file_get_contents($flutterPruebaDir . '\\pubspec.yaml');
+        // Replace the name with the project name
+        $pubspecContent = preg_replace('/^name:.*$/m', 'name: ' . strtolower(str_replace(' ', '_', $projectName)), $pubspecContent);
         file_put_contents($dir . '/pubspec.yaml', $pubspecContent);
 
-        // Create the README.md file
-        $readmeContent = "# $projectName\n\nA Flutter project generated by Pizarra Flutter.\n";
+        // Project-level build.gradle.kts
+        $projectBuildGradleContent = file_get_contents($flutterPruebaDir . '\\android\\build.gradle.kts');
+        file_put_contents($dir . '/android/build.gradle.kts', $projectBuildGradleContent);
+
+        // App-level build.gradle.kts
+        $appBuildGradleContent = file_get_contents($flutterPruebaDir . '\\android\\app\\build.gradle.kts');
+        file_put_contents($dir . '/android/app/build.gradle.kts', $appBuildGradleContent);
+
+        // Create settings.gradle.kts
+        $settingsGradleContent = file_get_contents($flutterPruebaDir . '\\android\\settings.gradle.kts');
+        file_put_contents($dir . '/android/settings.gradle.kts', $settingsGradleContent);
+
+        // Create gradle.properties
+        $gradlePropertiesContent = file_get_contents($flutterPruebaDir . '\\android\\gradle.properties');
+        file_put_contents($dir . '/android/gradle.properties', $gradlePropertiesContent);
+
+        // Create local.properties file (copy from flutter-prueba but update project name if needed)
+        $localPropertiesContent = file_get_contents($flutterPruebaDir . '\\android\\local.properties');
+        file_put_contents($dir . '/android/local.properties', $localPropertiesContent);
+
+        // Copy mipmap resources (app icons)
+        $mipmapDirs = [
+            'mipmap-hdpi',
+            'mipmap-mdpi',
+            'mipmap-xhdpi',
+            'mipmap-xxhdpi',
+            'mipmap-xxxhdpi'
+        ];
+
+        foreach ($mipmapDirs as $mipmapDir) {
+            // Create the directory if it doesn't exist
+            $targetDir = $dir . '/android/app/src/main/res/' . $mipmapDir;
+            if (!file_exists($targetDir)) {
+                mkdir($targetDir, 0755, true);
+            }
+
+            // Copy the ic_launcher.png file
+            $sourceFile = $flutterPruebaDir . '\\android\\app\\src\\main\\res\\' . $mipmapDir . '\\ic_launcher.png';
+            if (file_exists($sourceFile)) {
+                copy($sourceFile, $targetDir . '/ic_launcher.png');
+            }
+        }
+
+        // Create a detailed README.md file with instructions
+        $readmeContent = "# $projectName\n\nA Flutter project generated by Pizarra Flutter.\n\n## Getting Started\n\nThis project contains a Flutter application with the UI you designed in Pizarra Flutter.\n\n### Prerequisites\n\n- Flutter SDK: https://docs.flutter.dev/get-started/install\n- Dart SDK (comes with Flutter)\n- Android Studio or VS Code with Flutter extensions\n- Android SDK (for Android development)\n- Xcode (for iOS development, macOS only)\n\n### Setup Instructions\n\n1. Extract the ZIP file\n2. Open terminal and navigate to project directory: `cd path/to/$projectName`\n3. **Important**: Configure the `android/local.properties` file with your SDK paths:\n   ```properties\n   sdk.dir=C:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk\n   flutter.sdk=C:\\path\\to\\flutter\n   ```\n   Replace the paths with your actual Android SDK and Flutter SDK paths.\n4. Get dependencies: `flutter pub get`\n5. Run the app: `flutter run`\n\n### Project Structure\n\n- `lib/`: Contains Dart code\n  - `main.dart`: Entry point\n  - `my_flutter_app.dart`: UI code from your design\n- `android/`, `ios/`, `web/`: Platform-specific files\n- `assets/`: Images, fonts, and resources\n- `test/`: Test files\n\n### Troubleshooting\n\nIf you encounter build errors related to Android embedding, ensure that:\n1. Your Flutter SDK is up to date: `flutter upgrade`\n2. The project is using Android v2 embedding (this project is already configured for v2 embedding)\n3. Your Android SDK and Flutter SDK paths are correctly set in `android/local.properties`\n\n#### Java/Gradle Compatibility Issues\n\nIf you encounter an error like this:\n```\nUnsupported class file major version 65\nBUG! exception in phase 'semantic analysis' in source unit '_BuildScript_'\n```\n\nThis indicates a compatibility issue between your Java version and the Gradle version used by the project. To fix this:\n\n1. Check your Java version: `flutter doctor --verbose` or `java -version`\n2. Update the Gradle version in `android/gradle/wrapper/gradle-wrapper.properties`:\n   - For Java 21 (version 65), use Gradle 8.5 or higher\n   - For Java 17 (version 61), use Gradle 7.6 or higher\n   - For Java 11 (version 55), use Gradle 7.0 or higher\n3. Update Java compatibility in `android/app/build.gradle`:\n   ```gradle\n   android {\n       compileOptions {\n           sourceCompatibility JavaVersion.VERSION_17\n           targetCompatibility JavaVersion.VERSION_17\n       }\n       kotlinOptions {\n           jvmTarget = '17'\n       }\n   }\n   ```\n\nFor more help, visit https://docs.flutter.dev/ or https://docs.gradle.org/current/userguide/compatibility.html#java\n";
         file_put_contents($dir . '/README.md', $readmeContent);
+
+        // Create a separate INSTRUCTIONS.md file with Spanish instructions
+        $instructionsContent = "# Instrucciones para ejecutar $projectName\n\n## Requisitos previos\n\n- Flutter SDK: https://docs.flutter.dev/get-started/install\n- Dart SDK (viene con Flutter)\n- Android Studio o VS Code con extensiones de Flutter\n- Android SDK (para desarrollo en Android)\n- Xcode (para desarrollo en iOS, solo macOS)\n\n## Pasos para ejecutar\n\n1. Extrae el archivo ZIP\n2. Abre una terminal y navega al directorio del proyecto: `cd ruta/a/$projectName`\n3. **Importante**: Configura el archivo `android/local.properties` con las rutas de tus SDKs:\n   ```properties\n   sdk.dir=C:\\Users\\TuUsuario\\AppData\\Local\\Android\\Sdk\n   flutter.sdk=C:\\ruta\\a\\flutter\n   ```\n   Reemplaza las rutas con las ubicaciones reales de tu Android SDK y Flutter SDK.\n4. Obtén las dependencias: `flutter pub get`\n5. Ejecuta la aplicación: `flutter run`\n\n## Estructura del proyecto\n\n- `lib/`: Contiene el código Dart\n  - `main.dart`: Punto de entrada\n  - `my_flutter_app.dart`: Código UI de tu diseño\n- `android/`, `ios/`, `web/`: Archivos específicos de plataforma\n- `assets/`: Imágenes, fuentes y recursos\n- `test/`: Archivos de prueba\n\n## Solución de problemas\n\nSi encuentras errores de compilación relacionados con el embedding de Android, asegúrate de que:\n1. Tu SDK de Flutter esté actualizado: `flutter upgrade`\n2. El proyecto esté usando Android v2 embedding (este proyecto ya está configurado para v2 embedding)\n3. Las rutas de tu Android SDK y Flutter SDK estén correctamente configuradas en `android/local.properties`\n\n### Problemas de compatibilidad entre Java y Gradle\n\nSi encuentras un error como este:\n```\nUnsupported class file major version 65\nBUG! exception in phase 'semantic analysis' in source unit '_BuildScript_'\n```\n\nEsto indica un problema de compatibilidad entre tu versión de Java y la versión de Gradle utilizada por el proyecto. Para solucionarlo:\n\n1. Verifica tu versión de Java: `flutter doctor --verbose` o `java -version`\n2. Actualiza la versión de Gradle en `android/gradle/wrapper/gradle-wrapper.properties`:\n   - Para Java 21 (versión 65), usa Gradle 8.5 o superior\n   - Para Java 17 (versión 61), usa Gradle 7.6 o superior\n   - Para Java 11 (versión 55), usa Gradle 7.0 o superior\n3. Actualiza la compatibilidad de Java en `android/app/build.gradle`:\n   ```gradle\n   android {\n       compileOptions {\n           sourceCompatibility JavaVersion.VERSION_17\n           targetCompatibility JavaVersion.VERSION_17\n       }\n       kotlinOptions {\n           jvmTarget = '17'\n       }\n   }\n   ```\n\nPara más ayuda, visita https://docs.flutter.dev/ o https://docs.gradle.org/current/userguide/compatibility.html#java\n";
+        file_put_contents($dir . '/INSTRUCCIONES.md', $instructionsContent);
     }
 
     /**
@@ -209,773 +855,5 @@ class PizarraController extends Controller
         }
 
         return rmdir($dir);
-    }
-
-    /**
-     * Process an uploaded image and generate Flutter UI using ROBOFLOW
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function scanImage(Request $request)
-    {
-        // Validate the request
-        $request->validate([
-            'image' => 'required|image|max:5120', // Max 5MB
-        ]);
-
-        // Variables to track resources for cleanup
-        $tempDir = null;
-        $imagePath = null;
-
-        try {
-            // Get the uploaded image
-            $image = $request->file('image');
-
-            // Create a temporary directory to store the image
-            $tempDir = storage_path('app/temp/' . uniqid('image_'));
-            if (!file_exists($tempDir)) {
-                mkdir($tempDir, 0755, true);
-            }
-
-            // Save the image to the temporary directory
-            $imagePath = $tempDir . '/' . $image->getClientOriginalName();
-            move_uploaded_file($image->getPathname(), $imagePath);
-
-            // Get ROBOFLOW credentials from environment
-            $roboflowApiKey = env('ROBOFLOW_API_KEY');
-            $modelId = env('ROBFLOW_MODEL_ID');
-
-            if (!$roboflowApiKey || !$modelId) {
-                // Clean up resources before returning
-                if ($tempDir && file_exists($tempDir)) {
-                    $this->deleteDirectory($tempDir);
-                }
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ROBOFLOW API key or model ID not configured',
-                ], 500);
-            }
-
-            // Prepare the image for ROBOFLOW - read in chunks to reduce memory usage
-            $imageData = '';
-            $handle = fopen($imagePath, 'rb');
-            while (!feof($handle)) {
-                $imageData .= fread($handle, 8192); // Read in 8KB chunks
-            }
-            fclose($handle);
-
-            $base64Image = base64_encode($imageData);
-
-            // Free up memory
-            $imageData = null;
-
-            // Call ROBOFLOW API
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post("https://detect.roboflow.com/v1/detect/{$modelId}?api_key={$roboflowApiKey}", [
-                'image' => $base64Image
-            ]);
-
-            if (!$response->successful()) {
-                \Log::error('ROBOFLOW API error: ' . $response->body());
-
-                // Clean up resources before returning
-                if ($tempDir && file_exists($tempDir)) {
-                    $this->deleteDirectory($tempDir);
-                }
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error al procesar la imagen con ROBOFLOW: ' . $response->body(),
-                ], 500);
-            }
-
-            // Process ROBOFLOW response
-            $roboflowData = $response->json();
-
-            // Convert ROBOFLOW predictions to Flutter widgets
-            $widgets = $this->convertRoboflowToFlutterWidgets($roboflowData);
-
-            // Generate a URL for the original image
-            $imageUrl = 'data:image/' . $image->getClientOriginalExtension() . ';base64,' . $base64Image;
-
-            // Generate a URL for the processed image (if ROBOFLOW returns one)
-            $processedImageUrl = $roboflowData['image'] ?? $imageUrl;
-
-            // Clean up the temporary directory to free memory
-            if ($tempDir && file_exists($tempDir)) {
-                $this->deleteDirectory($tempDir);
-            }
-
-            // Free up large variables
-            $base64Image = null;
-
-            // Return the response with both the original image, processed image, and widgets
-            return response()->json([
-                'success' => true,
-                'widgets' => $widgets,
-                'originalImage' => $imageUrl,
-                'processedImage' => $processedImageUrl,
-                'rawData' => $roboflowData,
-                'rawCode' => $this->generateFlutterCodeFromWidgets($widgets),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error scanning image: ' . $e->getMessage());
-
-            // Clean up resources in case of error
-            if ($tempDir && file_exists($tempDir)) {
-                $this->deleteDirectory($tempDir);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al procesar la imagen: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Convert ROBOFLOW predictions to Flutter widgets
-     *
-     * @param array $roboflowData
-     * @return array
-     */
-    private function convertRoboflowToFlutterWidgets($roboflowData)
-    {
-        $widgets = [];
-        $predictions = $roboflowData['predictions'] ?? [];
-
-        foreach ($predictions as $prediction) {
-            $widgetType = $prediction['class'] ?? 'Container';
-            $confidence = $prediction['confidence'] ?? 0;
-
-            // Skip low confidence predictions
-            if ($confidence < 0.5) {
-                continue;
-            }
-
-            // Get bounding box coordinates
-            $x = $prediction['x'] ?? 0;
-            $y = $prediction['y'] ?? 0;
-            $width = $prediction['width'] ?? 100;
-            $height = $prediction['height'] ?? 100;
-
-            // Create a Flutter widget based on the prediction class
-            $widget = [
-                'id' => 'widget-' . uniqid(),
-                'type' => $this->mapRoboflowClassToFlutterWidget($widgetType),
-                'props' => $this->getDefaultPropsForWidgetType($widgetType, $width, $height),
-                'children' => [],
-                'metadata' => [
-                    'roboflow' => [
-                        'class' => $widgetType,
-                        'confidence' => $confidence,
-                        'x' => $x,
-                        'y' => $y,
-                        'width' => $width,
-                        'height' => $height
-                    ]
-                ]
-            ];
-
-            $widgets[] = $widget;
-        }
-
-        return $widgets;
-    }
-
-    /**
-     * Map ROBOFLOW class to Flutter widget type
-     *
-     * @param string $roboflowClass
-     * @return string
-     */
-    private function mapRoboflowClassToFlutterWidget($roboflowClass)
-    {
-        $mapping = [
-            'button' => 'FloatingActionButton',
-            'text' => 'Text',
-            'image' => 'Image',
-            'container' => 'Container',
-            'row' => 'Row',
-            'column' => 'Column',
-            'appbar' => 'AppBar',
-            'textfield' => 'TextField',
-            'card' => 'Card',
-            'icon' => 'Icon',
-            'checkbox' => 'Checkbox',
-            'dropdown' => 'DropdownButton',
-            'scaffold' => 'Scaffold',
-            'center' => 'Center',
-            'sizedbox' => 'SizedBox',
-            'padding' => 'Padding',
-            'form' => 'Form',
-            'drawer' => 'Drawer',
-            'listtitle' => 'ListTitle',
-            'cardtext' => 'CardText',
-        ];
-
-        return $mapping[strtolower($roboflowClass)] ?? 'Container';
-    }
-
-    /**
-     * Get default properties for a widget type
-     *
-     * @param string $widgetType
-     * @param float $width
-     * @param float $height
-     * @return array
-     */
-    private function getDefaultPropsForWidgetType($widgetType, $width, $height)
-    {
-        $widgetType = strtolower($widgetType);
-
-        $props = [
-            'width' => $width,
-            'height' => $height,
-        ];
-
-        switch ($widgetType) {
-            case 'button':
-                $props['child'] = 'Text("Button")';
-                $props['backgroundColor'] = '#2196F3';
-                $props['foregroundColor'] = '#FFFFFF';
-                break;
-            case 'text':
-                $props['data'] = 'Text Content';
-                $props['style'] = 'TextStyle(fontSize: 16.0)';
-                break;
-            case 'image':
-                $props['src'] = 'https://via.placeholder.com/150';
-                $props['fit'] = 'BoxFit.cover';
-                break;
-            case 'container':
-                $props['color'] = '#FFFFFF';
-                $props['padding'] = 'EdgeInsets.all(16.0)';
-                break;
-            case 'textfield':
-                $props['decoration'] = 'InputDecoration(labelText: "Label")';
-                $props['controller'] = 'TextEditingController()';
-                break;
-            case 'appbar':
-                $props['title'] = 'AppBar Title';
-                $props['backgroundColor'] = '#2196F3';
-                break;
-            default:
-                // Default properties for other widget types
-                break;
-        }
-
-        return $props;
-    }
-
-    /**
-     * Generate Flutter code from widgets
-     *
-     * @param array $widgets
-     * @return string
-     */
-    private function generateFlutterCodeFromWidgets($widgets)
-    {
-        $code = "import 'package:flutter/material.dart';\n\n";
-        $code .= "class MyFlutterApp extends StatelessWidget {\n";
-        $code .= "  const MyFlutterApp({Key? key}) : super(key: key);\n\n";
-        $code .= "  @override\n";
-        $code .= "  Widget build(BuildContext context) {\n";
-        $code .= "    return Scaffold(\n";
-        $code .= "      appBar: AppBar(\n";
-        $code .= "        title: const Text(\"Flutter UI from ROBOFLOW\"),\n";
-        $code .= "      ),\n";
-        $code .= "      body: Center(\n";
-        $code .= "        child: Column(\n";
-        $code .= "          mainAxisAlignment: MainAxisAlignment.center,\n";
-        $code .= "          children: [\n";
-
-        foreach ($widgets as $widget) {
-            $code .= "            // " . ($widget['metadata']['roboflow']['class'] ?? 'Widget') . " (confidence: " . ($widget['metadata']['roboflow']['confidence'] ?? 'N/A') . ")\n";
-            $code .= "            " . $this->generateWidgetCode($widget) . ",\n";
-        }
-
-        $code .= "          ],\n";
-        $code .= "        ),\n";
-        $code .= "      ),\n";
-        $code .= "    );\n";
-        $code .= "  }\n";
-        $code .= "}\n";
-
-        return $code;
-    }
-
-    /**
-     * Generate code for a single widget
-     *
-     * @param array $widget
-     * @return string
-     */
-    private function generateWidgetCode($widget)
-    {
-        $type = $widget['type'];
-        $props = $widget['props'];
-
-        switch ($type) {
-            case 'Container':
-                return "Container(\n" .
-                       "              width: " . $props['width'] . ",\n" .
-                       "              height: " . $props['height'] . ",\n" .
-                       "              color: Color(0xFF" . substr($props['color'] ?? '#FFFFFF', 1) . "),\n" .
-                       "              padding: " . ($props['padding'] ?? 'EdgeInsets.zero') . ",\n" .
-                       "            )";
-            case 'Text':
-                return "Text(\n" .
-                       "              \"" . ($props['data'] ?? 'Text Content') . "\",\n" .
-                       "              style: " . ($props['style'] ?? 'null') . ",\n" .
-                       "            )";
-            case 'Image':
-                return "Image.network(\n" .
-                       "              '" . ($props['src'] ?? 'https://via.placeholder.com/150') . "',\n" .
-                       "              width: " . $props['width'] . ",\n" .
-                       "              height: " . $props['height'] . ",\n" .
-                       "              fit: " . ($props['fit'] ?? 'BoxFit.cover') . ",\n" .
-                       "            )";
-            case 'FloatingActionButton':
-                return "FloatingActionButton(\n" .
-                       "              onPressed: () {},\n" .
-                       "              child: " . ($props['child'] ?? 'const Icon(Icons.add)') . ",\n" .
-                       "              backgroundColor: Color(0xFF" . substr($props['backgroundColor'] ?? '#2196F3', 1) . "),\n" .
-                       "            )";
-            default:
-                return "$type(\n" .
-                       "              // Default widget properties\n" .
-                       "            )";
-        }
-    }
-
-    /**
-     * Get a description of an image using Azure AI Vision
-     *
-     * @param string $imageData Base64 encoded image data
-     * @return string|null Description of the image
-     */
-    private function getImageDescription($imageData)
-    {
-        try {
-            // Get Azure credentials from environment
-            $azureApiKey = env('AZURE_API_KEY');
-            $azureApiUrl = env('AZURE_API_URL');
-
-            // Create a request to Azure AI Vision
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'api-key' => $azureApiKey,
-            ])->post(rtrim($azureApiUrl, '/') . '/openai/deployments/' . env('AZURE_DEPLOYMENT_NAME', 'gpt-4.1') . '/chat/completions?api-version=2023-05-15', [
-                'messages' => [
-                    [
-                        'role' => 'system',
-                        'content' => 'You are an AI assistant that helps describe images for UI development. Provide detailed descriptions of UI elements, layouts, and design patterns you see in the image.'
-                    ],
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            [
-                                'type' => 'text',
-                                'text' => 'Describe this UI mockup or sketch in detail, focusing on layout, components, and structure:'
-                            ],
-                            [
-                                'type' => 'image_url',
-                                'image_url' => [
-                                    'url' => 'data:image/jpeg;base64,' . $imageData
-                                ]
-                            ]
-                        ]
-                    ]
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => 800,
-            ]);
-
-            if ($response->successful()) {
-                $content = $response->json()['choices'][0]['message']['content'] ?? '';
-                return $content;
-            } else {
-                \Log::error('Azure Vision API error: ' . $response->body());
-                return null;
-            }
-        } catch (\Exception $e) {
-            \Log::error('Error getting image description: ' . $e->getMessage());
-            return null;
-        }
-    }
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        $user = auth()->user();
-
-        // Get pizarras created by the user
-        $ownedPizarras = Pizarra::where('user_id', $user->id)
-                        ->where('isHome', true)->get();
-
-        // Get pizarras the user is collaborating on (with accepted status)
-        $collaboratingPizarras = $user->collaborating()
-            ->wherePivot('status', 'accepted')
-            ->get();
-
-        // Get pending invitations
-        $pendingInvitations = $user->collaborating()
-            ->wherePivot('status', 'pending')
-            ->get();
-
-        return Inertia::render('PizarraFlutter/Index', [
-            'ownedPizarras' => $ownedPizarras,
-            'collaboratingPizarras' => $collaboratingPizarras,
-            'pendingInvitations' => $pendingInvitations
-        ]);
-    }
-    public function indexAngular(){
-        return Inertia::render('FormBuilder/Index');
-    }
-    public function indexFlutter(){
-
-//        return Inertia::render('Pizarra/Index');
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StorePizarraRequest $request)
-    {
-        $isHome = $request->isHome ?? false;
-        $pizarra = null;
-        if($isHome){
-            $pizarra = Pizarra::create([
-                'name' => $request->name,
-                'user_id' => auth()->id(),
-                'isHome' => $request->isHome,
-                'screens' => $request->screen ?? json_encode([]),
-                'elements' => $request->elements ?? json_encode([]),
-            ]);
-            $pizarra->update([
-                'room_id' => 'room_'.$pizarra->id,
-            ]);
-            // a esta pizarra le asignamos un scaffold y un appbar por defecto
-            // creamos el Drawer asignado a la pizarra como una pantalla hija
-            /*$drawer = Pizarra::create([
-                'name' => 'Drawer',
-                'user_id' => auth()->id(),
-                'isHome' => false,
-                'pizarra_id' => $pizarra->id, // id de la pizarra padre
-            ]);*/
-        }else{
-            $pizarra = Pizarra::create([
-                'name' => $request->name,
-                'user_id' => auth()->id(),
-                'isHome' => false,
-                'pizarra_id' => $request->pizarra_id, // id de la pizarra padre
-                'screens' => $request->screen ?? json_encode([]),
-                'elements' => $request->elements ?? json_encode([]),
-            ]);
-        }
-
-        return response()->json($pizarra, 200);
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Pizarra $pizarra)
-    {
-        return Inertia::render('PizarraFlutter/Index', [
-            'user' => auth()->user(),
-            'pizarra' => $pizarra,
-            'isCreador' => $pizarra->user_id === auth()->id(),
-            'creador' => $pizarra->user,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Pizarra $pizarra)
-    {
-        return Inertia::render('PizarraFlutter/PizarraFlutter', [
-            'user' => auth()->user(),
-            'pizarra' => $pizarra,
-            'isCreador' => $pizarra->user_id === auth()->id(),
-            'creador' => $pizarra->user,
-            'collaborators' => $pizarra->collaborators(),
-            'screens' => $pizarra->pizarraHijas()->get(),
-            'widgets' => Widget::with('categoria')->get(),
-            'categoriasWidget' => CategoriaWidget::all(),
-        ]);
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdatePizarraRequest $request, Pizarra $pizarra)
-    {
-        $pizarra->name = $request->name;
-
-        // Update elements (legacy support) - handle large data more efficiently
-        if ($request->has('elements')) {
-            // Store elements directly without additional processing
-            $pizarra->elements = $request->input('elements');
-        }
-
-        // Handle screens data efficiently
-        if ($request->has('screens')) {
-            // Store screens directly without additional processing
-            $pizarra->screens = $request->input('screens');
-        }
-
-        if($pizarra->id === null){
-            return response()->json(['error' => 'Pizarra not found'], 404);
-        }else{
-            $pizarra->pizarra_id = $pizarra->id;
-        }
-
-        // Save with reduced memory usage
-        $pizarra->save();
-
-        // Return minimal response to reduce memory usage
-        return response()->json([
-            'id' => $pizarra->id,
-            'name' => $pizarra->name,
-            'updated_at' => $pizarra->updated_at
-        ]);
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Pizarra $pizarra)
-    {
-        if ($pizarra->user_id !== auth()->id()) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        Pizarra::where('pizarra_id', $pizarra->id)->delete();
-        $pizarra->delete();
-
-        return response()->json(['message' => 'Pizarra deleted successfully'], 200);
-    }
-    // destroy pizarra hija
-    public function destroyHija(Pizarra $pizarra)
-    {
-        // Check if user is authorized to delete this pizarra
-        if ($pizarra->user_id !== auth()->id()) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-        $pizarra_hija = Pizarra::where('pizarra_id', $pizarra->id)->first();
-        $pizarra_hija->delete();
-
-        return redirect()->route('pizarra.edit', $pizarra->id)
-            ->with('message', 'Pizarra hija eliminada con éxito');
-    }
-
-
-    /**
-     * Invite a user to collaborate on a pizarra.
-     */
-    public function inviteCollaborator(Request $request, Pizarra $pizarra)
-    {
-        // Validate the request
-        $validated = $request->validate([
-            'email' => 'required|email|exists:users,email',
-        ]);
-
-        // Get the pizarra and ensure the current user is the owner
-//        $pizarra = Pizarra::findOrFail($id);
-
-        if ($pizarra->user_id !== Auth::id()) {
-            return response()->json(['message' => 'No estás autorizado a invitar colaboradores a esta pizarra.'], 403);
-        }
-
-        // Find the user to invite
-        $userToInvite = User::where('email', $validated['email'])->first();
-
-        // Check if the user is already a collaborator
-        $existingCollaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
-            ->where('user_id', $userToInvite->id)
-            ->first();
-
-        if ($existingCollaboration) {
-            return response()->json(['message' => 'This user is already a collaborator or has a pending invitation'], 422);
-        }
-
-        // Create the collaboration
-        $collaboration = PizarraCollaborator::create([
-            'pizarra_id' => $pizarra->id,
-            'user_id' => $userToInvite->id,
-            'status' => 'pending',
-        ]);
-
-        // Send notification to the invited user
-        if (class_exists('App\Notifications\PizarraInvitation')) {
-            $userToInvite->notify(new PizarraInvitation($pizarra, Auth::user()));
-        }
-
-        return response()->json($collaboration, 201);
-    }
-
-    /**
-     * Accept a collaboration invitation.
-     */
-    public function acceptInvitation(Pizarra $pizarra)
-    {
-        // Find the collaboration and ensure it belongs to the current user
-        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
-            ->where('user_id', Auth::id())
-            ->where('status', 'pending')
-            ->firstOrFail();
-
-        // Update the status
-        $collaboration->update(['status' => 'accepted']);
-
-        // Get the pizarra and the user who accepted the invitation
-//        $pizarra = Pizarra::findOrFail($id);
-        $user = Auth::user();
-
-        // Create a socket.io client to emit an event
-        $socketUrl = env('SOCKET_SERVER_URL', 'http://localhost:4000');
-        $ch = curl_init($socketUrl . '/emit-event');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-            'event' => 'collaboratorAccepted',
-            'data' => [
-                'pizarraId' => $pizarra->id,
-                'roomId' => 'flutter-room-' . $pizarra->id,
-                'user' => $user->name,
-                'userId' => $user->id,
-                'email' => $user->email,
-                'timestamp' => now()->timestamp,
-            ]
-        ]));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        return response()->json($collaboration, 200);
-    }
-
-    /**
-     * Reject a collaboration invitation.
-     */
-    public function rejectInvitation(Pizarra $pizarra)
-    {
-        // Find the collaboration and ensure it belongs to the current user
-        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
-            ->where('user_id', Auth::id())
-            ->where('status', 'pending')
-            ->firstOrFail();
-
-        // Update the status
-        $collaboration->update(['status' => 'rejected']);
-
-        return response()->json($collaboration, 200);
-    }
-
-    /**
-     * Leave a collaboration.
-     */
-    public function leaveCollaboration(Pizarra $pizarra)
-    {
-        // Find the collaboration and ensure it belongs to the current user
-        $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
-
-        // Delete the collaboration
-        $collaboration->delete();
-
-        return response()->json(['message' => 'Has abandonado la colaboración con éxito'], 200);
-    }
-
-    /**
-     * Get collaborators for a pizarra.
-     */
-    public function getCollaborators(Pizarra $pizarra)
-    {
-        // Check if the user is the owner or a collaborator
-        $user = Auth::user();
-        $isOwner = $pizarra->user_id === $user->id;
-        $isCollaborator = $user->isColaborator($pizarra->id);
-
-        if (!$isOwner && !$isCollaborator) {
-            return response()->json(['message' => 'No estás autorizado a ver los colaboradores de esta pizarra.'], 403);
-        }
-        $collaboradores = PizarraCollaborator::where('pizarra_id', $pizarra->id)
-            ->with('user:id,name,email')
-            ->get()
-            ->map(function ($collaborator) {
-                return [
-                    'id' => $collaborator->user->id,
-                    'name' => $collaborator->user->name,
-                    'email' => $collaborator->user->email,
-                    'status' => $collaborator->status,
-                ];
-            });
-        return response()->json($collaboradores, 200);
-    }
-
-    /**
-     * Handle invitation link To Flutter.
-     */
-    public function handleInviteLink(Pizarra $form)
-    {
-        // Check if user is authenticated
-        if (!Auth::check()) {
-            // Redirect to login page with a redirect back to this page after login
-            return redirect()->route('login')->with('redirect', route('pizarra-flutter.invite-link', $form->id));
-        }
-
-        $user = Auth::user();
-
-        // Check if user is already the owner
-        if ($form->user_id === $user->id) {
-            return redirect()->route('pizarra.index')
-                ->with('message', 'Usted ya es el propietario de esta pizarra.');
-        }
-
-        // Check if user is already a collaborator
-        $existingCollaboration = PizarraCollaborator::where('pizarra_id', $form->id)
-            ->where('user_id', $user->id)
-            ->first();
-
-        if ($existingCollaboration) {
-            if ($existingCollaboration->status === 'accepted') {
-                return redirect()->route('pizarra-flutter.index')
-                    ->with('message', 'Ya eres colaborador en esta pizarra.');
-            } elseif ($existingCollaboration->status === 'rejected') {
-                // Update status to pending
-                $existingCollaboration->update(['status' => 'pending']);
-            }
-            // If status is pending, show the invitation page
-        } else {
-            // Create a new collaboration with pending status
-            PizarraCollaborator::create([
-                'pizarra_id' => $form->id,
-                'user_id' => $user->id,
-                'status' => 'pending',
-            ]);
-        }
-
-        // Redirect to pizarra flutter index with the invitation highlighted
-        return redirect()->route('pizarra-flutter.index')
-            ->with('highlight_invitation', $form->id)
-            ->with('message', 'Has sido invitado a colaborar en "' . $form->name . '". Por favor revise sus invitaciones pendientes.');
     }
 }

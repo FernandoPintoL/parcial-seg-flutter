@@ -3,7 +3,6 @@ import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import './PizarraFlutter.css';
 import { ref, onMounted, onUnmounted, computed, defineProps, PropType, watch } from 'vue';
-import { io } from 'socket.io-client';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
@@ -76,14 +75,17 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 // Socket.io connection
-let socketService: SocketService;
 const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
 const socketConfig = ref(getSocketConfig(useLocalSocket.value));
 const roomId = ref<string | null>(props.pizarra ? (props.pizarra.room_id ?? null) : null);
 const currentUser = ref(props.user?.name || 'Usuario');
-const socket = io(socketConfig.value.url, socketConfig.value.options);
 const socketConnected = ref<boolean>(false);
 const socketError = ref<string>('');
+
+// Initialize socketService
+let socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
+// Get socket instance from socketService
+const socket = socketService.socket;
 // Función para alternar entre servidores de sockets locales y de producción
 const toggleSocketServer = () => {
     // Disconnect current socket
@@ -106,29 +108,102 @@ const collaborators = ref<any>(props.colaboradores || []);
 const onlineCollaborators = ref<any>([]);
 const isCreator = ref<boolean>(props.isCreador);
 
+// Track which user is currently editing which widget
+const activeUserEditing = ref<{userId: string, widgetType: string} | null>(null);
+// Timer to auto-clear the active user editing status after a period of inactivity
+const activeUserEditingTimer = ref<number | null>(null);
+
+// Function to clear the active user editing status
+const clearActiveUserEditing = () => {
+    if (activeUserEditingTimer.value) {
+        clearTimeout(activeUserEditingTimer.value);
+        activeUserEditingTimer.value = null;
+    }
+    activeUserEditing.value = null;
+};
+
 // Métodos para manejar eventos del chat
 const showFloatingChat = ref<boolean>(false);
+const unreadMessages = ref<number>(0);
+const autoOpenChat = ref<boolean>(true); // Set to true to automatically open chat on new messages
+
+// Track if user has interacted with the page
+const userHasInteracted = ref(false);
+
+// Function to play notification sound
+const playNotificationSound = () => {
+    try {
+        // Only play sound if user has interacted with the page
+        if (!userHasInteracted.value) {
+            console.log('Skipping notification sound - user has not interacted with the page yet');
+            return;
+        }
+
+        // Generate a beep sound using the Web Audio API instead of loading an external file
+        // This avoids the need for an external sound file
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        // Configure the sound
+        oscillator.type = 'sine'; // Sine wave - smooth sound
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Set volume
+
+        // Connect the nodes
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        // Play the sound
+        oscillator.start();
+
+        // Stop after a short duration
+        setTimeout(() => {
+            oscillator.stop();
+            // Close the audio context to free up resources
+            setTimeout(() => {
+                audioContext.close();
+            }, 100);
+        }, 200); // 200ms duration
+
+        console.log('Notification sound played successfully');
+    } catch (error) {
+        console.error('Error playing notification sound:', error);
+    }
+};
 const handleChatMessage = async (message: string) => {
+    console.log('Enviando mensaje al chat:', message);
     try {
         const messageData = {
             roomId: roomId.value,
-            message: message,
-            user_name: currentUser.value,
-            created_at: new Date().toISOString(),
+            pizarraId: props.pizarra?.id,
+            userId: props.user?.id,
+            text: message,
+            user: currentUser.value,
+            timestamp: new Date().toISOString(),
         };
+        console.log('Mensaje a enviar:', messageData);
 
         // Emitir el mensaje al socket
-        socketService.emit('chatMessage', messageData);
+        socket.emit('chatMessage', messageData);
 
         // También guardarlo en la base de datos
-        await axios.post('/chat/messages', messageData);
+        // const baseUrl = socketConfig?.value?.url || 'http://localhost:4000';
+        await axios.post(`/chat/message`, {
+            pizarra_id: props.pizarra?.id,
+            message: message,
+            is_system_message: false,
+            user_id: props.user?.id,
+            user_name: currentUser.value,
+            room_id: roomId.value
+        });
     } catch (error) {
         console.error('Error al enviar mensaje:', error);
         await AlertService.prototype.error('Error', 'No se pudo enviar el mensaje');
     }
 };
 const handleTyping = () => {
-    socketService.emit('typing', {
+    socket.emit('escribiendo', {
         roomId: roomId.value,
         user: currentUser.value,
     });
@@ -138,6 +213,8 @@ const toggleFloatingChat = () => {
     // Close AI chat if opening regular chat
     if (showFloatingChat.value) {
         showAIChat.value = false;
+        // Reset unread messages count when opening chat
+        unreadMessages.value = 0;
     }
 };
 // AI chat
@@ -554,7 +631,7 @@ const addAIWidgetsToCanvas = async (widgets: FlutterWidget[]) => {
 
     try {
         // Only insert specific widget types without any comparison
-        const allowedWidgetTypes = ['TextFormField', 'ElevatedButton', 'Select', 'DropdownButton', 'Radio', 'RadioListTile', 'Checkbox', 'Switch', 'Text'];
+        const allowedWidgetTypes = ['TextFormField', 'ElevatedButton', 'Select', 'DropdownButton', 'Radio', 'RadioListTile', 'Checkbox', 'Switch', 'Text', 'Table'];
         const inputWidgets = widgets.filter(widget => allowedWidgetTypes.includes(widget.type));
 
         if (inputWidgets.length === 0) {
@@ -688,8 +765,6 @@ const addAIWidgetsToCanvas = async (widgets: FlutterWidget[]) => {
         if (!selectedScreen.elements) {
             selectedScreen.elements = [];
         }
-
-        // Add processed widgets to the selected screen
         processedWidgets.forEach((widget) => {
             selectedScreen.elements.push(widget);
         });
@@ -878,6 +953,7 @@ const deleteScreen = async (index: number) => {
     }
 };
 // Used by external components or events, do not remove
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const updateScreenName = (data: { screenId: string, newName: string }) => {
     const screenIndex = screens.value.findIndex(screen => screen.id === data.screenId);
     if (screenIndex !== -1) {
@@ -894,6 +970,10 @@ const setHomeScreen = (index: number) => {
 // Select a screen
 const selectScreen = (index: number) => {
     currentScreenIndex.value = index;
+    // Clear any active widget editing status when switching screens
+    clearActiveUserEditing();
+    // Also clear selected widget
+    selectedWidget.value = null;
 };
 // Toggle screen manager visibility
 const toggleScreenManager = () => {
@@ -1048,6 +1128,106 @@ const generateDefaultCodeString = (widget: FlutterWidget): string => {
             // For Text widgets, ensure the data property is included
             if (!widget.props.data) {
                 code += `  data: 'Text',\n`;
+            }
+            break;
+        case 'Card':
+            // For Card widgets, ensure all required properties are included
+            if (!widget.props.color) {
+                code += `  color: Colors.white,\n`;
+            }
+            if (!widget.props.elevation) {
+                code += `  elevation: 2,\n`;
+            }
+            if (!widget.props.margin) {
+                code += `  margin: EdgeInsets.all(8.0),\n`;
+            }
+            if (!widget.props.borderRadius) {
+                code += `  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),\n`;
+            }
+            if (!widget.props.child && !widget.children?.length) {
+                // If no child or children are set, create a default card content
+                code += `  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      ${widget.props.showImage ? `Image.network('${widget.props.imageUrl || 'https://via.placeholder.com/300x150'}', height: ${widget.props.imageHeight || 150}, width: double.infinity, fit: BoxFit.cover),` : ''}
+      ${widget.props.showDivider ? 'Divider(),' : ''}
+      Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${widget.props.title || 'Card Title'}', style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold)),
+            ${widget.props.subtitle ? `SizedBox(height: 4.0),
+            Text('${widget.props.subtitle}', style: TextStyle(fontSize: 14.0, color: Colors.grey)),` : ''}
+            SizedBox(height: 8.0),
+            Text('${widget.props.content || 'Card content goes here. You can display information in this area.'}'),
+          ],
+        ),
+      ),
+      ${widget.props.showActions ? `ButtonBar(
+        alignment: MainAxisAlignment.start,
+        children: [
+          TextButton(onPressed: () {}, child: Text('ACTION 1')),
+          TextButton(onPressed: () {}, child: Text('ACTION 2')),
+        ],
+      ),` : ''}
+    ],
+  ),\n`;
+            }
+            break;
+        case 'CardText':
+            // For CardText widgets, ensure all required properties are included
+            if (!widget.props.color) {
+                code += `  color: Colors.white,\n`;
+            }
+            if (!widget.props.elevation) {
+                code += `  elevation: 2,\n`;
+            }
+            if (!widget.props.borderRadius) {
+                code += `  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),\n`;
+            }
+            if (!widget.props.child && !widget.children?.length) {
+                // If no child or children are set, create a default card content
+                code += `  child: Padding(
+    padding: EdgeInsets.all(16.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('${widget.props.title || 'Card Title'}', style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold)),
+        ${widget.props.subtitle ? `SizedBox(height: 4.0),
+        Text('${widget.props.subtitle}', style: TextStyle(fontSize: 14.0, color: Colors.grey)),` : ''}
+        SizedBox(height: 8.0),
+        Text('${widget.props.content || 'Card content goes here with more details about the item.'}'),
+      ],
+    ),
+  ),\n`;
+            }
+            break;
+        case 'ListCard':
+            // For ListCard widgets, ensure all required properties are included
+            if (!widget.props.color) {
+                code += `  color: Colors.white,\n`;
+            }
+            if (!widget.props.elevation) {
+                code += `  elevation: 2,\n`;
+            }
+            if (!widget.props.borderRadius) {
+                code += `  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),\n`;
+            }
+            if (!widget.props.child && !widget.children?.length) {
+                // If no child or children are set, create a default list card content
+                code += `  child: Column(
+    children: [
+      ${widget.props.showImage ? `Image.network('${widget.props.imageUrl || 'https://via.placeholder.com/300x150'}', height: ${widget.props.imageHeight || 150}, width: double.infinity, fit: BoxFit.cover),` : ''}
+      ListTile(
+        leading: ${widget.props.leading || 'Icon(Icons.star)'},
+        title: Text('${widget.props.title || 'List Card Title'}'),
+        subtitle: Text('${widget.props.subtitle || 'List Card Subtitle'}'),
+        trailing: ${widget.props.trailing || 'Icon(Icons.arrow_forward)'},
+      ),
+    ],
+  ),\n`;
             }
             break;
         case 'TextField':
@@ -1224,6 +1404,17 @@ const debounce = <T extends (...args: any[]) => any>(fn: T, delay: number) => {
 // Function to select a widget for editing
 const selectWidget = (widget: FlutterWidget) => {
     selectedWidget.value = widget;
+
+    // Emit widget selected event to socket
+    socket.emit('flutter-widget-selected', {
+        roomId: roomId.value,
+        widget: {
+            id: widget.id,
+            type: widget.type
+        },
+        userId: currentUser.value,
+        screenId: currentScreen.value?.id,
+    });
 };
 // Función para emitir el evento de actualización del widget al socket
 const emitWidgetUpdated = () => {
@@ -1242,7 +1433,18 @@ const debouncedEmitWidgetUpdated = debounce(emitWidgetUpdated, 300); //300ms deb
 const updateWidgetProperty = (propertyName: string, value: any) => {
     if (!selectedWidget.value) return;
 
-    selectedWidget.value.props[propertyName] = value;
+    // Special handling for TableFlutter rows property to prevent column duplication
+    if ((selectedWidget.value.type === 'DataTable' ||
+         selectedWidget.value.type === 'TableFlutter' ||
+         selectedWidget.value.type === 'TableList' ||
+         selectedWidget.value.type === 'Table') &&
+        propertyName === 'rows') {
+        // Create a deep copy of the rows array to ensure we're not modifying the original reference
+        selectedWidget.value.props[propertyName] = JSON.parse(JSON.stringify(value));
+    } else {
+        // For other properties, assign the value directly
+        selectedWidget.value.props[propertyName] = value;
+    }
 
     // If updating the label property for TextField or TextFormField, also update the decoration property
     if (propertyName === 'label' && (selectedWidget.value.type === 'TextField' || selectedWidget.value.type === 'TextFormField')) {
@@ -1301,6 +1503,8 @@ const removeWidget = (widget: FlutterWidget) => {
             // Clear selection if the removed widget was selected
             if (selectedWidget.value === widget) {
                 selectedWidget.value = null;
+                // Clear active user editing status
+                clearActiveUserEditing();
             }
         }
     }
@@ -1784,6 +1988,17 @@ const downloadFlutterProject = async (downloadType = 'complete') => {
             codeToDownload = generateScreenCode(selectedCodeTab.value - 2);
         }
 
+        // If downloading the complete project, send the code to Azure for correction
+        if (downloadType === 'complete' && selectedCodeTab.value !== -1) {
+            await AlertService.prototype.info('Procesando', 'Enviando código a Azure para corrección...');
+            try {
+                codeToDownload = await AIService.correctFlutterCode(codeToDownload);
+            } catch (error) {
+                console.error('Error correcting Flutter code:', error);
+                await AlertService.prototype.warning('Advertencia', 'No se pudo corregir el código Flutter. Se descargará el código original.');
+            }
+        }
+
         // Strip any HTML tags that might be in the code
         codeToDownload = stripHtmlTags(codeToDownload);
 
@@ -1871,6 +2086,7 @@ const downloadFlutterProject = async (downloadType = 'complete') => {
 };
 
 // Function to download individual Flutter file
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const downloadIndividualFile = async () => {
     await downloadFlutterProject('individual');
 };
@@ -1954,9 +2170,26 @@ onMounted(() => {
     console.log(props.pizarra);
     applyDarkMode();
 
+    // Setup user interaction tracking for notification sounds
+    const markUserInteraction = () => {
+        userHasInteracted.value = true;
+        // Remove event listeners once interaction is detected
+        document.removeEventListener('click', markUserInteraction);
+        document.removeEventListener('keydown', markUserInteraction);
+        document.removeEventListener('touchstart', markUserInteraction);
+        console.log('User interaction detected - notification sounds enabled');
+    };
+
+    // Add event listeners for common user interactions
+    document.addEventListener('click', markUserInteraction);
+    document.addEventListener('keydown', markUserInteraction);
+    document.addEventListener('touchstart', markUserInteraction);
+
     // Set the initial screen index to the home screen index
     setInitialScreenIndex();
-    socketService = new SocketService(socketConfig.value, roomId.value, currentUser.value);
+
+    // Connect to socket using the existing socketService instance
+    socketService.connect();
     // Connect to socket
     socketService.on('connect', () => {
         socketConnected.value = true;
@@ -2024,6 +2257,23 @@ onMounted(() => {
                     flutterWidgets.value[index] = widget;
                 }
             }
+
+            // Update the active user editing status to show that this user is editing properties
+            // Clear any existing timer
+            if (activeUserEditingTimer.value) {
+                clearTimeout(activeUserEditingTimer.value);
+            }
+
+            // Update the reactive variable with the user and widget information
+            activeUserEditing.value = {
+                userId: data.userId,
+                widgetType: `propiedades de ${widget.type}`
+            };
+
+            // Set a timer to clear the status after 5 seconds of inactivity
+            activeUserEditingTimer.value = window.setTimeout(() => {
+                activeUserEditing.value = null;
+            }, 5000);
         }
     });
 
@@ -2042,6 +2292,51 @@ onMounted(() => {
             }
         }
     });
+
+    // Handle widget selection by other users
+    socket.on('flutter-widget-selected', (data) => {
+        if (data.userId !== currentUser.value) {
+            // Clear any existing timer
+            if (activeUserEditingTimer.value) {
+                clearTimeout(activeUserEditingTimer.value);
+            }
+
+            // Update the reactive variable with the user and widget information
+            activeUserEditing.value = {
+                userId: data.userId,
+                widgetType: data.widget?.type || 'widget'
+            };
+
+            // Set a timer to clear the status after 5 seconds of inactivity
+            activeUserEditingTimer.value = window.setTimeout(() => {
+                activeUserEditing.value = null;
+            }, 5000);
+        }
+    });
+
+    // Chat message event
+    socket.on('chatMessage', (data) => {
+        if (data.user !== currentUser.value) {
+            // Play notification sound for all incoming messages
+            playNotificationSound();
+
+            // If chat is not open
+            if (!showFloatingChat.value) {
+                // If auto-open is enabled, open the chat
+                if (autoOpenChat.value) {
+                    showFloatingChat.value = true;
+                    // Show notification
+                    // AlertService.prototype.info(`Nuevo mensaje de ${data.user}. Chat abierto automáticamente.`);
+                } else {
+                    // Otherwise just increment unread count
+                    unreadMessages.value++;
+                    // Show notification
+                    AlertService.prototype.info(`Nuevo mensaje de ${data.user}`);
+                }
+            }
+        }
+    });
+
     // Collaborator events
     socket.on('userJoined', (data) => {
         if (data.user !== currentUser.value) {
@@ -2059,12 +2354,31 @@ onMounted(() => {
             if (index !== -1) {
                 collaborators.value.splice(index, 1);
             }
+
+            // If this user was editing a widget, clear the editing status
+            if (activeUserEditing.value && activeUserEditing.value.userId === data.user) {
+                clearActiveUserEditing();
+            }
         }
     });
 
     socket.on('roomUsers', (data) => {
+        console.log('Received room users:', data);
         // Update online collaborators list
-        onlineCollaborators.value = data.users.filter((user: string) => user !== props.user.name);
+        if (data && data.users && Array.isArray(data.users)) {
+            // Extract user names or IDs from the users array
+            onlineCollaborators.value = data.users
+                .filter((user: any) => {
+                    // Filter out the current user
+                    const userName = typeof user === 'string' ? user : user.name || user.id;
+                    return userName !== props.user?.name && userName !== props.user?.id;
+                })
+                .map((user: any) => {
+                    // Extract the name or ID from each user
+                    return typeof user === 'string' ? user : user.name || user.id;
+                });
+            console.log('Updated online collaborators:', onlineCollaborators.value);
+        }
     });
 
     // Listen for collaborator acceptance events
@@ -2075,9 +2389,48 @@ onMounted(() => {
         // loadCollaborators();
     });
 
+    // Listen for collaborator list event
+    socket.on('collaboratorList', (data) => {
+        console.log('Received collaborator list:', data);
+        if (data && data.collaborators && Array.isArray(data.collaborators)) {
+            // Update the collaborators list
+            collaborators.value = data.users.map((user: any) => {
+                console.log('Processing user:', user);
+                return {
+                    id: user.id,
+                    name: user.name || `User ${user.id}`,
+                    email: user.email || `user_${user.id}@example.com`,
+                    status: user.status || 'unknown'
+                };
+            });
+            console.log('Updated collaborators:', collaborators.value);
+        }
+    });
+
+    // Debug logging for collaborators display
+    console.log('Initial collaborators:', collaborators.value);
+    console.log('Is creator?', isCreator.value);
+    console.log('Is user the pizarra creator?', props.pizarra?.user_id === props.user?.id);
+
     // Load collaborators and chat messages if we have a form ID
     if (props.pizarra?.id) {
-        // loadCollaborators();
+        // If we have a pizarra but no collaborators yet, initialize with the creator
+        if (collaborators.value.length === 0 && props.pizarra.user_id) {
+            // Add the creator as a collaborator
+            // Check if users is an array before using find method
+            const creatorUser = Array.isArray(props.pizarra.users)
+                ? props.pizarra.users.find((u: any) => u.id === props.pizarra?.user_id)
+                : null;
+            if (creatorUser) {
+                collaborators.value.push({
+                    id: creatorUser.id,
+                    name: creatorUser.name || `User ${creatorUser.id}`,
+                    email: creatorUser.email || `user_${creatorUser.id}@example.com`,
+                    status: 'active'
+                });
+                console.log('Added creator as collaborator:', collaborators.value);
+            }
+        }
     }
 });
 
@@ -2179,7 +2532,7 @@ onUnmounted(() => {
                                             <td class="p-2">{{ Math.round(component.confidence * 100) }}%</td>
                                             <td class="p-2">
                                                 {{ component.text || (component.subcomponents && component.subcomponents.length > 0 ?
-                                                    component.subcomponents.find(sub => sub.type === 'text' || sub.type === 'hint')?.text : '') || '-' }}
+                                                    component.subcomponents.find((sub : any) => sub.type === 'text' || sub.type === 'hint')?.text : '') || '-' }}
                                             </td>
                                         </tr>
                                     </tbody>
@@ -2365,6 +2718,16 @@ onUnmounted(() => {
                 >
                     {{ showFlutterCode ? 'Ocultar Código' : 'Mostrar Código' }}
                 </button>
+                <!-- User activity indicator -->
+                <div
+                    v-if="activeUserEditing"
+                    class="ml-2 flex items-center whitespace-nowrap rounded-t-lg border border-amber-500 bg-amber-100 px-4 py-2 text-amber-800 dark:border-amber-400 dark:bg-amber-900 dark:bg-opacity-30 dark:text-amber-200"
+                >
+                    <span>{{ activeUserEditing.userId }}</span>
+                    <span class="ml-1 rounded bg-amber-500 px-1 text-xs text-white">
+                        editando {{ activeUserEditing.widgetType }}
+                    </span>
+                </div>
             </div>
             <ScreenManager
                 v-if="showScreenManager"
@@ -2500,7 +2863,12 @@ onUnmounted(() => {
             </div>
 
             <!-- Collaborator Management Section -->
-            <Colaboradores v-if="isCreator" :collaborators="collaborators" :online-collaborators="onlineCollaborators" :pizarra="props.pizarra" />
+            <Colaboradores
+                v-if="isCreator || (props.pizarra && props.user && props.pizarra.user_id === props.user.id)"
+                :collaborators="collaborators"
+                :online-collaborators="onlineCollaborators"
+                :pizarra="props.pizarra"
+            />
 
             <!-- Chat Buttons -->
             <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
@@ -2552,13 +2920,45 @@ onUnmounted(() => {
                     </svg>
                 </button>
 
+                <!-- Chat Auto-Open Toggle Button -->
+                <button
+                    @click="autoOpenChat = !autoOpenChat"
+                    class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-500 text-white shadow-lg transition-colors hover:bg-teal-600 dark:bg-teal-600 dark:hover:bg-teal-700"
+                    :class="{ 'bg-teal-700 dark:bg-teal-800': autoOpenChat }"
+                    aria-label="Toggle Chat Auto-Open"
+                    title="Toggle chat auto-open on new messages"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                        />
+                    </svg>
+                    <span
+                        class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold"
+                        :class="autoOpenChat ? 'text-teal-500' : 'text-gray-400'"
+                    >
+                        {{ autoOpenChat ? 'ON' : 'OFF' }}
+                    </span>
+                </button>
+
                 <!-- Regular Chat Button -->
                 <button
                     @click="toggleFloatingChat"
-                    class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
-                    :class="{ 'animate-pulse': !showFloatingChat, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
+                    class="relative flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
+                    :class="{ 'animate-pulse': !showFloatingChat && unreadMessages > 0, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
                     aria-label="Toggle Chat"
                 >
+                    <!-- Notification Badge -->
+                    <span
+                        v-if="unreadMessages > 0 && !showFloatingChat"
+                        class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white"
+                    >
+                        {{ unreadMessages > 9 ? '9+' : unreadMessages }}
+                    </span>
+
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path
                             stroke-linecap="round"
@@ -2577,6 +2977,7 @@ onUnmounted(() => {
                 :currentUser="currentUser"
                 :roomId="roomId"
                 :showChat="showFloatingChat"
+                :socketUrl="socketConfig?.value?.url || 'http://localhost:4000'"
                 @close="showFloatingChat = false"
                 @send-message="handleChatMessage"
                 @typing="handleTyping"

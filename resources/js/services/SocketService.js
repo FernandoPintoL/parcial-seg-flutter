@@ -11,7 +11,6 @@ export class SocketService{
         this.socketConnected = true;
         this.socketError = '';
     }
-
     connect() {
         this.socket.connect();
 
@@ -40,7 +39,6 @@ export class SocketService{
             AlertService.prototype.error('Error de reconexión', 'No se pudo establecer una conexión con el servidor de sockets. Verifique su conexión a Internet.'+error.message);
         });
     }
-
     joinRoomData(data) {
         this.socket.emit('joinRoom', data, (ack) =>{
             if (ack.status === 'success') {
@@ -52,11 +50,9 @@ export class SocketService{
             }
         });
     }
-
     on(event, callback) {
         this.socket.on(event, callback);
     }
-
     emit(event, data) {
         this.socket.emit(event, data, (ack) => {
             if (ack.status === 'success') {
@@ -67,7 +63,6 @@ export class SocketService{
             }
         });
     }
-
     disconnect() {
         this.socket.disconnect();
         this.socket.removeAllListeners();

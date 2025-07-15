@@ -224,14 +224,15 @@ const processInvitationLink = async () => {
         // Extract the pizarra ID from the invitation link
         const url = new URL(invitationLink.value);
         const pathParts = url.pathname.split('/');
-        const pizarraId = pathParts[pathParts.length - 2];
+        const pizarraId = pathParts[pathParts.length - 3];
+        const url_ref = `/pizarra/invite/${pizarraId}/flutter`;
 
         if (!pizarraId) {
             throw new Error('Enlace de invitación no válido');
         }
 
         // Redirect to the invitation link
-        window.location.href = `/pizarra/invite/${pizarraId}/flutter`;
+        window.location.href = url_ref;
     } catch (error) {
         console.error('Error processing invitation link:', error);
         Swal.fire('Error!', 'Enlace de invitación no válido. Revísalo y vuelve a intentarlo.', 'error');
