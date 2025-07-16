@@ -1,6 +1,6 @@
 // services/UnifiedWidgetService.ts
-import type { UnifiedElement, UnifiedScreen } from '@/types/PizarraUnificada';
-import { availableFlutterWidgets } from '@/types/availableFlutterWidgets';
+import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
+import { availableFlutterWidgets } from '@/Data/availableFlutterWidgets';
 
 export class UnifiedWidgetService {
 

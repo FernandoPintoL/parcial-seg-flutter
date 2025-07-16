@@ -1,7 +1,7 @@
 // services/AIService.ts
 import axios from 'axios';
 import { AlertService } from '@/services/AlertService';
-import { FlutterWidget } from '@/types/Pizarra';
+import { FlutterWidget } from '@/Data/Pizarra';
 import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 export class AIService {

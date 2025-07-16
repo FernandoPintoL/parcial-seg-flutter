@@ -1,4 +1,4 @@
-import type { CategoriaWidget, FlutterWidgetDefinition } from '@/types/Pizarra';
+import type { CategoriaWidget, FlutterWidgetDefinition } from '@/Data/Pizarra';
 
 export const categoriesWidget: CategoriaWidget[] = [
     { id: 3, category: 'input', label: 'Entrada de Datos (Formularios)' },

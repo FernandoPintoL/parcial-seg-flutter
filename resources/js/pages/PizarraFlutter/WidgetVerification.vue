@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
-import type { FlutterWidget } from '@/types/Pizarra';
+import type { FlutterWidget } from '@/Data/Pizarra';
 
 const props = defineProps<{
   isVisible: boolean;

@@ -4,7 +4,7 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
-import type { FlutterWidget, CategoriaWidget, PropiedadesWidget } from '@/types/Pizarra';
+import type { FlutterWidget, CategoriaWidget, PropiedadesWidget } from '@/Data/Pizarra';
 
 const props = defineProps({
   widget: {

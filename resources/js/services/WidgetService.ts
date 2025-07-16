@@ -1,5 +1,5 @@
 // services/WidgetService.ts
-import { FlutterWidget } from '@/types/Pizarra';
+import { FlutterWidget } from '@/Data/Pizarra';
 
 export class WidgetService {
     private static widgetIdCounter = 1;

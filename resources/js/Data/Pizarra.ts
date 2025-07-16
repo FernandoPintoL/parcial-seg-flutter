@@ -1,3 +1,5 @@
+import { BaseData } from '@/Data/BaseData';
+
 export interface Pizarra {
     id?: number | any;
     name: string;
@@ -11,13 +13,6 @@ export interface Pizarra {
     isDrawer? : boolean;
     users: Record<string, any>;
 }
-/*export interface PizarraScreen {
-    id: string;
-    name: string;
-    elements: FlutterWidget[];
-    isHome?: boolean;
-    isDrawer?: boolean;
-}*/
 export interface Chats{
     id: number;
     pizarra_id: number;
@@ -46,14 +41,14 @@ export interface FlutterWidget {
     pendingChild?: any; // For widgets that can have children but are not yet defined
     pendingChildren?: any[]; // For widgets that can have multiple children but are not yet defined
 }
-// Define la estructura de las propiedades de un widget de Flutter
+// Define l'estructura de las propiedades de un widget de Flutter
 export interface FlutterWidgetProperty {
     name: string;
     type: 'string' | 'number' | 'boolean' | 'color' | 'select' | 'array';
     defaultValue: any;
     options?: string[]; // For select type
 }
-// Define la estructura de un widget de Flutter
+// Define l'estructura de un widget de Flutter
 export interface FlutterWidgetDefinition {
     type: string;
     category: 'widgets'| 'layout' |'input' | 'plataforma' | 'animation' | 'list' | 'navegation' | 'containers' | 'material-cupertino';
@@ -79,4 +74,32 @@ export interface WhiteboardActivities{
     actionType: string;
     actionData: any;
     description: string;
+}
+
+export class ChatData extends BaseData<Chats> {
+    protected path_api_url: string = 'api.chat';
+}
+
+export class PizarraData extends BaseData<Pizarra> {
+    protected path_api_url: string = 'api.pizarra';
+}
+export class PizarraCollaboratorsData extends BaseData<PizarraCollaborators> {
+    protected path_api_url: string = 'api.pizarra-collaborators';
+}
+export class FlutterWidgetData extends BaseData<FlutterWidget> {
+    protected path_api_url: string = 'api.flutter-widget';
+}
+export class FlutterWidgetDefinitionData extends BaseData<FlutterWidgetDefinition> {
+    protected path_api_url: string = 'api.flutter-widget-definition';
+}
+export class CategoriaWidgetData extends BaseData<CategoriaWidget> {
+    protected path_api_url: string = 'api.categoria-widget';
+}
+
+export class WhiteboardActivitiesData extends BaseData<WhiteboardActivities> {
+    protected path_api_url: string = 'api.whiteboard-activities';
+}
+
+export class PropiedadesWidgetData extends BaseData<PropiedadesWidget> {
+    protected path_api_url: string = 'api.propiedades-widget';
 }

@@ -1,7 +1,7 @@
 // services/ImageProcessingService.ts
 import axios from 'axios';
 import { AlertService } from '@/services/AlertService';
-import { FlutterWidget } from '@/types/Pizarra';
+import { FlutterWidget } from '@/Data/Pizarra';
 
 /**
  * Service for handling image processing operations

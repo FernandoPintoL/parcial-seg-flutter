@@ -3,7 +3,7 @@ import { usePage, router } from '@inertiajs/vue3';
 import { ref, defineProps, computed, onMounted } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import type { FormBuilder } from '@/types/FormBuilder';
+import type { FormBuilder } from '@/Data/FormBuilder';
 import FormList from '@/pages/FormBuilder/FormList.vue';
 
 // Define props

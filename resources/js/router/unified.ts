@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { PizarraUnificada } from '@/Pages/PizarraUnificada'
+import PizarraUnificada from '@/pages/PizarraUnificada/PizarraUnificada.vue'
 
 const routes = [
     {

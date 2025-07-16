@@ -1,5 +1,5 @@
 // services/UnifiedCodeGenerationService.ts
-import type { PizarraUnificada, UnifiedElement, UnifiedScreen, CodeExportOptions } from '@/types/PizarraUnificada';
+import type { PizarraUnificada, UnifiedElement, UnifiedScreen, CodeExportOptions } from '@/Data/PizarraUnificada';
 import { CodeGenerationService } from '@/services/CodeGenerationService';
 
 export class UnifiedCodeGenerationService {
@@ -422,9 +422,9 @@ export class AppComponent {
                 return `
         <div class="mb-3">
           <label class="form-label">${element.props.label || element.props.name}</label>
-          <input 
-            type="${element.props.type || 'text'}" 
-            class="form-control" 
+          <input
+            type="${element.props.type || 'text'}"
+            class="form-control"
             formControlName="${element.props.name || element.props.label || element.id}"
             placeholder="${element.props.placeholder || ''}"
             ${element.props.required ? 'required' : ''}
@@ -435,8 +435,8 @@ export class AppComponent {
                 return `
         <div class="mb-3">
           <label class="form-label">${element.props.label || element.props.name}</label>
-          <textarea 
-            class="form-control" 
+          <textarea
+            class="form-control"
             formControlName="${element.props.name || element.props.label || element.id}"
             placeholder="${element.props.placeholder || ''}"
             rows="${element.props.rows || 3}"
@@ -450,8 +450,8 @@ export class AppComponent {
                 return `
         <div class="mb-3">
           <label class="form-label">${element.props.label || element.props.name}</label>
-          <select 
-            class="form-select" 
+          <select
+            class="form-select"
             formControlName="${element.props.name || element.props.label || element.id}"
             ${element.props.required ? 'required' : ''}
           >
@@ -463,9 +463,9 @@ export class AppComponent {
             case 'checkbox':
                 return `
         <div class="mb-3 form-check">
-          <input 
-            type="checkbox" 
-            class="form-check-input" 
+          <input
+            type="checkbox"
+            class="form-check-input"
             formControlName="${element.props.name || element.props.label || element.id}"
             id="${element.id}"
           />
@@ -477,8 +477,8 @@ export class AppComponent {
             case 'button':
                 return `
         <div class="mb-3">
-          <button 
-            type="${element.props.type || 'button'}" 
+          <button
+            type="${element.props.type || 'button'}"
             class="btn btn-${element.props.variant || 'primary'}"
             ${element.props.action ? `(click)="${element.props.action}()"` : ''}
           >

@@ -6,7 +6,7 @@ import { ref, defineProps, computed, onMounted, PropType } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 // Using any type for now as Pizarra type might not be defined yet
-import type { Pizarra } from '@/types/Pizarra';
+import type { Pizarra } from '@/Data/Pizarra';
 import FormList from '@/pages/FormBuilder/FormList.vue';
 import { AlertService } from '@/services/AlertService';
 

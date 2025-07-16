@@ -8,8 +8,8 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { FormBuilder } from '@/types/FormBuilder';
-import type { User } from '@/types/User';
+import type { FormBuilder } from '@/Data/FormBuilder';
+import type { User } from '@/Data/User';
 import ColorPicker from '@/components/ColorPicker.vue';
 
 // Props

@@ -1,5 +1,5 @@
 // services/ScreenManagementService.ts
-import { Pizarra, FlutterWidget } from '@/types/Pizarra';
+import { Pizarra, FlutterWidget } from '@/Data/Pizarra';
 import { AlertService } from '@/services/AlertService';
 import Swal from 'sweetalert2';
 

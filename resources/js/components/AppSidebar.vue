@@ -15,8 +15,8 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Pizarra Flutter',
-        href: '/pizarra',
+        title: 'Pizarras',
+        href: '/pizarra-unificada',
         icon: SquareDashedBottomCode,
     },
 ];

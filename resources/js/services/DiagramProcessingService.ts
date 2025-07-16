@@ -1,7 +1,7 @@
 // services/DiagramProcessingService.ts
 import axios from 'axios';
 import { AlertService } from '@/services/AlertService';
-import type { DiagramData, ParsedDiagramElement, UnifiedElement } from '@/types/PizarraUnificada';
+import type { DiagramData, ParsedDiagramElement, UnifiedElement } from '@/Data/PizarraUnificada';
 
 export class DiagramProcessingService {
     private static readonly SCANNER_API_URL = import.meta.env.VITE_URL_SCANNER || 'http://localhost:5000';

@@ -5,12 +5,20 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use App\Http\Controllers\{
     AIController,
+    CategoriaWidgetController,
     ChatController,
     FigmaController,
     NodeController,
     PizarraController,
     PizarraUnificadaController,
-    WhiteboardActivityController};
+    PizarraWidgetController,
+    PropiedadesController,
+    SpeechController,
+    UserController,
+    WhiteboardActivityController,
+    WidgetController,
+    WidgetsPropiedadesController,
+};
 
 
 Route::get('/', function () {
@@ -110,39 +118,29 @@ Route::delete('/widget/{widget}/propiedades', [\App\Http\Controllers\WidgetContr
 // Asignacion de Propiedades a Widgets Routes
 Route::resource('/widgets-propiedades', \App\Http\Controllers\WidgetsPropiedadesController::class);
 
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    $resources = [
+        'users' => UserController::class,
+        'widgets' => WidgetController::class,
+        'widget-propiedades' => WidgetsPropiedadesController::class,
+        'categoria-widgets' => CategoriaWidgetController::class,
+        'figma' => FigmaController::class,
+        'pizarra' => PizarraController::class,
+        'pizarra-unificada' => PizarraUnificadaController::class,
+        'pizarra-widget' => PizarraWidgetController::class,
+        'propiedades' => PropiedadesController::class,
+        'node' => NodeController::class,
+        'chat' => ChatController::class,
+        'whiteboard-activity' => WhiteboardActivityController::class,
+        'ai' => AIController::class,
+    ];
+    // Resource routes
+    foreach ($resources as $key => $controller) {
+        Route::resource("/$key", $controller);
+    }
+});
+
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
-
-/*Route::get('/{any}', function () {
-    return "NO ENCONTRADO";
-})->where('any', '.*')->name('not-found');*/
-
-//Routes Pizarra Angular
-/*Route::post('/pizarra/{pizarra}/invite/angular', [PizarraController::class, 'inviteCollaborator'])->name('pizarra.angular.invite');
-Route::post('/pizarra/{pizarra}/accept/angular', [PizarraController::class, 'acceptInvitation'])->name('pizarra.angular.accept');
-Route::post('/pizarra/{pizarra}/reject/angular', [PizarraController::class, 'rejectInvitation'])->name('pizarra.angular.reject');
-Route::post('/pizarra/{pizarra}/leave/angular', [PizarraController::class, 'leaveCollaboration'])->name('pizarra.angular.leave');
-Route::get('/pizarra/{pizarra}/collaborators/angular', [PizarraController::class, 'getCollaborators'])->name('pizarra.angular.collaborators');
-Route::get('/pizarra/invite/{pizarra}/angular', [PizarraController::class, 'handleInviteLinkAngular'])->name('pizarra.angular.invite-link');
-*/
-
-// Pizarra Flutter Collaboration Routes
-/*Route::post('/pizarra-flutter/{id}/invite', [PizarraFlutterController::class, 'inviteCollaborator'])->name('pizarra-flutter.invite');
-Route::post('/pizarra-flutter/{id}/accept', [PizarraFlutterController::class, 'acceptInvitation'])->name('pizarra-flutter.accept');
-Route::post('/pizarra-flutter/{id}/reject', [PizarraFlutterController::class, 'rejectInvitation'])->name('pizarra-flutter.reject');
-Route::post('/pizarra-flutter/{id}/leave', [PizarraFlutterController::class, 'leaveCollaboration'])->name('pizarra-flutter.leave');
-Route::get('/pizarra-flutter/{id}/collaborators', [PizarraFlutterController::class, 'getCollaborators'])->name('pizarra-flutter.collaborators');
-Route::get('/pizarra-flutter/invite/{form}', [PizarraFlutterController::class, 'handleInviteLink'])->name('pizarra-flutter.invite-link');*/
-
-// Form Builder Collaboration Routes
-/*Route::post('/form-builder/{id}/invite', [FormBuilderController::class, 'inviteCollaborator'])->name('form-builder.invite');
-Route::post('/form-builder/{id}/accept', [FormBuilderController::class, 'acceptInvitation'])->name('form-builder.accept');
-Route::post('/form-builder/{id}/reject', [FormBuilderController::class, 'rejectInvitation'])->name('form-builder.reject');
-Route::post('/form-builder/{id}/leave', [FormBuilderController::class, 'leaveCollaboration'])->name('form-builder.leave');
-Route::get('/form-builder/{id}/collaborators', [FormBuilderController::class, 'getCollaborators'])->name('form-builder.collaborators');
-Route::get('/form-builder/invite/{form}', [FormBuilderController::class, 'handleInviteLink'])->name('form-builder.invite-link');
-Route::get('/form-builder/{id}/collaborators/{userId}', [FormBuilderController::class, 'removeCollaborator'])->name('form-builder.remove-collaborator');
-*/
-
-// Form Builder Image Scanning Route
-//Route::post('/pizarra/scan-image', [FormBuilderController::class, 'scanImage'])->name('form-builder.scan-image');

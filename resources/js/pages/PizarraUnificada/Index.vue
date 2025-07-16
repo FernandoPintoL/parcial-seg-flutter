@@ -1,3 +1,138 @@
+<script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { router } from '@inertiajs/vue3';
+import Swal from 'sweetalert2';
+import axios from 'axios';
+import type { PizarraUnificada } from '@/Data/PizarraUnificada';
+// import type { User } from '@/types';
+
+// Props
+const props = defineProps({
+    ownedPizarras: {
+        type: Array as () => PizarraUnificada[],
+        default: () => [],
+    },
+    collaboratingPizarras: {
+        type: Array as () => PizarraUnificada[],
+        default: () => [],
+    },
+    pendingInvitations: {
+        type: Array as () => PizarraUnificada[],
+        default: () => [],
+    },
+});
+
+// Methods
+const createPizarra = () => {
+    router.visit('/pizarra-unificada/create');
+};
+
+const openPizarra = (id: number) => {
+    router.visit(`/pizarra-unificada/${id}`);
+};
+
+const editPizarra = (id: number) => {
+    router.visit(`/pizarra-unificada/${id}/edit`);
+};
+
+const deletePizarra = async (id: number) => {
+    const result = await Swal.fire({
+        title: '¿Estás seguro?',
+        text: 'Esta acción no se puede deshacer',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+        try {
+            await axios.delete(`/pizarra-unificada/${id}`);
+            Swal.fire('Eliminado', 'La pizarra ha sido eliminada', 'success');
+            router.reload();
+        } catch (error: any) {
+            Swal.fire('Error', 'No se pudo eliminar la pizarra', error.response?.data?.message || 'Error desconocido');
+        }
+    }
+};
+
+const acceptInvitation = async (id: number) => {
+    try {
+        await axios.post(`/pizarra-unificada/${id}/accept`);
+        Swal.fire('Aceptado', 'Invitación aceptada correctamente', 'success');
+        router.reload();
+    } catch (error: any) {
+        Swal.fire('Error', 'No se pudo aceptar la invitación', error.response?.data?.message || 'Error desconocido');
+    }
+};
+
+const rejectInvitation = async (id: number) => {
+    try {
+        await axios.post(`/pizarra-unificada/${id}/reject`);
+        Swal.fire('Rechazado', 'Invitación rechazada correctamente', 'success');
+        router.reload();
+    } catch (error: any) {
+        Swal.fire('Error', 'No se pudo rechazar la invitación', error.response?.data?.message || 'Error desconocido');
+    }
+};
+
+const leaveCollaboration = async (id: number) => {
+    const result = await Swal.fire({
+        title: '¿Salir de la colaboración?',
+        text: 'Ya no podrás acceder a esta pizarra',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+        try {
+            await axios.post(`/pizarra-unificada/${id}/leave`);
+            Swal.fire('Salida exitosa', 'Has salido de la colaboración', 'success');
+            router.reload();
+        } catch (error: any) {
+            Swal.fire('Error', 'No se pudo salir de la colaboración', error.response?.data?.message || 'Error desconocido');
+        }
+    }
+};
+
+const getFrameworkBadgeClass = (framework: string) => {
+    switch (framework) {
+        case 'flutter':
+            return 'bg-blue-100 text-blue-800';
+        case 'angular':
+            return 'bg-red-100 text-red-800';
+        case 'both':
+            return 'bg-purple-100 text-purple-800';
+        default:
+            return 'bg-gray-100 text-gray-800';
+    }
+};
+
+const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'Fecha no disponible';
+    return new Date(dateString).toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+</script>
+
+<style scoped>
+.transition-shadow {
+    transition: box-shadow 0.15s ease-in-out;
+}
+</style>
+
 <template>
     <AppLayout>
 
@@ -35,7 +170,7 @@
                         Invitaciones Pendientes
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div v-for="pizarra in pendingInvitations" :key="pizarra.id"
+                        <div v-for="pizarra in props.pendingInvitations" :key="pizarra.id"
                             class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-400">
                             <div class="flex items-center justify-between mb-2">
                                 <h3 class="text-lg font-medium text-gray-900">
@@ -46,14 +181,14 @@
                                 </span>
                             </div>
                             <p class="text-sm text-gray-600 mb-4">
-                                Invitado por: {{ pizarra.user.name }}
+                                Invitado por: {{ pizarra.user?.name ?? 'Desconocido' }}
                             </p>
                             <div class="flex space-x-2">
-                                <button @click="acceptInvitation(pizarra.id)"
+                                <button v-if="pizarra.id !== undefined" @click="acceptInvitation(pizarra.id as number)"
                                     class="flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm">
                                     Aceptar
                                 </button>
-                                <button @click="rejectInvitation(pizarra.id)"
+                                <button v-if="pizarra.id !== undefined" @click="rejectInvitation(pizarra.id as number)"
                                     class="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-sm">
                                     Rechazar
                                 </button>
@@ -68,7 +203,7 @@
                         Mis Pizarras
                     </h2>
                     <div v-if="ownedPizarras.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div v-for="pizarra in ownedPizarras" :key="pizarra.id"
+                        <div v-for="pizarra in props.ownedPizarras" :key="pizarra.id"
                             class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
                             @click="openPizarra(pizarra.id)">
                             <div class="flex items-center justify-between mb-2">
@@ -119,7 +254,7 @@
                     </h2>
                     <div v-if="collaboratingPizarras.length > 0"
                         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div v-for="pizarra in collaboratingPizarras" :key="pizarra.id"
+                        <div v-for="pizarra in props.collaboratingPizarras" :key="pizarra.id"
                             class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-green-400"
                             @click="openPizarra(pizarra.id)">
                             <div class="flex items-center justify-between mb-2">
@@ -132,7 +267,7 @@
                                 </span>
                             </div>
                             <p class="text-sm text-gray-600 mb-4">
-                                Creado por: {{ pizarra.user.name }}
+                                Creado por: {{ pizarra.user?.name ?? 'Desconocido' }}
                             </p>
                             <div class="flex items-center justify-between text-sm text-gray-500">
                                 <span>
@@ -160,136 +295,3 @@
         </div>
     </AppLayout>
 </template>
-
-<script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { router } from '@inertiajs/vue3';
-import Swal from 'sweetalert2';
-import type { PizarraUnificada } from '@/types/PizarraUnificada';
-import type { User } from '@/types/User';
-
-// Props
-const props = defineProps({
-    ownedPizarras: {
-        type: Array as () => PizarraUnificada[],
-        default: () => [],
-    },
-    collaboratingPizarras: {
-        type: Array as () => PizarraUnificada[],
-        default: () => [],
-    },
-    pendingInvitations: {
-        type: Array as () => PizarraUnificada[],
-        default: () => [],
-    },
-});
-
-// Methods
-const createPizarra = () => {
-    router.visit('/pizarra-unificada/create');
-};
-
-const openPizarra = (id: number) => {
-    router.visit(`/pizarra-unificada/${id}`);
-};
-
-const editPizarra = (id: number) => {
-    router.visit(`/pizarra-unificada/${id}/edit`);
-};
-
-const deletePizarra = async (id: number) => {
-    const result = await Swal.fire({
-        title: '¿Estás seguro?',
-        text: 'Esta acción no se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
-
-    if (result.isConfirmed) {
-        try {
-            await axios.delete(`/pizarra-unificada/${id}`);
-            Swal.fire('Eliminado', 'La pizarra ha sido eliminada', 'success');
-            router.reload();
-        } catch (error) {
-            Swal.fire('Error', 'No se pudo eliminar la pizarra', 'error');
-        }
-    }
-};
-
-const acceptInvitation = async (id: number) => {
-    try {
-        await axios.post(`/pizarra-unificada/${id}/accept`);
-        Swal.fire('Aceptado', 'Invitación aceptada correctamente', 'success');
-        router.reload();
-    } catch (error) {
-        Swal.fire('Error', 'No se pudo aceptar la invitación', 'error');
-    }
-};
-
-const rejectInvitation = async (id: number) => {
-    try {
-        await axios.post(`/pizarra-unificada/${id}/reject`);
-        Swal.fire('Rechazado', 'Invitación rechazada correctamente', 'success');
-        router.reload();
-    } catch (error) {
-        Swal.fire('Error', 'No se pudo rechazar la invitación', 'error');
-    }
-};
-
-const leaveCollaboration = async (id: number) => {
-    const result = await Swal.fire({
-        title: '¿Salir de la colaboración?',
-        text: 'Ya no podrás acceder a esta pizarra',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, salir',
-        cancelButtonText: 'Cancelar'
-    });
-
-    if (result.isConfirmed) {
-        try {
-            await axios.post(`/pizarra-unificada/${id}/leave`);
-            Swal.fire('Salida exitosa', 'Has salido de la colaboración', 'success');
-            router.reload();
-        } catch (error) {
-            Swal.fire('Error', 'No se pudo salir de la colaboración', 'error');
-        }
-    }
-};
-
-const getFrameworkBadgeClass = (framework: string) => {
-    switch (framework) {
-        case 'flutter':
-            return 'bg-blue-100 text-blue-800';
-        case 'angular':
-            return 'bg-red-100 text-red-800';
-        case 'both':
-            return 'bg-purple-100 text-purple-800';
-        default:
-            return 'bg-gray-100 text-gray-800';
-    }
-};
-
-const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-};
-</script>
-
-<style scoped>
-.transition-shadow {
-    transition: box-shadow 0.15s ease-in-out;
-}
-</style>

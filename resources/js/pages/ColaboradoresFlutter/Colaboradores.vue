@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { AlertService } from '@/services/AlertService';
 import axios from 'axios';
-import type { Pizarra } from '@/types/Pizarra';
+import type { Pizarra } from '@/Data/Pizarra';
 
 const props = defineProps<{
     collaborators: Array<{ id?: string; name?: string; email: string }>;

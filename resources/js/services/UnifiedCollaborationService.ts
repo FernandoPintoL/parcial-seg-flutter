@@ -1,6 +1,6 @@
 // services/UnifiedCollaborationService.ts
 import { SocketService } from '@/services/SocketService';
-import type { PizarraUnificada, UnifiedElement, CollaborationData } from '@/types/PizarraUnificada';
+import type { PizarraUnificada, UnifiedElement, CollaborationData } from '@/Data/PizarraUnificada';
 
 export class UnifiedCollaborationService {
     private socketService: SocketService;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pizarra } from '@/types/Pizarra';
+import { Pizarra } from '@/Data/Pizarra';
 
 interface Props {
     title: string;

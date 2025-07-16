@@ -2,7 +2,7 @@
 import { ref, onMounted, defineProps, PropType } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
-import type { FlutterWidget } from '@/types/Pizarra';
+import type { FlutterWidget } from '@/Data/Pizarra';
 import type { BreadcrumbItem } from '@/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 

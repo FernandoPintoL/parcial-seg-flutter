@@ -4,12 +4,10 @@ import { router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import axios from 'axios';
-import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
-import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
+import { getSocketConfig } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { PizarraUnificada, UnifiedElement, UnifiedScreen, CodeExportOptions, DiagramData } from '@/types/PizarraUnificada';
-import type { User } from '@/types/User';
+import type { PizarraUnificada, UnifiedScreen, CodeExportOptions, User } from '@/Data/PizarraUnificada';
 import { UnifiedCollaborationService } from '@/services/UnifiedCollaborationService';
 import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
 import { UnifiedCodeGenerationService } from '@/services/UnifiedCodeGenerationService';
@@ -74,14 +72,15 @@ const socketConfig = ref(getSocketConfig(useLocalSocket.value));
 const roomId = ref<string | null>(props.pizarra?.room_id || null);
 const currentUser = ref(props.user?.name || 'Usuario');
 const socketConnected = ref<boolean>(false);
-const socketError = ref<string>('');
+// const socketError = ref<string>('');
 
 // Initialize collaboration service
 let collaborationService: UnifiedCollaborationService;
 
 // Project state
 const projectName = ref<string>(props.pizarra?.name || 'Proyecto Unificado');
-const selectedFramework = ref<'flutter' | 'angular' | 'both'>(props.pizarra?.type || 'both');
+const projectType = ref<'flutter' | 'angular' | 'both'>(props.pizarra?.type || 'both');
+const selectedFramework = ref<'flutter' | 'angular' | 'both'>(projectType.value);
 const exportOptions = ref<CodeExportOptions>({
     framework: selectedFramework.value,
     format: 'preview',
@@ -94,7 +93,7 @@ const exportOptions = ref<CodeExportOptions>({
 // Screens management
 const screens = ref<UnifiedScreen[]>(props.pizarra?.screens || []);
 const currentScreenIndex = ref<number>(0);
-const showScreenManager = ref<boolean>(false);
+// const showScreenManager = ref<boolean>(false);
 
 // Current screen
 const currentScreen = computed(() => {
@@ -105,11 +104,11 @@ const currentScreen = computed(() => {
 });
 
 // Elements management
-const selectedElement = ref<UnifiedElement | null>(null);
 const availableWidgets = ref<any[]>([]);
+/* const selectedElement = ref<UnifiedElement | null>(null);
 const showWidgetPalette = ref<boolean>(true);
 const showPropertiesPanel = ref<boolean>(true);
-
+ */
 // AI Chat
 const showAIChat = ref<boolean>(false);
 const aiMessages = ref<any[]>([]);
@@ -119,7 +118,7 @@ const isProcessingAI = ref<boolean>(false);
 // Collaboration Chat
 const showCollaborationChat = ref<boolean>(false);
 const unreadMessages = ref<number>(0);
-const autoOpenChat = ref<boolean>(true);
+// const autoOpenChat = ref<boolean>(true);
 
 // Image processing
 const showImageUpload = ref<boolean>(false);
@@ -137,8 +136,8 @@ const isProcessingDiagram = ref<boolean>(false);
 // Code generation
 const showCodeViewer = ref<boolean>(false);
 const generatedCode = ref<string>('');
-const selectedCodeTab = ref<number>(0);
-const improvedCode = ref<string>('');
+/* const selectedCodeTab = ref<number>(0);
+const improvedCode = ref<string>(''); */
 
 // Dark mode
 const isDarkMode = ref<boolean>(localStorage.getItem('darkMode') === 'true');
@@ -219,16 +218,15 @@ const toggleDarkMode = () => {
     applyDarkMode();
 };
 
-// Framework switching
 const switchFramework = (framework: 'flutter' | 'angular' | 'both') => {
     selectedFramework.value = framework;
-    // Update pizarra type
-    props.pizarra.type = framework;
+    // Update local project type instead of mutating prop directly
+    projectType.value = framework;
     savePizarra();
 };
 
 // Widget management
-const addWidget = (widgetType: string) => {
+/*const addWidget = (widgetType: string) => {
     const newElement = UnifiedWidgetService.createUnifiedElement(
         widgetType,
         selectedFramework.value,
@@ -348,7 +346,7 @@ const setHomeScreen = (index: number) => {
         screen.isHome = i === index;
     });
     savePizarra();
-};
+}; */
 
 // AI functionality
 const toggleAIChat = () => {
@@ -605,12 +603,11 @@ const addProcessedWidgets = (widgets: any[]) => {
 
     savePizarra();
 };
-
 const savePizarra = async () => {
     try {
         await axios.put(`/pizarra-unificada/${props.pizarra.id}`, {
             name: projectName.value,
-            type: selectedFramework.value,
+            type: projectType.value,
             screens: screens.value,
             elements: currentScreen.value?.elements || []
         });
@@ -619,7 +616,7 @@ const savePizarra = async () => {
     }
 };
 
-const toggleSocketServer = () => {
+/* const toggleSocketServer = () => {
     if (collaborationService) {
         collaborationService.disconnect();
     }
@@ -632,7 +629,7 @@ const toggleSocketServer = () => {
     AlertService.prototype.info(
         `Servidor socket cambiado a ${useLocalSocket.value ? 'local' : 'producción'}: ${socketConfig.value.url}`
     );
-};
+}; */
 </script>
 
 <template>
@@ -640,7 +637,7 @@ const toggleSocketServer = () => {
 
         <Head :title="projectName" />
 
-        <AppLayout>
+        <AppLayout :breadcrumbs="breadcrumbs">
             <template #header>
                 <div class="flex justify-between items-center">
                     <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
@@ -820,7 +817,7 @@ const toggleSocketServer = () => {
 
         <!-- Collaboration Chat -->
         <ChatColaborativo v-if="showCollaborationChat" :socket="collaborationService?.socket" :room-id="roomId"
-            :user-name="currentUser" :unread-count="unreadMessages" @send-message="handleChatMessage"
+            :current-user="currentUser" :show-chat="showCollaborationChat" @send-message="handleChatMessage"
             @typing="handleTyping" @close="toggleCollaborationChat" />
     </div>
 </template>

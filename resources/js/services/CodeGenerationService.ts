@@ -1,5 +1,5 @@
 // services/CodeGenerationService.ts
-import { Pizarra, FlutterWidget } from '@/types/Pizarra';
+import { Pizarra, FlutterWidget } from '@/Data/Pizarra';
 import { WidgetService } from '@/services/WidgetService';
 
 export class CodeGenerationService {

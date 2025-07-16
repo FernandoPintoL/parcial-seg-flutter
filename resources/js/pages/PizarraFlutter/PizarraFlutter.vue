@@ -8,9 +8,9 @@ import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';
 import { getSocketConfig, toggleSocketEnvironment } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { Pizarra, PizarraCollaborators, FlutterWidget, CategoriaWidget } from '@/types/Pizarra';
-import { availableFlutterWidgets, categoriesWidget } from '@/types/availableFlutterWidgets';
-import type { User } from '@/types/User';
+import type { Pizarra, PizarraCollaborators, FlutterWidget, CategoriaWidget } from '@/Data/Pizarra';
+import { availableFlutterWidgets, categoriesWidget } from '@/Data/availableFlutterWidgets';
+import { User } from '@/types/index';
 import { SocketService } from '@/services/SocketService';
 import { WidgetService } from '@/services/WidgetService';
 import { ColorUtils } from '@/services/ColorUtils';
@@ -109,7 +109,7 @@ const onlineCollaborators = ref<any>([]);
 const isCreator = ref<boolean>(props.isCreador);
 
 // Track which user is currently editing which widget
-const activeUserEditing = ref<{userId: string, widgetType: string} | null>(null);
+const activeUserEditing = ref<{ userId: string, widgetType: string } | null>(null);
 // Timer to auto-clear the active user editing status after a period of inactivity
 const activeUserEditingTimer = ref<number | null>(null);
 
@@ -141,7 +141,7 @@ const playNotificationSound = () => {
 
         // Generate a beep sound using the Web Audio API instead of loading an external file
         // This avoids the need for an external sound file
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = new ((window.AudioContext || (window as any).webkitAudioContext))();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
@@ -797,10 +797,14 @@ const addAIWidgetsToCanvas = async (widgets: FlutterWidget[]) => {
         const selectedScreen = currentScreen.value;
 
         // Make sure selectedScreen.elements exists and is an array
-        if (!selectedScreen.elements) {
+        if (!Array.isArray(selectedScreen.elements)) {
             selectedScreen.elements = [];
         }
         processedWidgets.forEach((widget) => {
+            // Ensure elements is still defined and is an array before pushing
+            if (!Array.isArray(selectedScreen.elements)) {
+                selectedScreen.elements = [];
+            }
             selectedScreen.elements.push(widget);
         });
 
@@ -1470,9 +1474,9 @@ const updateWidgetProperty = (propertyName: string, value: any) => {
 
     // Special handling for TableFlutter rows property to prevent column duplication
     if ((selectedWidget.value.type === 'DataTable' ||
-         selectedWidget.value.type === 'TableFlutter' ||
-         selectedWidget.value.type === 'TableList' ||
-         selectedWidget.value.type === 'Table') &&
+        selectedWidget.value.type === 'TableFlutter' ||
+        selectedWidget.value.type === 'TableList' ||
+        selectedWidget.value.type === 'Table') &&
         propertyName === 'rows') {
         // Create a deep copy of the rows array to ensure we're not modifying the original reference
         selectedWidget.value.props[propertyName] = JSON.parse(JSON.stringify(value));
@@ -1777,26 +1781,24 @@ class NavigationDrawer extends StatelessWidget {
                 "${navigationDrawerWidget.value.props.avatarText || 'U'}",
                 style: TextStyle(
                   fontSize: 40.0,
-                  color: ${
-                      navigationDrawerWidget.value.props.avatarColor
-                          ? `Color(0xFF${navigationDrawerWidget.value.props.avatarColor.substring(1).toUpperCase()})`
-                          : 'Colors.blue'
-                  }
+                  color: ${navigationDrawerWidget.value.props.avatarColor
+            ? `Color(0xFF${navigationDrawerWidget.value.props.avatarColor.substring(1).toUpperCase()})`
+            : 'Colors.blue'
+        }
                 ),
               ),
             ),
             decoration: BoxDecoration(
-              color: ${
-                  navigationDrawerWidget.value.props.headerColor
-                      ? `Color(0xFF${navigationDrawerWidget.value.props.headerColor.substring(1).toUpperCase()})`
-                      : 'Colors.blue'
-              },
+              color: ${navigationDrawerWidget.value.props.headerColor
+            ? `Color(0xFF${navigationDrawerWidget.value.props.headerColor.substring(1).toUpperCase()})`
+            : 'Colors.blue'
+        },
             ),
           ),
           ${screens.value
-              .filter((screen) => !screen.isDrawer)
-              .map(
-                  (screen, index) => `
+            .filter((screen) => !screen.isDrawer)
+            .map(
+                (screen, index) => `
           ListTile(
             leading: Icon(${index === 0 ? 'Icons.home' : `Icons.screen_${index + 1}`}),
             title: Text("${screen.name}"),
@@ -1805,8 +1807,8 @@ class NavigationDrawer extends StatelessWidget {
               Navigator.pushNamed(context, '/${screen.name.toLowerCase().replace(/\s+/g, '_')}');
             },
           ),`,
-              )
-              .join('\n')}
+            )
+            .join('\n')}
           Divider(),
           ListTile(
             leading: Icon(Icons.settings),
@@ -2483,43 +2485,41 @@ onUnmounted(() => {
 </script>
 
 <template>
+
     <Head title="Pizarra Flutter" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4 transition-colors duration-200 dark:bg-gray-800">
             <div class="flex flex-col items-center justify-between gap-4 md:flex-row">
-                <input
-                    v-model="projectName"
-                    type="text"
-                    placeholder="Nombre del proyecto"
-                    class="w-full rounded-md border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white md:w-1/2"
-                />
+                <input v-model="projectName" type="text" placeholder="Nombre del proyecto"
+                    class="w-full rounded-md border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white md:w-1/2" />
                 <div class="flex w-full flex-wrap justify-center gap-2 md:w-auto md:justify-end">
-                    <button
-                        @click="showImageUpload = !showImageUpload"
-                        class="rounded-md bg-purple-500 px-4 py-2 text-white transition-colors hover:bg-purple-600"
-                    >
+                    <button @click="showImageUpload = !showImageUpload"
+                        class="rounded-md bg-purple-500 px-4 py-2 text-white transition-colors hover:bg-purple-600">
                         Subir Imagen
                     </button>
-                    <button @click="savePizarraFlutter" class="rounded-md bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600">
+                    <button @click="savePizarraFlutter"
+                        class="rounded-md bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600">
                         Guardar Cambios
                     </button>
-                    <button @click="toggleScreenManager" class="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600">
+                    <button @click="toggleScreenManager"
+                        class="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600">
                         {{ showScreenManager ? 'Cerrar Pantallas' : 'Gestionar Pantallas' }}
                     </button>
                 </div>
             </div>
             <!-- Image Upload Modal -->
-            <div v-if="showImageUpload" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div v-if="showImageUpload"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
                 <div class="w-full max-w-4xl rounded-lg bg-white p-4 transition-colors dark:bg-gray-800 sm:p-6">
                     <div class="mb-4 flex items-center justify-between">
                         <h2 class="text-xl font-bold dark:text-white">Subir Imagen</h2>
-                        <button
-                            @click="closeImageUpload"
-                            class="text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <button @click="closeImageUpload"
+                            class="text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
@@ -2532,28 +2532,21 @@ onUnmounted(() => {
                             <!-- Original Image -->
                             <div class="rounded-lg border p-3 dark:border-gray-600">
                                 <h4 class="mb-2 text-sm font-medium dark:text-white">Imagen Original</h4>
-                                <img
-                                    v-if="originalImage"
-                                    :src="originalImage"
-                                    alt="Original Image"
-                                    class="mx-auto max-h-60 rounded border dark:border-gray-600"
-                                />
+                                <img v-if="originalImage" :src="originalImage" alt="Original Image"
+                                    class="mx-auto max-h-60 rounded border dark:border-gray-600" />
                             </div>
 
                             <!-- Processed Image -->
                             <div class="rounded-lg border p-3 dark:border-gray-600">
                                 <h4 class="mb-2 text-sm font-medium dark:text-white">Imagen Procesada</h4>
-                                <img
-                                    v-if="processedImage"
-                                    :src="processedImage"
-                                    alt="Processed Image"
-                                    class="mx-auto max-h-60 rounded border dark:border-gray-600"
-                                />
+                                <img v-if="processedImage" :src="processedImage" alt="Processed Image"
+                                    class="mx-auto max-h-60 rounded border dark:border-gray-600" />
                             </div>
                         </div>
 
                         <!-- Detected Components -->
-                        <div v-if="roboflowData && roboflowData.components" class="mt-4 rounded-lg border p-3 dark:border-gray-600">
+                        <div v-if="roboflowData && roboflowData.components"
+                            class="mt-4 rounded-lg border p-3 dark:border-gray-600">
                             <h4 class="mb-2 text-sm font-medium dark:text-white">Componentes Detectados</h4>
                             <div class="max-h-40 overflow-y-auto">
                                 <table class="w-full text-left text-sm">
@@ -2565,16 +2558,15 @@ onUnmounted(() => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr
-                                            v-for="(component, index) in roboflowData.components"
-                                            :key="index"
-                                            class="border-b dark:border-gray-600"
-                                        >
+                                        <tr v-for="(component, index) in roboflowData.components" :key="index"
+                                            class="border-b dark:border-gray-600">
                                             <td class="p-2">{{ component.type }}</td>
                                             <td class="p-2">{{ Math.round(component.confidence * 100) }}%</td>
                                             <td class="p-2">
-                                                {{ component.text || (component.subcomponents && component.subcomponents.length > 0 ?
-                                                    component.subcomponents.find((sub : any) => sub.type === 'text' || sub.type === 'hint')?.text : '') || '-' }}
+                                                {{component.text || (component.subcomponents &&
+                                                    component.subcomponents.length > 0 ?
+                                                    component.subcomponents.find((sub: any) => sub.type === 'text' ||
+                                                        sub.type === 'hint')?.text : '') || '-'}}
                                             </td>
                                         </tr>
                                     </tbody>
@@ -2583,7 +2575,8 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Legacy Format Support -->
-                        <div v-else-if="roboflowData && roboflowData.predictions" class="mt-4 rounded-lg border p-3 dark:border-gray-600">
+                        <div v-else-if="roboflowData && roboflowData.predictions"
+                            class="mt-4 rounded-lg border p-3 dark:border-gray-600">
                             <h4 class="mb-2 text-sm font-medium dark:text-white">Componentes Detectados</h4>
                             <div class="max-h-40 overflow-y-auto">
                                 <table class="w-full text-left text-sm">
@@ -2595,11 +2588,8 @@ onUnmounted(() => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr
-                                            v-for="(prediction, index) in roboflowData.predictions"
-                                            :key="index"
-                                            class="border-b dark:border-gray-600"
-                                        >
+                                        <tr v-for="(prediction, index) in roboflowData.predictions" :key="index"
+                                            class="border-b dark:border-gray-600">
                                             <td class="p-2">{{ prediction.class }}</td>
                                             <td class="p-2">{{ Math.round(prediction.confidence * 100) }}%</td>
                                             <td class="p-2">
@@ -2614,22 +2604,16 @@ onUnmounted(() => {
 
                         <!-- Action buttons for results panel -->
                         <div class="mt-4 flex justify-end gap-2">
-                            <button
-                                @click="
-                                    showResultsPanel = false;
-                                    showImageUpload = false;
-                                "
-                                class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600"
-                            >
+                            <button @click="
+                                showResultsPanel = false;
+                            showImageUpload = false;
+                            " class="rounded-md bg-green-500 px-4 py-2 text-white hover:bg-green-600">
                                 Cerrar y Continuar
                             </button>
-                            <button
-                                @click="
-                                    showResultsPanel = false;
-                                    clearSelectedImage();
-                                "
-                                class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-                            >
+                            <button @click="
+                                showResultsPanel = false;
+                            clearSelectedImage();
+                            " class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
                                 Procesar Otra Imagen
                             </button>
                         </div>
@@ -2639,17 +2623,17 @@ onUnmounted(() => {
                     <div v-if="!showResultsPanel">
                         <div class="mb-4">
                             <p class="mb-2 text-sm text-gray-600 dark:text-gray-300">
-                                Sube una imagen de un boceto o diseño para que ROBOFLOW lo convierta en componentes Flutter.
+                                Sube una imagen de un boceto o diseño para que ROBOFLOW lo convierta en componentes
+                                Flutter.
                             </p>
 
                             <!-- Image preview -->
                             <div v-if="previewImage" class="mb-4">
-                                <img :src="previewImage" alt="Preview" class="mx-auto max-h-60 rounded border dark:border-gray-600" />
+                                <img :src="previewImage" alt="Preview"
+                                    class="mx-auto max-h-60 rounded border dark:border-gray-600" />
                                 <div class="mt-2 flex justify-center">
-                                    <button
-                                        @click="clearSelectedImage"
-                                        class="rounded bg-red-500 px-3 py-1 text-sm text-white transition-colors hover:bg-red-600"
-                                    >
+                                    <button @click="clearSelectedImage"
+                                        class="rounded bg-red-500 px-3 py-1 text-sm text-white transition-colors hover:bg-red-600">
                                         Eliminar
                                     </button>
                                 </div>
@@ -2659,44 +2643,28 @@ onUnmounted(() => {
                             <div v-if="!previewImage" class="flex flex-col gap-3">
                                 <!-- Camera option -->
                                 <label
-                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-6 w-6 text-gray-500 dark:text-gray-300"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                                        />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                        class="h-6 w-6 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                     </svg>
                                     <span class="dark:text-white">Tomar Foto</span>
-                                    <input type="file" accept="image/*" capture="environment" class="hidden" @change="handleImageUpload" />
+                                    <input type="file" accept="image/*" capture="environment" class="hidden"
+                                        @change="handleImageUpload" />
                                 </label>
 
                                 <!-- Gallery option -->
                                 <label
-                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-6 w-6 text-gray-500 dark:text-gray-300"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                                        />
+                                    class="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 p-4 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                        class="h-6 w-6 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24"
+                                        stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                     <span class="dark:text-white">Seleccionar de Galería</span>
                                     <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
@@ -2706,13 +2674,12 @@ onUnmounted(() => {
 
                         <!-- Action buttons -->
                         <div class="flex justify-end gap-2">
-                            <button @click="closeImageUpload" class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300">Cancelar</button>
-                            <button
-                                @click="processImage"
+                            <button @click="closeImageUpload"
+                                class="rounded-md bg-gray-200 px-4 py-2 hover:bg-gray-300">Cancelar</button>
+                            <button @click="processImage"
                                 class="rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
                                 :disabled="!selectedImage || isProcessingImage"
-                                :class="{ 'cursor-not-allowed opacity-50': !selectedImage || isProcessingImage }"
-                            >
+                                :class="{ 'cursor-not-allowed opacity-50': !selectedImage || isProcessingImage }">
                                 {{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}
                             </button>
                         </div>
@@ -2726,154 +2693,103 @@ onUnmounted(() => {
                     <h3 class="text-lg font-semibold">Pantallas</h3>
                 </div>
                 <!-- Drawer tab -->
-                <button
-                    v-if="screens.some(s => s.isDrawer)"
-                    @click="selectScreen(screens.findIndex(s => s.isDrawer))"
+                <button v-if="screens.some(s => s.isDrawer)" @click="selectScreen(screens.findIndex(s => s.isDrawer))"
                     class="mr-1 flex items-center whitespace-nowrap rounded-t-lg border px-4 py-2 transition-colors dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                    :class="
-                            currentScreenIndex === screens.findIndex(s => s.isDrawer)
-                                ? 'border-b-0 border-purple-500 bg-purple-100 dark:border-purple-400 dark:bg-purple-900 dark:bg-opacity-30'
-                                : 'bg-purple-50 hover:bg-purple-100 dark:bg-purple-800 dark:hover:bg-purple-700'
-                        "
-                >
+                    :class="currentScreenIndex === screens.findIndex(s => s.isDrawer)
+                        ? 'border-b-0 border-purple-500 bg-purple-100 dark:border-purple-400 dark:bg-purple-900 dark:bg-opacity-30'
+                        : 'bg-purple-50 hover:bg-purple-100 dark:bg-purple-800 dark:hover:bg-purple-700'
+                        ">
                     <span>Drawer</span>
                     <span class="ml-1 rounded bg-purple-500 px-1 text-xs text-white">Navigation</span>
                 </button>
                 <!-- Regular screen tabs -->
-                <button
-                    v-for="screen in screens.filter(s => !s.isDrawer)"
-                    :key="screen.id"
+                <button v-for="screen in screens.filter(s => !s.isDrawer)" :key="screen.id"
                     @click="selectScreen(screens.findIndex(s => s.id === screen.id))"
                     class="mr-1 flex items-center whitespace-nowrap rounded-t-lg border px-4 py-2 transition-colors dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                    :class="
-                            currentScreenIndex === screens.findIndex(s => s.id === screen.id)
-                                ? 'border-b-0 border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900 dark:bg-opacity-30'
-                                : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700'
-                        "
-                >
+                    :class="currentScreenIndex === screens.findIndex(s => s.id === screen.id)
+                        ? 'border-b-0 border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900 dark:bg-opacity-30'
+                        : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700'
+                        ">
                     <span>{{ screen.name }}</span>
                     <span v-if="screen.isHome" class="ml-1 rounded bg-green-500 px-1 text-xs text-white">Home</span>
                 </button>
-                <button
-                    @click="showFlutterCode = !showFlutterCode"
-                    class="rounded-t-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600"
-                >
+                <button @click="showFlutterCode = !showFlutterCode"
+                    class="rounded-t-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600">
                     {{ showFlutterCode ? 'Ocultar Código' : 'Mostrar Código' }}
                 </button>
                 <!-- User activity indicator -->
-                <div
-                    v-if="activeUserEditing"
-                    class="ml-2 flex items-center whitespace-nowrap rounded-t-lg border border-amber-500 bg-amber-100 px-4 py-2 text-amber-800 dark:border-amber-400 dark:bg-amber-900 dark:bg-opacity-30 dark:text-amber-200"
-                >
+                <div v-if="activeUserEditing"
+                    class="ml-2 flex items-center whitespace-nowrap rounded-t-lg border border-amber-500 bg-amber-100 px-4 py-2 text-amber-800 dark:border-amber-400 dark:bg-amber-900 dark:bg-opacity-30 dark:text-amber-200">
                     <span>{{ activeUserEditing.userId }}</span>
                     <span class="ml-1 rounded bg-amber-500 px-1 text-xs text-white">
                         editando {{ activeUserEditing.widgetType }}
                     </span>
                 </div>
             </div>
-            <ScreenManager
-                v-if="showScreenManager"
-                :screens="screenManagerScreens"
-                :currentScreenIndex="currentScreenIndex"
-                @select-screen="selectScreen"
-                @add-screen="addScreen"
-                @delete-screen="deleteScreen"
-                @set-home-screen="setHomeScreen"
-                @toggle-flutter-code="toggleFlutterCode"
-            />
+            <ScreenManager v-if="showScreenManager" :screens="screenManagerScreens"
+                :currentScreenIndex="currentScreenIndex" @select-screen="selectScreen" @add-screen="addScreen"
+                @delete-screen="deleteScreen" @set-home-screen="setHomeScreen"
+                @toggle-flutter-code="toggleFlutterCode" />
             <!-- Flutter code display -->
-            <FlutterCodeViewer
-                :show="showFlutterCode"
-                :flutterCode="flutterCode"
-                :selectedCodeTab="selectedCodeTab"
-                :screens="screens"
-                :generateNavigationDrawerCode="generateNavigationDrawerCode"
-                :generateScreenCode="generateScreenCode"
-                :downloadFlutterProject="downloadFlutterProject"
-                :copyFlutterCode="copyFlutterCode"
-                :setSelectedCodeTab="setSelectedCodeTab"
-                :initNavigationDrawer="initNavigationDrawer"
-                :improvedCode="improvedCode"
-                :generateImprovedCode="generateImprovedCode"
-            />
+            <FlutterCodeViewer :show="showFlutterCode" :flutterCode="flutterCode" :selectedCodeTab="selectedCodeTab"
+                :screens="screens" :generateNavigationDrawerCode="generateNavigationDrawerCode"
+                :generateScreenCode="generateScreenCode" :downloadFlutterProject="downloadFlutterProject"
+                :copyFlutterCode="copyFlutterCode" :setSelectedCodeTab="setSelectedCodeTab"
+                :initNavigationDrawer="initNavigationDrawer" :improvedCode="improvedCode"
+                :generateImprovedCode="generateImprovedCode" />
 
             <div v-if="!showFlutterCode" class="flex h-full flex-1 flex-col gap-4">
                 <!-- Mobile widget selector (visible on small screens) -->
                 <div class="mb-4 md:hidden">
                     <!-- Widget paleta for mobile -->
-                    <WidgetPalette
-                        v-if="!showWidgetVerification"
-                        :categoriesWidget="categoriesWidget"
-                        :activeWidgetCategory="activeWidgetCategory"
-                        :widgetsByActiveCategory="widgetsByActiveCategory"
-                        @update:activeWidgetCategory="(val) => (activeWidgetCategory = val)"
-                        @addWidget="addWidget"
-                        @onPaletteDragStart="onPaletteDragStart"
-                        @onPaletteDragEnd="onPaletteDragEnd"
-                    />
+                    <WidgetPalette v-if="!showWidgetVerification" :categoriesWidget="categoriesWidget"
+                        :activeWidgetCategory="activeWidgetCategory" :widgetsByActiveCategory="widgetsByActiveCategory"
+                        @update:activeWidgetCategory="(val) => (activeWidgetCategory = val)" @addWidget="addWidget"
+                        @onPaletteDragStart="onPaletteDragStart" @onPaletteDragEnd="onPaletteDragEnd" />
                 </div>
 
                 <div class="flex flex-col gap-4 md:flex-row">
                     <!-- Widget section with toggle button -->
                     <!-- Widget palette (desktop version with mobile-like style) -->
-                    <WidgetPalette
-                        v-if="!showWidgetVerification"
-                        class="hidden md:block"
-                        :categoriesWidget="categoriesWidget"
-                        :activeWidgetCategory="activeWidgetCategory"
+                    <WidgetPalette v-if="!showWidgetVerification" class="hidden md:block"
+                        :categoriesWidget="categoriesWidget" :activeWidgetCategory="activeWidgetCategory"
                         :widgetsByActiveCategory="widgetsByActiveCategory"
-                        @update:activeWidgetCategory="(val) => (activeWidgetCategory = val)"
-                        @addWidget="addWidget"
-                        @onPaletteDragStart="onPaletteDragStart"
-                        @onPaletteDragEnd="onPaletteDragEnd"
-                    />
+                        @update:activeWidgetCategory="(val) => (activeWidgetCategory = val)" @addWidget="addWidget"
+                        @onPaletteDragStart="onPaletteDragStart" @onPaletteDragEnd="onPaletteDragEnd" />
 
                     <!-- Canvas with Mobile Phone Frame -->
                     <div class="flex flex-1 flex-col gap-4">
                         <!-- Mobile phone frame container -->
                         <div class="flex items-start justify-center">
                             <div
-                                class="mobile-phone-frame transition-colors dark:bg-gray-900 dark:shadow-[0_0_0_10px_#000,0_0_0_11px_#333,0_20px_30px_rgba(0,0,0,0.5)]"
-                            >
+                                class="mobile-phone-frame transition-colors dark:bg-gray-900 dark:shadow-[0_0_0_10px_#000,0_0_0_11px_#333,0_20px_30px_rgba(0,0,0,0.5)]">
                                 <!-- Phone status bar -->
                                 <PhoneStatusBar />
                                 <!-- AppBar -->
-                                <AppBarFlutter
-                                    v-if="currentScreen && !currentScreen.isDrawer"
+                                <AppBarFlutter v-if="currentScreen && !currentScreen.isDrawer"
                                     :title="currentScreen.name || 'App Bar'"
                                     :backgroundColor="appBarWidget.props.backgroundColor"
-                                    :textColor="appBarWidget.props.textColor"
-                                    :elevation="appBarWidget.props.elevation"
+                                    :textColor="appBarWidget.props.textColor" :elevation="appBarWidget.props.elevation"
                                     :centerTitle="appBarWidget.props.centerTitle"
                                     :automaticallyImplyLeading="appBarWidget.props.automaticallyImplyLeading"
-                                    @click="selectWidget(appBarWidget)"
-                                />
+                                    @click="selectWidget(appBarWidget)" />
                                 <!-- Phone content area (draggable canvas) -->
                                 <div class="phone-content-area bg-sky-50 transition-colors dark:bg-gray-800">
-                                    <ReiniciarPantalla
-                                        v-if="!currentScreen || !Array.isArray(currentScreen.elements)"
-                                        :isLoading="true"
-                                        @reiniciar="initializeScreens"
-                                    />
+                                    <ReiniciarPantalla v-if="!currentScreen || !Array.isArray(currentScreen.elements)"
+                                        :isLoading="true" @reiniciar="initializeScreens" />
 
                                     <!-- Draggable elements -->
-                                    <WidgetDraggable
-                                        v-model="currentScreen.elements"
+                                    <WidgetDraggable v-model="currentScreen.elements"
                                         :selected-widget="selectedWidget || undefined"
                                         :show-add-child-menu="showAddChildMenu || undefined"
                                         :active-add-child-category="activeAddChildCategory"
-                                        :input-widgets="inputWidgets"
-                                        :layout-widgets="layoutWidgets"
-                                        :display-widgets="displayWidgets"
-                                        @select-widget="selectWidget"
-                                        @remove-widget="removeWidget"
-                                        @add-child-widget="addChildWidget"
+                                        :input-widgets="inputWidgets" :layout-widgets="layoutWidgets"
+                                        :display-widgets="displayWidgets" @select-widget="selectWidget"
+                                        @remove-widget="removeWidget" @add-child-widget="addChildWidget"
                                         @update:showAddChildMenu="showAddChildMenu = $event"
                                         @update:activeAddChildCategory="activeAddChildCategory = $event"
-                                        @drag-enter="handleDragEnter"
-                                        @drag-leave="handleDragLeave"
-                                        @drop="handleDrop"
-                                    />
+                                        @drag-enter="handleDragEnter" @drag-leave="handleDragLeave"
+                                        @drop="handleDrop" />
                                 </div>
 
                                 <!-- Phone home button/navigation bar -->
@@ -2885,15 +2801,9 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Properties panel -->
-                    <WidgetsPropertiesPanel
-                        :selectedWidget="selectedWidget"
-                        :availableWidgets="availableWidgets"
-                        :updateWidgetProperty="updateWidgetProperty"
-                        :updateColorProperty="updateColorProperty"
-                        :getHexColor="getHexColor"
-                        :getRgbColor="getRgbColor"
-                        :getHslColor="getHslColor"
-                    />
+                    <WidgetsPropertiesPanel :selectedWidget="selectedWidget" :availableWidgets="availableWidgets"
+                        :updateWidgetProperty="updateWidgetProperty" :updateColorProperty="updateColorProperty"
+                        :getHexColor="getHexColor" :getRgbColor="getRgbColor" :getHslColor="getHslColor" />
                 </div>
             </div>
 
@@ -2905,139 +2815,92 @@ onUnmounted(() => {
             </div>
 
             <!-- Collaborator Management Section -->
-            <Colaboradores
-                v-if="isCreator || (props.pizarra && props.user && props.pizarra.user_id === props.user.id)"
-                :collaborators="collaborators"
-                :online-collaborators="onlineCollaborators"
-                :pizarra="props.pizarra"
-            />
+            <Colaboradores v-if="isCreator || (props.pizarra && props.user && props.pizarra.user_id === props.user.id)"
+                :collaborators="collaborators" :online-collaborators="onlineCollaborators" :pizarra="props.pizarra" />
 
             <!-- Chat Buttons -->
             <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
                 <!-- THEMES -->
-                <button
-                    @click="toggleDarkMode"
+                <button @click="toggleDarkMode"
                     class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-600 text-white shadow-lg transition-colors hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800"
-                    aria-label="Toggle Socket Server"
-                >
-                    <svg v-if="isDarkMode" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path
-                            fill-rule="evenodd"
+                    aria-label="Toggle Socket Server">
+                    <svg v-if="isDarkMode" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                        fill="currentColor">
+                        <path fill-rule="evenodd"
                             d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
-                            clip-rule="evenodd"
-                        />
+                            clip-rule="evenodd" />
                     </svg>
-                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20"
+                        fill="currentColor">
                         <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
                     </svg>
                 </button>
                 <!-- CHANGE SOCKETS -->
-                <button
-                    @click="toggleSocketServer"
+                <button @click="toggleSocketServer"
                     class="flex h-12 w-12 items-center justify-center rounded-full bg-gray-600 text-white shadow-lg transition-colors hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-800"
-                    aria-label="Toggle Socket Server"
-                >
+                    aria-label="Toggle Socket Server">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512">
-                        <!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.-->
-                        <path
-                            fill="#ffffff"
-                            d="M54.2 202.9C123.2 136.7 216.8 96 320 96s196.8 40.7 265.8 106.9c12.8 12.2 33 11.8 45.2-.9s11.8-33-.9-45.2C549.7 79.5 440.4 32 320 32S90.3 79.5 9.8 156.7C-2.9 169-3.3 189.2 8.9 202s32.5 13.2 45.2 .9zM320 256c56.8 0 108.6 21.1 148.2 56c13.3 11.7 33.5 10.4 45.2-2.8s10.4-33.5-2.8-45.2C459.8 219.2 393 192 320 192s-139.8 27.2-190.5 72c-13.3 11.7-14.5 31.9-2.8 45.2s31.9 14.5 45.2 2.8c39.5-34.9 91.3-56 148.2-56zm64 160a64 64 0 1 0 -128 0 64 64 0 1 0 128 0z"
-                        />
+                        <path fill="#ffffff"
+                            d="M54.2 202.9C123.2 136.7 216.8 96 320 96s196.8 40.7 265.8 106.9c12.8 12.2 33 11.8 45.2-.9s11.8-33-.9-45.2C549.7 79.5 440.4 32 320 32S90.3 79.5 9.8 156.7C-2.9 169-3.3 189.2 8.9 202s32.5 13.2 45.2 .9zM320 256c56.8 0 108.6 21.1 148.2 56c13.3 11.7 33.5 10.4 45.2-2.8s10.4-33.5-2.8-45.2C459.8 219.2 393 192 320 192s-139.8 27.2-190.5 72c-13.3 11.7-14.5 31.9-2.8 45.2s31.9 14.5 45.2 2.8c39.5-34.9 91.3-56 148.2-56zm64 160a64 64 0 1 0 -128 0 64 64 0 1 0 128 0z" />
                     </svg>
                 </button>
                 <!-- AI Chat Button -->
-                <button
-                    @click="toggleAIChat"
+                <button @click="toggleAIChat"
                     class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600 text-white shadow-lg transition-colors hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
-                    :class="{ 'bg-purple-700 dark:bg-purple-800': showAIChat }"
-                    aria-label="Toggle AI Chat"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 001.357 2.051l.311.093c1.135.34 2.345.34 3.48 0l.312-.093a2.25 2.25 0 001.357-2.051V3.104M18 14.5a2.25 2.25 0 012.25 2.25v1.5a2.25 2.25 0 01-2.25 2.25h-7.5a2.25 2.25 0 01-2.25-2.25v-1.5a2.25 2.25 0 012.25-2.25h7.5z"
-                        />
+                    :class="{ 'bg-purple-700 dark:bg-purple-800': showAIChat }" aria-label="Toggle AI Chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 001.357 2.051l.311.093c1.135.34 2.345.34 3.48 0l.312-.093a2.25 2.25 0 001.357-2.051V3.104M18 14.5a2.25 2.25 0 012.25 2.25v1.5a2.25 2.25 0 01-2.25 2.25h-7.5a2.25 2.25 0 01-2.25-2.25v-1.5a2.25 2.25 0 012.25-2.25h7.5z" />
                     </svg>
                 </button>
 
                 <!-- Chat Auto-Open Toggle Button -->
-                <button
-                    @click="autoOpenChat = !autoOpenChat"
+                <button @click="autoOpenChat = !autoOpenChat"
                     class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-500 text-white shadow-lg transition-colors hover:bg-teal-600 dark:bg-teal-600 dark:hover:bg-teal-700"
-                    :class="{ 'bg-teal-700 dark:bg-teal-800': autoOpenChat }"
-                    aria-label="Toggle Chat Auto-Open"
-                    title="Toggle chat auto-open on new messages"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                        />
+                    :class="{ 'bg-teal-700 dark:bg-teal-800': autoOpenChat }" aria-label="Toggle Chat Auto-Open"
+                    title="Toggle chat auto-open on new messages">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     <span
                         class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold"
-                        :class="autoOpenChat ? 'text-teal-500' : 'text-gray-400'"
-                    >
+                        :class="autoOpenChat ? 'text-teal-500' : 'text-gray-400'">
                         {{ autoOpenChat ? 'ON' : 'OFF' }}
                     </span>
                 </button>
 
                 <!-- Regular Chat Button -->
-                <button
-                    @click="toggleFloatingChat"
+                <button @click="toggleFloatingChat"
                     class="relative flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
                     :class="{ 'animate-pulse': !showFloatingChat && unreadMessages > 0, 'bg-blue-600 dark:bg-blue-700': showFloatingChat }"
-                    aria-label="Toggle Chat"
-                >
+                    aria-label="Toggle Chat">
                     <!-- Notification Badge -->
-                    <span
-                        v-if="unreadMessages > 0 && !showFloatingChat"
-                        class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white"
-                    >
+                    <span v-if="unreadMessages > 0 && !showFloatingChat"
+                        class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
                         {{ unreadMessages > 9 ? '9+' : unreadMessages }}
                     </span>
 
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                        />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                 </button>
             </div>
 
             <!-- Floating Chat Window -->
-            <ChatColaborativo
-                v-if="showFloatingChat"
-                :socket="socket"
-                :currentUser="currentUser"
-                :roomId="roomId"
-                :showChat="showFloatingChat"
-                :socketUrl="socketConfig?.value?.url || 'http://localhost:4000'"
-                @close="showFloatingChat = false"
-                @send-message="handleChatMessage"
-                @typing="handleTyping"
-            />
+            <ChatColaborativo v-if="showFloatingChat" :socket="socket" :currentUser="currentUser" :roomId="roomId"
+                :showChat="showFloatingChat" :socketUrl="socketConfig.url || 'http://localhost:4000'"
+                @close="showFloatingChat = false" @send-message="handleChatMessage" @typing="handleTyping" />
             <!-- AI Chat Window -->
-            <ChatAI
-                :showAIChat="showAIChat"
-                :aiMessages="aiMessages"
-                :aiPrompt="aiPrompt"
-                :isProcessingAI="isProcessingAI"
-                @toggleAIChat="toggleAIChat"
-                @sendAIPrompt="sendAIPrompt"
-                @sendAudioPrompt="sendAudioPrompt"
-                @onAIPromptInput="onChatInputAI"
-                @addAIWidgetsToCanvas="addAIWidgetsToCanvas"
-                @update:aiPrompt="(value) => (aiPrompt = value)"
-                @update:isProcessingAI="(value) => (isProcessingAI = value)"
-            />
+            <ChatAI :showAIChat="showAIChat" :aiMessages="aiMessages" :aiPrompt="aiPrompt"
+                :isProcessingAI="isProcessingAI" @toggleAIChat="toggleAIChat" @sendAIPrompt="sendAIPrompt"
+                @sendAudioPrompt="sendAudioPrompt" @onAIPromptInput="onChatInputAI"
+                @addAIWidgetsToCanvas="addAIWidgetsToCanvas" @update:aiPrompt="(value) => (aiPrompt = value)"
+                @update:isProcessingAI="(value) => (isProcessingAI = value)" />
         </div>
     </AppLayout>
 </template>
