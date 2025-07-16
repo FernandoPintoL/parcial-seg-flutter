@@ -622,6 +622,41 @@ const sendAIPrompt = async () => {
         isProcessingAI.value = false;
     }
 };
+
+// Process an audio prompt
+const sendAudioPrompt = async (audioBlob: Blob) => {
+    console.log('Processing audio prompt...');
+    if (isProcessingAI.value) return;
+
+    // Set processing state
+    isProcessingAI.value = true;
+
+    try {
+        // Use AIService to process the audio prompt
+        const parseFlutterWidgetsWrapper = (code: string) => {
+            parseFlutterWidgets(code);
+        };
+
+        const result = await AIService.processAudioPrompt(
+            audioBlob,
+            aiMessages.value,
+            isProcessingAI.value,
+            parseFlutterWidgetsWrapper);
+        console.log('AI service result from audio prompt:', result);
+
+        // Update state with the result
+        aiMessages.value = result.aiMessages;
+        isProcessingAI.value = result.isProcessingAI;
+    } catch (error: any) {
+        console.error('Error al procesar audio prompt:', error);
+        aiMessages.value.push({
+            text: `Error: ${error.message || 'Error al procesar el audio'}`,
+            isUser: false,
+            timestamp: Date.now(),
+        });
+        isProcessingAI.value = false;
+    }
+};
 // Agregue widgets generados por IA al lienzo
 const addAIWidgetsToCanvas = async (widgets: FlutterWidget[]) => {
     if (!widgets || !Array.isArray(widgets) || widgets.length === 0) {
@@ -1718,6 +1753,7 @@ const generateNavigationDrawerCode = () => {
 
     // Generate code for the NavigationDrawer
     return `
+// @ts-ignore
 import 'package:flutter/material.dart';
 
 class NavigationDrawer extends StatelessWidget {
@@ -1826,7 +1862,9 @@ const generateScreenCode = (screenIndex: number) => {
         }
 
         return `
+// @ts-ignore
 import 'package:flutter/material.dart';
+// @ts-ignore
 import 'navigation_drawer.dart';
 
 class Home extends StatelessWidget {
@@ -1868,7 +1906,9 @@ ${screenWidgetsCode}
         // If the screen already has a Scaffold widget, use it directly
         const scaffoldWidget = screen.elements.find(widget => widget.type === 'Scaffold');
         return `
+// @ts-ignore
 import 'package:flutter/material.dart';
+// @ts-ignore
 import 'navigation_drawer.dart';
 
 class ${screenClassName} extends StatelessWidget {
@@ -1891,7 +1931,9 @@ class ${screenClassName} extends StatelessWidget {
 
         // Create a screen class with a new Scaffold
         return `
+// @ts-ignore
 import 'package:flutter/material.dart';
+// @ts-ignore
 import 'navigation_drawer.dart';
 
 class ${screenClassName} extends StatelessWidget {
@@ -2990,6 +3032,7 @@ onUnmounted(() => {
                 :isProcessingAI="isProcessingAI"
                 @toggleAIChat="toggleAIChat"
                 @sendAIPrompt="sendAIPrompt"
+                @sendAudioPrompt="sendAudioPrompt"
                 @onAIPromptInput="onChatInputAI"
                 @addAIWidgetsToCanvas="addAIWidgetsToCanvas"
                 @update:aiPrompt="(value) => (aiPrompt = value)"

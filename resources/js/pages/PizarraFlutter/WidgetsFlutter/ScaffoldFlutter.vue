@@ -224,6 +224,10 @@ const getFabPosition = computed(() => {
 </template>
 
 <style scoped>
+/* Para asegurar que se incluyan los íconos de Material Design */
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
 .scaffold-container {
     font-family: 'Roboto', sans-serif;
     border-radius: 8px;
@@ -256,7 +260,4 @@ const getFabPosition = computed(() => {
     border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-/* Para asegurar que se incluyan los íconos de Material Design */
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 </style>

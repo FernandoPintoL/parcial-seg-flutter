@@ -21,6 +21,34 @@ class AzureService
     }
 
     /**
+     * Validate that all required configuration is present
+     *
+     * @return bool
+     */
+    public function isConfigured(): bool
+    {
+        return !empty($this->apiKey) && !empty($this->apiUrl) && !empty($this->modelName) && !empty($this->deploymentName);
+    }
+
+    /**
+     * Get the configuration status
+     *
+     * @return array
+     */
+    public function getConfigStatus(): array
+    {
+        return [
+            'configured' => $this->isConfigured(),
+            'api_key_set' => !empty($this->apiKey),
+            'api_url_set' => !empty($this->apiUrl),
+            'model_name_set' => !empty($this->modelName),
+            'deployment_name_set' => !empty($this->deploymentName),
+            'model_name' => $this->modelName,
+            'deployment_name' => $this->deploymentName,
+        ];
+    }
+
+    /**
      * Generate a response from Azure OpenAI
      *
      * @param string $prompt The prompt to send to the AI
@@ -30,6 +58,14 @@ class AzureService
     public function generateResponse(string $prompt, array $options = [])
     {
         try {
+            if (!$this->isConfigured()) {
+                return [
+                    'success' => false,
+                    'error' => 'Azure OpenAI Service not configured',
+                    'message' => 'Missing API key, URL, model name, or deployment name configuration',
+                ];
+            }
+
             $defaultOptions = [
                 'messages' => [
                     [

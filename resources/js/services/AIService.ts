@@ -2,8 +2,184 @@
 import axios from 'axios';
 import { AlertService } from '@/services/AlertService';
 import { FlutterWidget } from '@/types/Pizarra';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 
 export class AIService {
+    /**
+     * Test Azure Speech Service configuration
+     * @returns Configuration status and test results
+     */
+    static async testSpeechConfiguration(): Promise<{
+        success: boolean;
+        configuration: any;
+        message: string;
+    }> {
+        console.log('Testing Azure Speech Service configuration...');
+
+        // Extract configuration from environment
+        const speechKey = import.meta.env.VITE_AZURE_SPEECH_KEY;
+        const speechRegion = import.meta.env.VITE_AZURE_SPEECH_REGION;
+        const speechLanguage = import.meta.env.VITE_AZURE_SPEECH_LANGUAGE || 'es-ES';
+
+        const configuration = {
+            speechKey: speechKey ? 'Set (length: ' + speechKey.length + ')' : 'Not set',
+            speechRegion: speechRegion || 'Not set',
+            speechLanguage: speechLanguage || 'Not set',
+            isConfigured: !!(speechKey && speechRegion)
+        };
+
+        try {
+            // Validate environment variables
+            if (!speechKey || !speechRegion) {
+                return {
+                    success: false,
+                    configuration,
+                    message: 'La configuración de Azure Speech no está completa en el archivo .env.'
+                };
+            }
+
+            // Test speech config creation
+            const speechConfig = sdk.SpeechConfig.fromSubscription(speechKey, speechRegion);
+            speechConfig.speechRecognitionLanguage = speechLanguage;
+
+            return {
+                success: true,
+                configuration,
+                message: 'Configuración de Azure Speech validada correctamente'
+            };
+        } catch (error: any) {
+            console.error('Error testing Azure Speech configuration:', error);
+            return {
+                success: false,
+                configuration,
+                message: 'Error al validar la configuración: ' + error.message
+            };
+        }
+    }
+
+    /**
+     * Converts audio to text using Azure Speech Services
+     * @param audioBlob The audio blob to convert to text
+     * @returns The transcribed text
+     */
+    static async convertAudioToText(audioBlob: Blob): Promise<string> {
+        console.log('Converting audio to text using Azure Speech Services...');
+
+        // Extract configuration from environment
+        const speechKey = import.meta.env.VITE_AZURE_SPEECH_KEY;
+        const speechRegion = import.meta.env.VITE_AZURE_SPEECH_REGION;
+        const speechLanguage = import.meta.env.VITE_AZURE_SPEECH_LANGUAGE || 'es-ES';
+
+        try {
+            // Validate environment variables
+            if (!speechKey || !speechRegion) {
+                throw new Error('La configuración de Azure Speech no está completa en el archivo .env.');
+            }
+
+            // Create the speech config
+            const speechConfig = sdk.SpeechConfig.fromSubscription(speechKey, speechRegion);
+            speechConfig.speechRecognitionLanguage = speechLanguage;
+
+            // Convert the blob to an array buffer
+            const arrayBuffer = await audioBlob.arrayBuffer();
+
+            // Create the audio config from the array buffer
+            const pushStream = sdk.AudioInputStream.createPushStream();
+            pushStream.write(new Uint8Array(arrayBuffer));
+            pushStream.close();
+            const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
+
+            // Create the speech recognizer
+            const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+
+            // Start the recognition
+            return new Promise((resolve, reject) => {
+                recognizer.recognizeOnceAsync(
+                    (result) => {
+                        if (result.reason === sdk.ResultReason.RecognizedSpeech) {
+                            console.log(`RECOGNIZED: Text=${result.text}`);
+                            resolve(result.text);
+                        } else {
+                            console.log(`ERROR: Speech was cancelled or could not be recognized. Reason=${result.reason}`);
+                            reject(new Error(`Speech recognition failed: ${result.reason}`));
+                        }
+                        recognizer.close();
+                    },
+                    (err) => {
+                        console.error(`ERROR: ${err}`);
+                        recognizer.close();
+                        reject(err);
+                    }
+                );
+            });
+        } catch (error) {
+            console.error('Error converting audio to text:', error);
+            await AlertService.prototype.error('Error', 'No se pudo convertir el audio a texto');
+            throw error;
+        }
+    }
+
+    /**
+     * Processes an audio prompt and sends it to the AI
+     * @param audioBlob The audio blob to process
+     * @param aiMessages Array of AI messages
+     * @param isProcessingAI Flag indicating if the AI is processing
+     * @param parseFlutterWidgets Function to parse Flutter widgets
+     * @returns The updated AI messages and processing flag
+     */
+    static async processAudioPrompt(
+        audioBlob: Blob,
+        aiMessages: any[],
+        isProcessingAI: boolean,
+        parseFlutterWidgets: (code: string) => void
+    ): Promise<{ aiMessages: any[], isProcessingAI: boolean }> {
+        console.log('Processing audio prompt...');
+
+        try {
+            // Set processing state to true
+            const processingState = true;
+
+            // Convert audio to text
+            const transcribedText = await this.convertAudioToText(audioBlob);
+            console.log('Transcribed text:', transcribedText);
+
+            if (!transcribedText.trim()) {
+                throw new Error('No se pudo transcribir el audio. Por favor, inténtalo de nuevo.');
+            }
+
+            // Add transcribed text as user message
+            const updatedMessages = [...aiMessages];
+            updatedMessages.push({
+                text: `🎤 ${transcribedText}`,
+                isUser: true,
+                timestamp: Date.now()
+            });
+
+            // Send the transcribed text to the AI
+            const result = await this.sendAIPrompt(
+                transcribedText,
+                updatedMessages,
+                processingState,
+                parseFlutterWidgets
+            );
+
+            return result;
+        } catch (error: any) {
+            console.error('Error processing audio prompt:', error);
+
+            // Create a copy of the aiMessages array
+            const updatedMessages = [...aiMessages];
+
+            // Add error message
+            updatedMessages.push({
+                text: `Error al procesar el audio: ${error.message || 'Error desconocido'}`,
+                isUser: false,
+                timestamp: Date.now()
+            });
+
+            return { aiMessages: updatedMessages, isProcessingAI: false };
+        }
+    }
     /**
      * Sends Flutter code to Azure for correction to make it compatible with Flutter 3.0.0 and Dart 2.17.0
      * @param flutterCode The Flutter code to correct

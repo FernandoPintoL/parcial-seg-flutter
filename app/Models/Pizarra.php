@@ -23,6 +23,9 @@ class Pizarra extends Model
         'users',
         'screens',
         'elements',
+        'type',
+        'framework',
+        'description',
     ];
     /**
      * Get the user that owns the pizarra flutter.
@@ -51,5 +54,77 @@ class Pizarra extends Model
     public function pizarraHijas(): BelongsTo
     {
         return $this->belongsTo(Pizarra::class, 'pizarra_id', 'id');
+    }
+
+    /**
+     * Scope para filtrar pizarras por tipo
+     */
+    public function scopeOfType($query, $type)
+    {
+        return $query->where('type', $type);
+    }
+
+    /**
+     * Scope para filtrar pizarras por framework
+     */
+    public function scopeOfFramework($query, $framework)
+    {
+        return $query->where('framework', $framework);
+    }
+
+    /**
+     * Verifica si la pizarra es de tipo unificada
+     */
+    public function isUnified(): bool
+    {
+        return $this->type === 'unified';
+    }
+
+    /**
+     * Verifica si la pizarra es de tipo Flutter
+     */
+    public function isFlutter(): bool
+    {
+        return $this->type === 'flutter';
+    }
+
+    /**
+     * Verifica si la pizarra es de tipo Angular
+     */
+    public function isAngular(): bool
+    {
+        return $this->type === 'angular';
+    }
+
+    /**
+     * Obtiene las pantallas decodificadas
+     */
+    public function getScreensAttribute($value)
+    {
+        return $value ? json_decode($value, true) : [];
+    }
+
+    /**
+     * Establece las pantallas codificadas
+     */
+    public function setScreensAttribute($value)
+    {
+        $this->attributes['screens'] = json_encode($value);
+    }
+
+    /**
+     * Obtiene los elementos decodificados
+     */
+    public function getElementsAttribute($value)
+    {
+        return $value ? json_decode($value, true) : [];
+    }
+
+    /**
+     * Establece los elementos codificados
+     */
+    public function setElementsAttribute($value)
+    {
+        $this->attributes['elements'] = json_encode($value);
     }
 }

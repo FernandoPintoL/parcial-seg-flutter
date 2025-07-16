@@ -160,6 +160,10 @@ const selectWidget = () => {
 </template>
 
 <style scoped>
+/* Para asegurar que se incluyan los íconos de Material Design */
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
 .card-flutter {
   font-family: 'Roboto', sans-serif;
   display: flex;
@@ -229,7 +233,4 @@ const selectWidget = () => {
   margin-right: 4px;
 }
 
-/* Para asegurar que se incluyan los íconos de Material Design */
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
 </style>
