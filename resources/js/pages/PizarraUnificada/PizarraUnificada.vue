@@ -234,6 +234,39 @@ const showWidgetPalette = ref<boolean>(true);
 const showPropertiesPanel = ref<boolean>(true);
 const showScreenManager = ref<boolean>(false);
 
+// UI State management for improved UX
+const isPanelsCollapsed = ref<boolean>(false);
+const isFullscreen = ref<boolean>(false);
+
+// Panel visibility toggles
+const toggleWidgetPalette = () => {
+    showWidgetPalette.value = !showWidgetPalette.value;
+};
+
+const togglePropertiesPanel = () => {
+    showPropertiesPanel.value = !showPropertiesPanel.value;
+};
+
+const togglePanelsCollapse = () => {
+    isPanelsCollapsed.value = !isPanelsCollapsed.value;
+    if (isPanelsCollapsed.value) {
+        showWidgetPalette.value = false;
+        showPropertiesPanel.value = false;
+    } else {
+        showWidgetPalette.value = true;
+        showPropertiesPanel.value = true;
+    }
+};
+
+const toggleFullscreen = () => {
+    isFullscreen.value = !isFullscreen.value;
+    if (isFullscreen.value) {
+        document.documentElement.requestFullscreen?.();
+    } else {
+        document.exitFullscreen?.();
+    }
+};
+
 const addWidget = (widgetType: string) => {
     const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
     const position = { x: 100, y: 100 }; // Posición por defecto
@@ -675,239 +708,505 @@ const savePizarra = async () => {
         <Head :title="projectName" />
 
         <AppLayout :breadcrumbs="breadcrumbs">
+            <!-- Enhanced Header -->
             <template #header>
-                <div class="flex justify-between items-center">
-                    <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                        {{ projectName }}
-                    </h2>
+                <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white">
+                    <div class="flex justify-between items-center p-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <span class="material-icons text-white text-lg">dashboard</span>
+                                </div>
+                                <div>
+                                    <h2 class="font-bold text-xl">{{ projectName }}</h2>
+                                    <p class="text-blue-100 text-sm">Editor Unificado de Interfaces</p>
+                                </div>
+                            </div>
+                        </div>
 
-                    <!-- Framework selector -->
-                    <div class="flex items-center space-x-4">
-                        <select v-model="selectedFramework" @change="switchFramework(selectedFramework)"
-                            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                            <option value="flutter">Flutter</option>
-                            <option value="angular">Angular</option>
-                            <option value="both">Ambos</option>
-                        </select>
+                        <!-- Enhanced Toolbar -->
+                        <div class="flex items-center space-x-3">
+                            <!-- Framework Selector with improved styling -->
+                            <div class="relative">
+                                <select v-model="selectedFramework" @change="switchFramework(selectedFramework)"
+                                    class="appearance-none bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-lg px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-white/30">
+                                    <option value="flutter" class="text-gray-800">🎯 Flutter</option>
+                                    <option value="angular" class="text-gray-800">🅰️ Angular</option>
+                                    <option value="both" class="text-gray-800">🔄 Ambos</option>
+                                </select>
+                                <span
+                                    class="material-icons absolute right-2 top-1/2 transform -translate-y-1/2 text-white pointer-events-none">
+                                    expand_more
+                                </span>
+                            </div>
 
-                        <!-- Dark mode toggle -->
-                        <button @click="toggleDarkMode" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <svg v-if="isDarkMode" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                    d="M10 2L13.09 8.26L20 9L14 14.74L15.18 21.02L10 17.77L4.82 21.02L6 14.74L0 9L6.91 8.26L10 2Z" />
-                            </svg>
-                            <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                            </svg>
-                        </button>
+                            <!-- Panel Controls -->
+                            <div class="flex items-center space-x-1 bg-white/10 backdrop-blur-sm rounded-lg p-1">
+                                <button @click="toggleWidgetPalette"
+                                    :class="showWidgetPalette ? 'bg-white/20' : 'hover:bg-white/10'"
+                                    class="p-2 rounded-md transition-all duration-200 group">
+                                    <span class="material-icons text-sm">widgets</span>
+                                </button>
+                                <button @click="togglePropertiesPanel"
+                                    :class="showPropertiesPanel ? 'bg-white/20' : 'hover:bg-white/10'"
+                                    class="p-2 rounded-md transition-all duration-200 group">
+                                    <span class="material-icons text-sm">tune</span>
+                                </button>
+                                <button @click="togglePanelsCollapse"
+                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                    <span class="material-icons text-sm">
+                                        {{ isPanelsCollapsed ? 'unfold_more' : 'unfold_less' }}
+                                    </span>
+                                </button>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div class="flex items-center space-x-1 bg-white/10 backdrop-blur-sm rounded-lg p-1">
+                                <button @click="toggleFullscreen"
+                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                    <span class="material-icons text-sm">fullscreen</span>
+                                </button>
+                                <button @click="savePizarra"
+                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                    <span class="material-icons text-sm">save</span>
+                                </button>
+                            </div>
+
+                            <!-- Dark Mode Toggle with enhanced styling -->
+                            <button @click="toggleDarkMode"
+                                class="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all duration-200">
+                                <svg v-if="isDarkMode" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                        d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                                <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </template>
 
-            <div class="py-12">
-                <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg">
-                        <div class="p-6 bg-white dark:bg-gray-800">
-                            <!-- Main UI for editing components -->
-                            <div class="flex flex-col md:flex-row gap-4">
-                                <!-- Widget Palette -->
-                                <div v-if="showWidgetPalette" class="w-full md:w-64">
-                                    <UnifiedWidgetPalette :available-widgets="availableWidgets"
-                                        :selected-framework="selectedFramework" @add-widget="addWidget"
-                                        @drag-start="(widgetType) => console.log('Drag start:', widgetType)"
-                                        @drag-end="() => console.log('Drag end')" />
+            <!-- Enhanced Main Dashboard -->
+            <div
+                class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900">
+                <div class="mx-auto p-4">
+                    <!-- Main Workspace Container -->
+                    <div
+                        class="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 overflow-hidden">
+
+                        <!-- Status Bar -->
+                        <div
+                            class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-gray-200/50 dark:border-gray-700/50 px-6 py-3">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center space-x-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {{ currentScreen?.name }}
+                                        </span>
+                                        <span
+                                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                                            {{ currentScreen?.elements?.length || 0 }} elementos
+                                        </span>
+                                    </div>
                                 </div>
 
-                                <!-- Canvas Area -->
-                                <div
-                                    class="flex-1 min-h-[500px] border border-gray-200 dark:border-gray-700 rounded-lg">
-                                    <UnifiedCanvas :current-screen="currentScreen" :available-widgets="availableWidgets"
-                                        :selected-framework="selectedFramework" @select-element="selectElement"
-                                        @remove-element="removeElement" @add-element="addWidget"
-                                        @drop="(widgetType) => addWidget(widgetType)" />
-                                </div>
-
-                                <!-- Properties Panel -->
-                                <div v-if="showPropertiesPanel" class="w-full md:w-80">
-                                    <UnifiedPropertiesPanel :selected-element="selectedElement"
-                                        :available-widgets="availableWidgets" :framework="selectedFramework"
-                                        @update-property="updateElementProperty"
-                                        @update-color-property="updateElementProperty" />
+                                <div class="flex items-center space-x-2">
+                                    <!-- Screen Manager Button -->
+                                    <button @click="showScreenManager = !showScreenManager"
+                                        :class="showScreenManager ? 'bg-blue-500 text-white' : 'bg-white/50 text-gray-700 hover:bg-white/70'"
+                                        class="px-4 py-2 rounded-lg transition-all duration-200 border border-gray-200 dark:border-gray-600 backdrop-blur-sm flex items-center space-x-2">
+                                        <span class="material-icons text-sm">layers</span>
+                                        <span class="font-medium">Gestionar Pantallas</span>
+                                    </button>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Screen Info -->
-                            <div
-                                class="mt-4 flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-lg">
-                                <div>
-                                    <span class="font-medium">{{ currentScreen?.name }}</span>
-                                    <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                                        ({{ currentScreen?.elements?.length || 0 }} elementos)
-                                    </span>
+                        <!-- Enhanced Main Workspace -->
+                        <div class="p-6">
+                            <div class="flex gap-6" :class="{ 'justify-center': isPanelsCollapsed }">
+
+                                <!-- Widget Palette - Enhanced -->
+                                <div v-if="showWidgetPalette && !isPanelsCollapsed"
+                                    class="w-80 transition-all duration-300 transform">
+                                    <div
+                                        class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 h-full">
+                                        <div class="p-4 border-b border-gray-200/50 dark:border-gray-700/50">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="material-icons text-blue-500">widgets</span>
+                                                <h3 class="font-semibold text-gray-800 dark:text-gray-200">Componentes
+                                                </h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4">
+                                            <UnifiedWidgetPalette :available-widgets="availableWidgets"
+                                                :selected-framework="selectedFramework" @add-widget="addWidget"
+                                                @drag-start="(widgetType) => console.log('Drag start:', widgetType)"
+                                                @drag-end="() => console.log('Drag end')" />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <button @click="showScreenManager = !showScreenManager"
-                                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
-                                        Gestionar Pantallas
+
+                                <!-- Canvas Area - Enhanced -->
+                                <div class="flex-1 transition-all duration-300">
+                                    <div
+                                        class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 min-h-[600px]">
+                                        <div class="p-4 border-b border-gray-200/50 dark:border-gray-700/50">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="material-icons text-green-500">design_services</span>
+                                                    <h3 class="font-semibold text-gray-800 dark:text-gray-200">Canvas de
+                                                        Diseño</h3>
+                                                </div>
+                                                <div class="flex items-center space-x-2">
+                                                    <div
+                                                        class="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-3 py-1 rounded-full text-xs font-medium">
+                                                        {{ selectedFramework.toUpperCase() }}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="p-4">
+                                            <UnifiedCanvas :current-screen="currentScreen"
+                                                :available-widgets="availableWidgets"
+                                                :selected-framework="selectedFramework" @select-element="selectElement"
+                                                @remove-element="removeElement" @add-element="addWidget"
+                                                @drop="(widgetType) => addWidget(widgetType)" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Properties Panel - Enhanced -->
+                                <div v-if="showPropertiesPanel && !isPanelsCollapsed"
+                                    class="w-80 transition-all duration-300 transform">
+                                    <div
+                                        class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 h-full">
+                                        <div class="p-4 border-b border-gray-200/50 dark:border-gray-700/50">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="material-icons text-purple-500">tune</span>
+                                                <h3 class="font-semibold text-gray-800 dark:text-gray-200">Propiedades
+                                                </h3>
+                                            </div>
+                                        </div>
+                                        <div class="p-4">
+                                            <UnifiedPropertiesPanel :selected-element="selectedElement"
+                                                :available-widgets="availableWidgets" :framework="selectedFramework"
+                                                @update-property="updateElementProperty"
+                                                @update-color-property="updateElementProperty" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Screen Manager Modal -->
+                    <div v-if="showScreenManager"
+                        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div
+                            class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-4xl mx-4 max-h-[80vh] overflow-hidden">
+                            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="material-icons text-blue-500 text-2xl">layers</span>
+                                        <h3 class="text-xl font-bold text-gray-800 dark:text-gray-200">Gestión de
+                                            Pantallas</h3>
+                                    </div>
+                                    <button @click="showScreenManager = false"
+                                        class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                        <span class="material-icons text-gray-500">close</span>
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- Screen Manager -->
-                            <div v-if="showScreenManager" class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                                <h3 class="text-lg font-medium mb-2">Gestionar Pantallas</h3>
-                                <div class="flex flex-wrap gap-2">
+                            <div class="p-6 overflow-y-auto max-h-[60vh]">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div v-for="(screen, index) in screens" :key="screen.id"
-                                        class="p-2 border rounded cursor-pointer" :class="{
-                                            'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20':
-                                                currentScreenIndex === index,
-                                            'border-gray-300 dark:border-gray-600':
-                                                currentScreenIndex !== index
+                                        class="group relative p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg"
+                                        :class="{
+                                            'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-lg': currentScreenIndex === index,
+                                            'border-gray-200 dark:border-gray-700 hover:border-blue-300': currentScreenIndex !== index
                                         }" @click="selectScreen(index)">
-                                        <div class="flex justify-between items-center">
-                                            <span>{{ screen.name }}</span>
-                                            <div class="flex gap-1">
+
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h4 class="font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                                {{ screen.name }}
+                                            </h4>
+                                            <div class="flex items-center space-x-1">
                                                 <button v-if="!screen.isHome" @click.stop="setHomeScreen(index)"
-                                                    class="text-xs px-1 bg-green-500 text-white rounded">
-                                                    Home
+                                                    class="px-2 py-1 bg-green-500 text-white text-xs rounded-md hover:bg-green-600 transition-colors">
+                                                    <span class="material-icons text-xs">home</span>
                                                 </button>
-                                                <button @click.stop="deleteScreen(index)"
-                                                    class="text-xs px-1 bg-red-500 text-white rounded">
-                                                    X
+                                                <button v-if="screens.length > 1" @click.stop="deleteScreen(index)"
+                                                    class="px-2 py-1 bg-red-500 text-white text-xs rounded-md hover:bg-red-600 transition-colors">
+                                                    <span class="material-icons text-xs">delete</span>
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="text-xs text-gray-500">
+
+                                        <div class="text-sm text-gray-500 dark:text-gray-400 mb-2">
                                             {{ screen.elements.length }} elementos
+                                        </div>
+
+                                        <div
+                                            class="w-full h-20 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                            <span class="material-icons text-gray-400 text-2xl">preview</span>
+                                        </div>
+
+                                        <!-- Home indicator -->
+                                        <div v-if="screen.isHome"
+                                            class="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full">
+                                            <span class="material-icons text-xs">home</span>
                                         </div>
                                     </div>
 
-                                    <!-- Add Screen Button -->
-                                    <div class="p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded cursor-pointer flex items-center justify-center"
+                                    <!-- Add Screen Card -->
+                                    <div class="group p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all duration-200 flex flex-col items-center justify-center min-h-[140px]"
                                         @click="addScreen('Nueva Pantalla ' + (screens.length + 1))">
-                                        <span class="text-gray-500">+ Añadir Pantalla</span>
+                                        <span
+                                            class="material-icons text-4xl text-gray-400 group-hover:text-blue-500 transition-colors mb-2">add_circle_outline</span>
+                                        <span class="text-gray-500 group-hover:text-blue-600 font-medium">Añadir
+                                            Pantalla</span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                            <!-- Action buttons -->
-                            <div class="mt-6 flex justify-center space-x-4">
+            <!-- Floating Action Buttons -->
+            <div class="fixed bottom-6 right-6 flex flex-col space-y-3 z-40">
+                <!-- AI Chat Button -->
+                <button @click="toggleAIChat"
+                    :class="showAIChat ? 'bg-green-600 scale-110' : 'bg-green-500 hover:bg-green-600'"
+                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
+                    <span class="material-icons text-xl">smart_toy</span>
+                </button>
+
+                <!-- Image Upload Button -->
+                <button @click="toggleImageUpload"
+                    :class="showImageUpload ? 'bg-purple-600 scale-110' : 'bg-purple-500 hover:bg-purple-600'"
+                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
+                    <span class="material-icons text-xl">image</span>
+                </button>
+
+                <!-- Diagram Upload Button -->
+                <button @click="toggleDiagramUpload"
+                    :class="showDiagramUpload ? 'bg-orange-600 scale-110' : 'bg-orange-500 hover:bg-orange-600'"
+                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
+                    <span class="material-icons text-xl">account_tree</span>
+                </button>
+
+                <!-- Code Viewer Button -->
+                <button @click="toggleCodeViewer"
+                    :class="showCodeViewer ? 'bg-blue-600 scale-110' : 'bg-blue-500 hover:bg-blue-600'"
+                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
+                    <span class="material-icons text-xl">code</span>
+                </button>
+            </div>
+
+            <!-- Enhanced Feature Panels -->
+
+            <!-- Enhanced Code Viewer Modal -->
+            <div v-if="showCodeViewer"
+                class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <span class="material-icons text-blue-500 text-2xl">code</span>
+                                <h3 class="text-xl font-bold text-gray-800 dark:text-gray-200">
+                                    Código Generado ({{ selectedFramework.toUpperCase() }})
+                                </h3>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button @click="copyCode"
+                                    class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-2">
+                                    <span class="material-icons text-sm">content_copy</span>
+                                    <span>Copiar</span>
+                                </button>
+                                <button @click="downloadCode"
+                                    class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center space-x-2">
+                                    <span class="material-icons text-sm">download</span>
+                                    <span>Descargar</span>
+                                </button>
                                 <button @click="toggleCodeViewer"
-                                    class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    {{ showCodeViewer ? 'Ocultar' : 'Ver' }} Código
-                                </button>
-
-                                <button @click="toggleAIChat"
-                                    class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500">
-                                    {{ showAIChat ? 'Ocultar' : 'Abrir' }} Chat AI
-                                </button>
-
-                                <button @click="toggleImageUpload"
-                                    class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                    {{ showImageUpload ? 'Ocultar' : 'Subir' }} Imagen
-                                </button>
-
-                                <button @click="toggleDiagramUpload"
-                                    class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                                    {{ showDiagramUpload ? 'Ocultar' : 'Subir' }} Diagrama
+                                    class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                    <span class="material-icons text-gray-500">close</span>
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                    <div class="p-6 overflow-y-auto max-h-[70vh]">
+                        <pre class="bg-gray-900 text-gray-100 p-6 rounded-xl overflow-x-auto text-sm font-mono border">{{
+                            generatedCode || 'Generando código...' }}</pre>
+                    </div>
+                </div>
+            </div>
 
-                            <!-- Code viewer -->
-                            <div v-if="showCodeViewer" class="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-md">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                                        Código Generado ({{ selectedFramework }})
-                                    </h4>
-                                    <div class="space-x-2">
-                                        <button @click="copyCode"
-                                            class="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm">
-                                            Copiar
-                                        </button>
-                                        <button @click="downloadCode"
-                                            class="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm">
-                                            Descargar
-                                        </button>
-                                    </div>
-                                </div>
-                                <pre class="bg-gray-900 text-gray-100 p-4 rounded-md overflow-x-auto text-sm">{{ generatedCode ||
-                                    'Generando código...' }}</pre>
+            <!-- Enhanced Image Upload Modal -->
+            <div v-if="showImageUpload"
+                class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <span class="material-icons text-purple-500 text-2xl">image</span>
+                                <h3 class="text-xl font-bold text-gray-800 dark:text-gray-200">Subir Imagen</h3>
                             </div>
-
-                            <!-- Image upload -->
-                            <div v-if="showImageUpload" class="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-md">
-                                <h4 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                    Subir Imagen
-                                </h4>
-                                <input type="file" @change="handleImageUpload" accept="image/*"
-                                    class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" />
-                                <div v-if="previewImage" class="mt-4">
-                                    <img :src="previewImage" alt="Preview" class="max-w-md mx-auto rounded-md" />
-                                    <div class="mt-4 flex justify-center space-x-2">
-                                        <button @click="processImage" :disabled="isProcessingImage"
-                                            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
-                                            {{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}
-                                        </button>
-                                        <button @click="clearSelectedImage"
-                                            class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                                            Limpiar
-                                        </button>
-                                    </div>
+                            <button @click="toggleImageUpload"
+                                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                <span class="material-icons text-gray-500">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-purple-400 transition-colors">
+                            <input type="file" @change="handleImageUpload" accept="image/*" class="hidden"
+                                id="imageInput" />
+                            <label for="imageInput" class="cursor-pointer flex flex-col items-center space-y-4">
+                                <span class="material-icons text-6xl text-gray-400">cloud_upload</span>
+                                <div>
+                                    <p class="text-lg font-medium text-gray-700 dark:text-gray-300">Selecciona una
+                                        imagen</p>
+                                    <p class="text-sm text-gray-500">PNG, JPG, GIF hasta 10MB</p>
                                 </div>
+                            </label>
+                        </div>
+
+                        <div v-if="previewImage" class="mt-6">
+                            <div class="bg-gray-100 dark:bg-gray-700 rounded-xl p-4">
+                                <img :src="previewImage" alt="Preview" class="max-w-full h-auto rounded-lg mx-auto" />
                             </div>
-
-                            <!-- Diagram upload -->
-                            <div v-if="showDiagramUpload" class="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-md">
-                                <h4 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                    Subir Diagrama de Clases
-                                </h4>
-
-                                <div class="mb-4">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Tipo de diagrama:
-                                    </label>
-                                    <select v-model="diagramType"
-                                        class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                        <option value="image">Imagen</option>
-                                        <option value="xml">XML</option>
-                                        <option value="plantuml">PlantUML</option>
-                                        <option value="text">Texto</option>
-                                    </select>
-                                </div>
-
-                                <div v-if="diagramType === 'image'">
-                                    <input type="file" @change="handleDiagramFileUpload" accept="image/*"
-                                        class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" />
-                                </div>
-
-                                <div v-else-if="diagramType === 'xml'">
-                                    <input type="file" @change="handleDiagramFileUpload" accept=".xml"
-                                        class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" />
-                                </div>
-
-                                <div v-else-if="diagramType === 'plantuml'">
-                                    <input type="file" @change="handleDiagramFileUpload" accept=".puml,.plantuml"
-                                        class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400" />
-                                </div>
-
-                                <div v-else>
-                                    <textarea v-model="diagramContent"
-                                        placeholder="Pega aquí el contenido del diagrama..." rows="6"
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
-                                </div>
-
-                                <div class="mt-4 flex justify-center space-x-2">
-                                    <button @click="processDiagram"
-                                        :disabled="isProcessingDiagram || (!selectedDiagramFile && !diagramContent)"
-                                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
-                                        {{ isProcessingDiagram ? 'Procesando...' : 'Procesar Diagrama' }}
-                                    </button>
-                                    <button @click="clearDiagramData"
-                                        class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                                        Limpiar
-                                    </button>
-                                </div>
+                            <div class="mt-4 flex justify-center space-x-3">
+                                <button @click="processImage" :disabled="isProcessingImage"
+                                    class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 flex items-center space-x-2">
+                                    <span class="material-icons text-sm" :class="{ 'animate-spin': isProcessingImage }">
+                                        {{ isProcessingImage ? 'refresh' : 'auto_awesome' }}
+                                    </span>
+                                    <span>{{ isProcessingImage ? 'Procesando...' : 'Procesar Imagen' }}</span>
+                                </button>
+                                <button @click="clearSelectedImage"
+                                    class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center space-x-2">
+                                    <span class="material-icons text-sm">clear</span>
+                                    <span>Limpiar</span>
+                                </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced Diagram Upload Modal -->
+            <div v-if="showDiagramUpload"
+                class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div
+                    class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-3xl mx-4 max-h-[90vh] overflow-hidden">
+                    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <span class="material-icons text-orange-500 text-2xl">account_tree</span>
+                                <h3 class="text-xl font-bold text-gray-800 dark:text-gray-200">Subir Diagrama de Clases
+                                </h3>
+                            </div>
+                            <button @click="toggleDiagramUpload"
+                                class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                                <span class="material-icons text-gray-500">close</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-6 overflow-y-auto max-h-[70vh]">
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                Tipo de diagrama:
+                            </label>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button v-for="type in [
+                                    { value: 'image' as const, label: 'Imagen', icon: 'image' },
+                                    { value: 'xml' as const, label: 'XML', icon: 'code' },
+                                    { value: 'plantuml' as const, label: 'PlantUML', icon: 'schema' },
+                                    { value: 'text' as const, label: 'Texto', icon: 'text_fields' }
+                                ]" :key="type.value" @click="diagramType = type.value"
+                                    :class="diagramType === type.value ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                                    class="p-3 rounded-lg transition-colors flex flex-col items-center space-y-1">
+                                    <span class="material-icons text-sm">{{ type.icon }}</span>
+                                    <span class="text-xs font-medium">{{ type.label }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="diagramType === 'image'"
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-orange-400 transition-colors">
+                            <input type="file" @change="handleDiagramFileUpload" accept="image/*" class="hidden"
+                                id="diagramImageInput" />
+                            <label for="diagramImageInput" class="cursor-pointer flex flex-col items-center space-y-4">
+                                <span class="material-icons text-6xl text-gray-400">image</span>
+                                <div>
+                                    <p class="text-lg font-medium text-gray-700 dark:text-gray-300">Selecciona imagen
+                                        del diagrama
+                                    </p>
+                                    <p class="text-sm text-gray-500">PNG, JPG, GIF hasta 10MB</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div v-else-if="diagramType === 'xml'"
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-orange-400 transition-colors">
+                            <input type="file" @change="handleDiagramFileUpload" accept=".xml" class="hidden"
+                                id="diagramXmlInput" />
+                            <label for="diagramXmlInput" class="cursor-pointer flex flex-col items-center space-y-4">
+                                <span class="material-icons text-6xl text-gray-400">code</span>
+                                <div>
+                                    <p class="text-lg font-medium text-gray-700 dark:text-gray-300">Selecciona archivo
+                                        XML</p>
+                                    <p class="text-sm text-gray-500">Archivos .xml</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div v-else-if="diagramType === 'plantuml'"
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-orange-400 transition-colors">
+                            <input type="file" @change="handleDiagramFileUpload" accept=".puml,.plantuml" class="hidden"
+                                id="diagramPlantUmlInput" />
+                            <label for="diagramPlantUmlInput"
+                                class="cursor-pointer flex flex-col items-center space-y-4">
+                                <span class="material-icons text-6xl text-gray-400">schema</span>
+                                <div>
+                                    <p class="text-lg font-medium text-gray-700 dark:text-gray-300">Selecciona archivo
+                                        PlantUML</p>
+                                    <p class="text-sm text-gray-500">Archivos .puml, .plantuml</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div v-else class="space-y-4">
+                            <textarea v-model="diagramContent" placeholder="Pega aquí el contenido del diagrama..."
+                                rows="8"
+                                class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-gray-700 dark:text-white resize-none"></textarea>
+                        </div>
+
+                        <div class="mt-6 flex justify-center space-x-3">
+                            <button @click="processDiagram"
+                                :disabled="isProcessingDiagram || (!selectedDiagramFile && !diagramContent)"
+                                class="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center space-x-2">
+                                <span class="material-icons text-sm" :class="{ 'animate-spin': isProcessingDiagram }">
+                                    {{ isProcessingDiagram ? 'refresh' : 'auto_awesome' }}
+                                </span>
+                                <span>{{ isProcessingDiagram ? 'Procesando...' : 'Procesar Diagrama' }}</span>
+                            </button>
+                            <button @click="clearDiagramData"
+                                class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center space-x-2">
+                                <span class="material-icons text-sm">clear</span>
+                                <span>Limpiar</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -926,5 +1225,230 @@ const savePizarra = async () => {
 </template>
 
 <style scoped>
-/* Add any specific styles for the unified pizarra */
+/* Enhanced Dashboard Styles */
+.dashboard-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+.panel-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dark .panel-glass {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Floating Action Button Effects */
+.fab-bounce {
+    animation: fab-bounce 2s infinite ease-in-out;
+}
+
+@keyframes fab-bounce {
+
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+        transform: translateY(0);
+    }
+
+    40% {
+        transform: translateY(-5px);
+    }
+
+    60% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Gradient text effects */
+.gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Modal animations */
+.modal-enter-active,
+.modal-leave-active {
+    transition: all 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+/* Enhanced button hover effects */
+.btn-enhanced {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.btn-enhanced::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-enhanced:hover::before {
+    left: 100%;
+}
+
+/* Panel slide animations */
+.panel-slide-enter-active,
+.panel-slide-leave-active {
+    transition: all 0.3s ease-in-out;
+}
+
+.panel-slide-enter-from {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+
+.panel-slide-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+    background: #374151;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #6b7280;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Notification badge */
+.notification-badge {
+    position: relative;
+}
+
+.notification-badge::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid white;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Enhanced card hover effects */
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.dark .card-hover:hover {
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Glassmorphism effect */
+.glass-morphism {
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.dark .glass-morphism {
+    background: rgba(0, 0, 0, 0.25);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* Status indicator */
+.status-online {
+    position: relative;
+}
+
+.status-online::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    background: #10b981;
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    animation: status-pulse 2s infinite;
+}
+
+@keyframes status-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
 </style>
