@@ -12,6 +12,7 @@ use App\Models\Widget;
 use App\Notifications\PizarraInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class PizarraController extends Controller
@@ -76,30 +77,53 @@ class PizarraController extends Controller
      */
     public function store(StorePizarraRequest $request)
     {
-        $isHome = $request->isHome ?? false;
-        $pizarra = null;
-        if($isHome){
-            $pizarra = Pizarra::create([
-                'name' => $request->name,
-                'user_id' => auth()->id(),
-                'isHome' => $request->isHome,
-                'screens' => $request->screen ?? json_encode([]),
-                'elements' => $request->elements ?? json_encode([]),
-            ]);
-            $pizarra->update([
-                'room_id' => 'room_'.$pizarra->id,
-            ]);
-        }else{
-            $pizarra = Pizarra::create([
-                'name' => $request->name,
-                'user_id' => auth()->id(),
-                'isHome' => false,
-                'pizarra_id' => $request->pizarra_id, // id de la pizarra padre
-                'screens' => $request->screen ?? json_encode([]),
-                'elements' => $request->elements ?? json_encode([]),
-            ]);
+        try {
+            return \DB::transaction(function () use ($request) {
+                $isHome = $request->isHome ?? false;
+                $pizarra = null;
+                
+                if($isHome){
+                    $pizarra = Pizarra::create([
+                        'name' => $request->name,
+                        'user_id' => auth()->id(),
+                        'isHome' => $request->isHome,
+                        'screens' => $request->screen ?? json_encode([]),
+                        'elements' => $request->elements ?? json_encode([]),
+                    ]);
+                    
+                    // Asegurarse de que el ID esté disponible antes de continuar
+                    if ($pizarra && $pizarra->id) {
+                        $pizarra->update([
+                            'room_id' => 'room_'.$pizarra->id,
+                        ]);
+                    } else {
+                        throw new \Exception('No se pudo crear la pizarra correctamente');
+                    }
+                } else {
+                    $pizarra = Pizarra::create([
+                        'name' => $request->name,
+                        'user_id' => auth()->id(),
+                        'isHome' => false,
+                        'pizarra_id' => $request->pizarra_id, // id de la pizarra padre
+                        'screens' => $request->screen ?? json_encode([]),
+                        'elements' => $request->elements ?? json_encode([]),
+                    ]);
+                }
+                
+                // Verificar que la pizarra se creó correctamente
+                if (!$pizarra || !$pizarra->id) {
+                    throw new \Exception('Error al crear la pizarra');
+                }
+                
+                // Recargar la pizarra para asegurar que todos los datos estén actualizados
+                $pizarra->refresh();
+                
+                return response()->json($pizarra, 200);
+            });
+        } catch (\Exception $e) {
+            \Log::error('Error al crear pizarra: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al crear la pizarra: ' . $e->getMessage()], 500);
         }
-        return response()->json($pizarra, 200);
     }
 
     /**
@@ -129,8 +153,31 @@ class PizarraController extends Controller
             return redirect()->route('login')->with('redirect', route('pizarra.edit', $pizarra->id));
         }
 
+        // Debugging: Log información sobre la pizarra
+        \Log::info('Edit method called', [
+            'pizarra_id' => $pizarra->id,
+            'pizarra_user_id' => $pizarra->user_id,
+            'auth_user_id' => Auth::id(),
+            'pizarra_exists' => $pizarra->exists,
+            'pizarra_attributes' => $pizarra->getAttributes()
+        ]);
+
+        // Verificar que la pizarra tiene un ID válido antes de hacer consultas de colaboradores
+        if (!$pizarra->id) {
+            \Log::error('Pizarra sin ID válido en edit method', [
+                'pizarra' => $pizarra->toArray(),
+                'user_id' => Auth::id()
+            ]);
+            abort(404, 'Pizarra no encontrada.');
+        }
+
         // verifica si no es colaborador o propietario
         if ($pizarra->user_id !== Auth::id() && !$pizarra->collaborators()->where('user_id', Auth::id())->exists()) {
+            \Log::warning('Usuario no autorizado para editar pizarra', [
+                'pizarra_id' => $pizarra->id,
+                'pizarra_user_id' => $pizarra->user_id,
+                'auth_user_id' => Auth::id()
+            ]);
             abort(403, 'Acción no autorizada.');
         }
 
@@ -139,7 +186,7 @@ class PizarraController extends Controller
             'pizarra' => $pizarra,
             'isCreador' => $pizarra->user_id === auth()->id(),
             'creador' => $pizarra->user,
-            'collaborators' => $pizarra->collaborators(),
+            'collaborators' => $pizarra->collaborators()->get(),
             'screens' => $pizarra->pizarraHijas()->get(),
             'widgets' => Widget::with('categoria')->get(),
             'categoriasWidget' => CategoriaWidget::all(),
@@ -336,6 +383,7 @@ class PizarraController extends Controller
             // Redirect to login page with a redirect back to this page after login
             return redirect()->route('login')->with('redirect', route('pizarra-flutter.invite-link', $pizarra->id));
         }
+        
         // Comprueba si el usuario ya es colaborador.
         $collaboration = PizarraCollaborator::where('pizarra_id', $pizarra->id)
             ->where('user_id', Auth::id())
@@ -347,10 +395,19 @@ class PizarraController extends Controller
             } elseif ($collaboration->status === 'rejected') {
                 // Update status to pending
                 $collaboration->update(['status' => 'pending']);
+                
+                // Redirect to pizarra flutter index with the invitation highlighted
+                return redirect()->route('pizarra.index')
+                    ->with('highlight_invitation', $pizarra->id)
+                    ->with('message', 'Has sido invitado a colaborar en "' . $pizarra->name . '". Por favor revise sus invitaciones pendientes.');
             }
+            // Si ya existe la colaboración con estado pending, no hacer nada más
+            return redirect()->route('pizarra.index')
+                ->with('highlight_invitation', $pizarra->id)
+                ->with('message', 'Ya tienes una invitación pendiente para "' . $pizarra->name . '".');
         }
 
-        // Create a pending collaboration
+        // Create a pending collaboration only if it doesn't exist
         $pizarra->collaborators()->attach(Auth::id(), ['status' => 'pending']);
 
         // Redirect to pizarra flutter index with the invitation highlighted

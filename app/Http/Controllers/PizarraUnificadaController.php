@@ -11,9 +11,11 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class PizarraUnificadaController extends Controller
 {
+    use AuthorizesRequests;
     /**
      * Display a listing of unified pizarras.
      */
@@ -102,43 +104,44 @@ class PizarraUnificadaController extends Controller
     /**
      * Display the specified unified pizarra.
      */
-    public function show(Pizarra $pizarra)
+    public function show(Pizarra $pizarra_unificada)
     {
+        // return $pizarra_unificada;
         $user = Auth::user();
 
         // Verificar si el usuario tiene acceso a esta pizarra
-        if (!$this->canAccessPizarra($pizarra, $user)) {
-            return $this->handleAccessDenied($pizarra, $user);
+        if (!$this->canAccessPizarra($pizarra_unificada, $user)) {
+            return $this->handleAccessDenied($pizarra_unificada, $user);
         }
 
         // Cargar relaciones necesarias
-        $pizarra->load(['user', 'collaborators.user']);
+        $pizarra_unificada->load(['user', 'collaborators.user']);
 
         // Obtener colaboradores
-        $colaboradores = $pizarra->collaborators()
+        $colaboradores = $pizarra_unificada->collaborators()
             ->where('status', 'accepted')
             ->with('user')
             ->get()
             ->pluck('user');
 
         // Obtener pantallas
-        $screens = json_decode($pizarra->screens, true) ?? [];
+        $screens = json_decode($pizarra_unificada->screens, true) ?? [];
 
         return Inertia::render('PizarraUnificada/PizarraUnificada', [
             'user' => $user,
             'pizarra' => [
-                'id' => $pizarra->id,
-                'name' => $pizarra->name,
-                'type' => $pizarra->framework ?? 'both',
-                'elements' => json_decode($pizarra->elements, true) ?? [],
+                'id' => $pizarra_unificada->id,
+                'name' => $pizarra_unificada->name,
+                'type' => $pizarra_unificada->framework ?? 'both',
+                'elements' => json_decode($pizarra_unificada->elements, true) ?? [],
                 'screens' => $screens,
-                'user_id' => $pizarra->user_id,
-                'room_id' => $pizarra->room_id,
-                'created_at' => $pizarra->created_at->toISOString(),
-                'updated_at' => $pizarra->updated_at->toISOString(),
+                'user_id' => $pizarra_unificada->user_id,
+                'room_id' => $pizarra_unificada->room_id,
+                'created_at' => $pizarra_unificada->created_at->toISOString(),
+                'updated_at' => $pizarra_unificada->updated_at->toISOString(),
             ],
-            'creador' => $pizarra->user,
-            'isCreador' => $pizarra->user_id === $user->id,
+            'creador' => $pizarra_unificada->user,
+            'isCreador' => $pizarra_unificada->user_id === $user->id,
             'colaboradores' => $colaboradores,
         ]);
     }
@@ -146,84 +149,114 @@ class PizarraUnificadaController extends Controller
     /**
      * Show the form for editing the specified unified pizarra.
      */
-    public function edit(Pizarra $pizarra)
+    public function edit(Pizarra $pizarra_unificada)
     {
-        $this->authorize('update', $pizarra);
+        $this->authorize('update', $pizarra_unificada);
 
-        return $this->show($pizarra);
+        return $this->show($pizarra_unificada);
     }
 
     /**
      * Update the specified unified pizarra in storage.
      */
-    public function update(Request $request, Pizarra $pizarra)
+    public function update(Request $request, Pizarra $pizarra_unificada)
     {
-        $this->authorize('update', $pizarra);
+        try {
+            $this->authorize('update', $pizarra_unificada);
 
-        $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|in:flutter,angular,both',
-            'elements' => 'sometimes|required|array',
-            'screens' => 'sometimes|required|array',
-            'description' => 'nullable|string|max:1000',
-        ]);
+            $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'type' => 'sometimes|required|in:flutter,angular,both',
+                'elements' => 'sometimes|required|array',
+                'screens' => 'sometimes|required|array',
+                'description' => 'nullable|string|max:1000',
+            ]);
 
-        $updateData = [];
+            $updateData = [];
 
-        if ($request->has('name')) {
-            $updateData['name'] = $request->name;
+            if ($request->has('name')) {
+                $updateData['name'] = $request->name;
+            }
+
+            if ($request->has('type')) {
+                $updateData['framework'] = $request->type;
+            }
+
+            if ($request->has('elements')) {
+                $updateData['elements'] = json_encode($request->elements);
+            }
+
+            if ($request->has('screens')) {
+                $updateData['screens'] = json_encode($request->screens);
+            }
+
+            if ($request->has('description')) {
+                $updateData['description'] = $request->description;
+            }
+
+            $pizarra_unificada->update($updateData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pizarra actualizada correctamente',
+                'pizarra' => $pizarra_unificada
+            ]);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tienes permisos para actualizar esta pizarra'
+            ], 403);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos de validación incorrectos',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la pizarra: ' . $e->getMessage()
+            ], 500);
         }
-
-        if ($request->has('type')) {
-            $updateData['framework'] = $request->type;
-        }
-
-        if ($request->has('elements')) {
-            $updateData['elements'] = json_encode($request->elements);
-        }
-
-        if ($request->has('screens')) {
-            $updateData['screens'] = json_encode($request->screens);
-        }
-
-        if ($request->has('description')) {
-            $updateData['description'] = $request->description;
-        }
-
-        $pizarra->update($updateData);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Pizarra actualizada correctamente',
-            'pizarra' => $pizarra
-        ]);
     }
 
     /**
      * Remove the specified unified pizarra from storage.
      */
-    public function destroy(Pizarra $pizarra)
+    public function destroy(Pizarra $pizarra_unificada)
     {
-        $this->authorize('delete', $pizarra);
+        try {
+            $this->authorize('delete', $pizarra_unificada);
 
-        // Eliminar colaboradores
-        $pizarra->collaborators()->detach();
+            // Eliminar colaboradores
+            $pizarra_unificada->collaborators()->detach();
 
-        // Eliminar pizarra
-        $pizarra->delete();
+            // Eliminar pizarra
+            $pizarra_unificada->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Pizarra eliminada correctamente'
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Pizarra eliminada correctamente'
+            ]);
+        } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tienes permisos para eliminar esta pizarra'
+            ], 403);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar la pizarra: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
      * Invite a collaborator to the unified pizarra.
      */
-    public function invite(Request $request, Pizarra $pizarra)
+    public function invite(Request $request, Pizarra $pizarra_unificada)
     {
-        $this->authorize('update', $pizarra);
+        $this->authorize('update', $pizarra_unificada);
 
         $request->validate([
             'email' => 'required|email|exists:users,email',
@@ -238,7 +271,7 @@ class PizarraUnificadaController extends Controller
             ], 404);
         }
 
-        if ($user->id === $pizarra->user_id) {
+        if ($user->id === $pizarra_unificada->user_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'No puedes invitarte a ti mismo'
@@ -246,7 +279,7 @@ class PizarraUnificadaController extends Controller
         }
 
         // Verificar si ya existe la invitación
-        $existingInvitation = $pizarra->collaborators()
+        $existingInvitation = $pizarra_unificada->collaborators()
             ->where('user_id', $user->id)
             ->first();
 
@@ -258,7 +291,7 @@ class PizarraUnificadaController extends Controller
         }
 
         // Crear invitación
-        $pizarra->collaborators()->attach($user->id, [
+        $pizarra_unificada->collaborators()->attach($user->id, [
             'status' => 'pending',
             'created_at' => now(),
             'updated_at' => now(),
@@ -273,11 +306,11 @@ class PizarraUnificadaController extends Controller
     /**
      * Accept an invitation to collaborate on a unified pizarra.
      */
-    public function acceptInvitation(Pizarra $pizarra)
+    public function acceptInvitation(Pizarra $pizarra_unificada)
     {
         $user = Auth::user();
 
-        $collaboration = $pizarra->collaborators()
+        $collaboration = $pizarra_unificada->collaborators()
             ->where('user_id', $user->id)
             ->where('status', 'pending')
             ->first();
@@ -301,11 +334,11 @@ class PizarraUnificadaController extends Controller
     /**
      * Reject an invitation to collaborate on a unified pizarra.
      */
-    public function rejectInvitation(Pizarra $pizarra)
+    public function rejectInvitation(Pizarra $pizarra_unificada)
     {
         $user = Auth::user();
 
-        $collaboration = $pizarra->collaborators()
+        $collaboration = $pizarra_unificada->collaborators()
             ->where('user_id', $user->id)
             ->where('status', 'pending')
             ->first();
@@ -328,18 +361,18 @@ class PizarraUnificadaController extends Controller
     /**
      * Leave collaboration on a unified pizarra.
      */
-    public function leaveCollaboration(Pizarra $pizarra)
+    public function leaveCollaboration(Pizarra $pizarra_unificada)
     {
         $user = Auth::user();
 
-        if ($pizarra->user_id === $user->id) {
+        if ($pizarra_unificada->user_id === $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'No puedes abandonar tu propia pizarra'
             ], 400);
         }
 
-        $pizarra->collaborators()->detach($user->id);
+        $pizarra_unificada->collaborators()->detach($user->id);
 
         return response()->json([
             'success' => true,
@@ -350,9 +383,9 @@ class PizarraUnificadaController extends Controller
     /**
      * Generate and download code for the unified pizarra.
      */
-    public function downloadCode(Request $request, Pizarra $pizarra)
+    public function downloadCode(Request $request, Pizarra $pizarra_unificada)
     {
-        $this->authorize('view', $pizarra);
+        $this->authorize('view', $pizarra_unificada);
 
         $request->validate([
             'framework' => 'required|in:flutter,angular,both',
@@ -364,16 +397,16 @@ class PizarraUnificadaController extends Controller
 
         // Generar código según el framework
         $codeGenerator = new \App\Services\UnifiedCodeGenerationService();
-        $code = $codeGenerator->generateCode($pizarra, [
+        $code = $codeGenerator->generateCode($pizarra_unificada, [
             'framework' => $framework,
             'format' => 'download',
         ]);
 
         if ($format === 'zip') {
             // Crear archivo ZIP con estructura de proyecto
-            $zipPath = $this->createProjectZip($pizarra, $code, $framework);
+            $zipPath = $this->createProjectZip($pizarra_unificada, $code, $framework);
 
-            return response()->download($zipPath, "{$pizarra->name}-{$framework}.zip")
+            return response()->download($zipPath, "{$pizarra_unificada->name}-{$framework}.zip")
                 ->deleteFileAfterSend(true);
         } else {
             // Descargar archivo individual
@@ -390,9 +423,9 @@ class PizarraUnificadaController extends Controller
     /**
      * Process diagram upload for unified pizarra.
      */
-    public function processDiagram(Request $request, Pizarra $pizarra)
+    public function processDiagram(Request $request, Pizarra $pizarra_unificada)
     {
-        $this->authorize('update', $pizarra);
+        $this->authorize('update', $pizarra_unificada);
 
         $request->validate([
             'type' => 'required|in:image,xml,plantuml,text',
@@ -441,15 +474,15 @@ class PizarraUnificadaController extends Controller
     /**
      * Check if user can access the pizarra.
      */
-    private function canAccessPizarra(Pizarra $pizarra, User $user): bool
+    private function canAccessPizarra(Pizarra $pizarra_unificada, User $user): bool
     {
         // El creador siempre puede acceder
-        if ($pizarra->user_id === $user->id) {
+        if ($pizarra_unificada->user_id === $user->id) {
             return true;
         }
 
         // Los colaboradores aceptados pueden acceder
-        $collaboration = $pizarra->collaborators()
+        $collaboration = $pizarra_unificada->collaborators()
             ->where('user_id', $user->id)
             ->where('status', 'accepted')
             ->first();
@@ -460,38 +493,38 @@ class PizarraUnificadaController extends Controller
     /**
      * Handle access denied to pizarra.
      */
-    private function handleAccessDenied(Pizarra $pizarra, User $user)
+    private function handleAccessDenied(Pizarra $pizarra_unificada, User $user)
     {
         // Verificar si hay invitación pendiente
-        $collaboration = $pizarra->collaborators()
+        $collaboration = $pizarra_unificada->collaborators()
             ->where('user_id', $user->id)
             ->where('status', 'pending')
             ->first();
 
         if ($collaboration) {
             return Inertia::render('PizarraUnificada/InvitationPending', [
-                'pizarra' => $pizarra->load('user')
+                'pizarra' => $pizarra_unificada->load('user')
             ]);
         }
 
         // Crear invitación pendiente
-        $pizarra->collaborators()->attach($user->id, [
+        $pizarra_unificada->collaborators()->attach($user->id, [
             'status' => 'pending',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         return Inertia::render('PizarraUnificada/InvitationPending', [
-            'pizarra' => $pizarra->load('user')
+            'pizarra' => $pizarra_unificada->load('user')
         ]);
     }
 
     /**
      * Create a project ZIP file.
      */
-    private function createProjectZip(Pizarra $pizarra, string $code, string $framework): string
+    private function createProjectZip(Pizarra $pizarra_unificada, string $code, string $framework): string
     {
-        $projectName = Str::slug($pizarra->name);
+        $projectName = Str::slug($pizarra_unificada->name);
         $tempPath = storage_path('app/temp');
 
         if (!is_dir($tempPath)) {
@@ -507,12 +540,12 @@ class PizarraUnificadaController extends Controller
 
             // Agregar archivos adicionales según el framework
             if ($framework === 'flutter') {
-                $zip->addFromString('pubspec.yaml', $this->generatePubspecYaml($pizarra));
-                $zip->addFromString('README.md', $this->generateReadme($pizarra, $framework));
+                $zip->addFromString('pubspec.yaml', $this->generatePubspecYaml($pizarra_unificada));
+                $zip->addFromString('README.md', $this->generateReadme($pizarra_unificada, $framework));
             } elseif ($framework === 'angular') {
-                $zip->addFromString('package.json', $this->generatePackageJson($pizarra));
-                $zip->addFromString('angular.json', $this->generateAngularJson($pizarra));
-                $zip->addFromString('README.md', $this->generateReadme($pizarra, $framework));
+                $zip->addFromString('package.json', $this->generatePackageJson($pizarra_unificada));
+                $zip->addFromString('angular.json', $this->generateAngularJson($pizarra_unificada));
+                $zip->addFromString('README.md', $this->generateReadme($pizarra_unificada, $framework));
             }
 
             $zip->close();
@@ -539,9 +572,9 @@ class PizarraUnificadaController extends Controller
     /**
      * Generate pubspec.yaml for Flutter.
      */
-    private function generatePubspecYaml(Pizarra $pizarra): string
+    private function generatePubspecYaml(Pizarra $pizarra_unificada): string
     {
-        $projectName = Str::slug($pizarra->name, '_');
+        $projectName = Str::slug($pizarra_unificada->name, '_');
 
         return "name: {$projectName}
 description: A Flutter project generated from Pizarra Unificada.
@@ -569,9 +602,9 @@ flutter:
     /**
      * Generate package.json for Angular.
      */
-    private function generatePackageJson(Pizarra $pizarra): string
+    private function generatePackageJson(Pizarra $pizarra_unificada): string
     {
-        $projectName = Str::slug($pizarra->name);
+        $projectName = Str::slug($pizarra_unificada->name);
 
         return json_encode([
             'name' => $projectName,
@@ -619,9 +652,9 @@ flutter:
     /**
      * Generate angular.json for Angular.
      */
-    private function generateAngularJson(Pizarra $pizarra): string
+    private function generateAngularJson(Pizarra $pizarra_unificada): string
     {
-        $projectName = Str::slug($pizarra->name);
+        $projectName = Str::slug($pizarra_unificada->name);
 
         return json_encode([
             '$schema' => './node_modules/@angular/cli/lib/config/schema.json',
@@ -666,11 +699,11 @@ flutter:
     /**
      * Generate README.md.
      */
-    private function generateReadme(Pizarra $pizarra, string $framework): string
+    private function generateReadme(Pizarra $pizarra_unificada, string $framework): string
     {
         $frameworkName = ucfirst($framework);
 
-        return "# {$pizarra->name}
+        return "# {$pizarra_unificada->name}
 
 Este proyecto fue generado automáticamente usando Pizarra Unificada.
 
@@ -678,7 +711,7 @@ Este proyecto fue generado automáticamente usando Pizarra Unificada.
 {$frameworkName}
 
 ## Descripción
-{$pizarra->description}
+{$pizarra_unificada->description}
 
 ## Instalación y Uso
 

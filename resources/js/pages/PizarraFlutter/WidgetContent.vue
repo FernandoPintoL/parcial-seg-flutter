@@ -1,25 +1,25 @@
 <script setup lang="ts">
 import { defineProps, defineEmits, ref } from 'vue';
-import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
-import ScaffoldFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ScaffoldFlutter.vue';
-import InputFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/InputFlutter.vue';
-import TableFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/TableFlutter.vue';
-import ListCardFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ListCardFlutter.vue';
-import ElevatedButtonFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ElevatedButtonFlutter.vue';
-import CheckboxFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/CheckboxFlutter.vue';
-import RadioButtonFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/RadioButtonFlutter.vue';
-import GroupRadioButtonFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/GroupRadioButtonFlutter.vue';
-import GroupCheckBoxFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/GroupCheckBoxFlutter.vue';
-import SwitchFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/SwitchFlutter.vue';
-import SwitchListFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/SwitchListFlutter.vue';
-import DrawerFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DrawerFlutter.vue';
-import DropdownFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/DropdownFlutter.vue';
-import SliderFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/SliderFlutter.vue';
-import CardFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/CardFlutter.vue';
-import ListTitleFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ListTitleFlutter.vue';
-import ImageFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/ImageFlutter.vue';
-import IconFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/IconFlutter.vue';
-import LayoutsFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/LayoutsFlutter.vue';
+import AppBarFlutter from '@/pages/WidgetsFlutter/AppBarFlutter.vue';
+import ScaffoldFlutter from '@/pages/WidgetsFlutter/ScaffoldFlutter.vue';
+import InputFlutter from '@/pages/WidgetsFlutter/InputFlutter.vue';
+import TableFlutter from '@/pages/WidgetsFlutter/TableFlutter.vue';
+import ListCardFlutter from '@/pages/WidgetsFlutter/ListCardFlutter.vue';
+import ElevatedButtonFlutter from '@/pages/WidgetsFlutter/ElevatedButtonFlutter.vue';
+import CheckboxFlutter from '@/pages/WidgetsFlutter/CheckboxFlutter.vue';
+import RadioButtonFlutter from '@/pages/WidgetsFlutter/RadioButtonFlutter.vue';
+import GroupRadioButtonFlutter from '@/pages/WidgetsFlutter/GroupRadioButtonFlutter.vue';
+import GroupCheckBoxFlutter from '@/pages/WidgetsFlutter/GroupCheckBoxFlutter.vue';
+import SwitchFlutter from '@/pages/WidgetsFlutter/SwitchFlutter.vue';
+import SwitchListFlutter from '@/pages/WidgetsFlutter/SwitchListFlutter.vue';
+import DrawerFlutter from '@/pages/WidgetsFlutter/DrawerFlutter.vue';
+import DropdownFlutter from '@/pages/WidgetsFlutter/DropdownFlutter.vue';
+import SliderFlutter from '@/pages/WidgetsFlutter/SliderFlutter.vue';
+import CardFlutter from '@/pages/WidgetsFlutter/CardFlutter.vue';
+import ListTitleFlutter from '@/pages/WidgetsFlutter/ListTitleFlutter.vue';
+import ImageFlutter from '@/pages/WidgetsFlutter/ImageFlutter.vue';
+import IconFlutter from '@/pages/WidgetsFlutter/IconFlutter.vue';
+import LayoutsFlutter from '@/pages/WidgetsFlutter/LayoutsFlutter.vue';
 
 // Definición de tipos
 interface ElementProps {

@@ -15,8 +15,8 @@ return new class extends Migration
             $table->enum('type', ['flutter', 'angular', 'unified'])->default('flutter')->after('name');
             $table->enum('framework', ['flutter', 'angular'])->default('flutter')->after('type');
             $table->text('description')->nullable()->after('framework');
-            $table->json('screens')->nullable()->after('description');
-            $table->json('elements')->nullable()->after('screens');
+            // $table->json('screens')->nullable()->after('description');
+            // $table->json('elements')->nullable()->after('screens');
         });
     }
 

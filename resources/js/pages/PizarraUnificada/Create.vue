@@ -1,3 +1,80 @@
+<script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { router } from '@inertiajs/vue3';
+import { ref, reactive } from 'vue';
+import Swal from 'sweetalert2';
+
+// Form data
+const form = reactive({
+    name: '',
+    framework: 'flutter',
+    description: '',
+});
+
+const isSubmitting = ref(false);
+
+// Framework options
+const frameworkOptions = [
+    {
+        value: 'flutter',
+        label: 'Flutter',
+        description: 'Aplicaciones móviles',
+        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14.314 0L2.3 12 6 15.7 21.684.013h-7.37zm.159 11.871L11.4 14.944l4.07 4.07 3.073-3.074-4.07-4.07z"/>
+        </svg>`
+    },
+    {
+        value: 'angular',
+        label: 'Angular',
+        description: 'Aplicaciones web',
+        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L2 6l1.5 15L12 23l8.5-2L22 6 12 2zm0 2.5l6.84 2.2L12 17.5 5.16 6.7 12 4.5z"/>
+        </svg>`
+    },
+    {
+        value: 'both',
+        label: 'Ambos',
+        description: 'Soporte completo',
+        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>`
+    }
+];
+
+// Methods
+const createPizarra = async () => {
+    if (isSubmitting.value) return;
+
+    isSubmitting.value = true;
+
+    try {
+        const response = await router.post('/pizarra-unificada', form);
+        console.log('Pizarra creada:', response);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Pizarra creada',
+            text: 'Tu pizarra ha sido creada exitosamente',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (error: any) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo crear la pizarra' + (error.response?.data?.message || ''),
+        });
+    } finally {
+        isSubmitting.value = false;
+    }
+};
+
+const goBack = () => {
+    router.visit('/pizarra-unificada');
+};
+</script>
+
 <template>
     <AppLayout>
 
@@ -80,82 +157,6 @@
         </div>
     </AppLayout>
 </template>
-
-<script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { router } from '@inertiajs/vue3';
-import { ref, reactive } from 'vue';
-import Swal from 'sweetalert2';
-
-// Form data
-const form = reactive({
-    name: '',
-    framework: 'flutter',
-    description: '',
-});
-
-const isSubmitting = ref(false);
-
-// Framework options
-const frameworkOptions = [
-    {
-        value: 'flutter',
-        label: 'Flutter',
-        description: 'Aplicaciones móviles',
-        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M14.314 0L2.3 12 6 15.7 21.684.013h-7.37zm.159 11.871L11.4 14.944l4.07 4.07 3.073-3.074-4.07-4.07z"/>
-        </svg>`
-    },
-    {
-        value: 'angular',
-        label: 'Angular',
-        description: 'Aplicaciones web',
-        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L2 6l1.5 15L12 23l8.5-2L22 6 12 2zm0 2.5l6.84 2.2L12 17.5 5.16 6.7 12 4.5z"/>
-        </svg>`
-    },
-    {
-        value: 'both',
-        label: 'Ambos',
-        description: 'Soporte completo',
-        icon: `<svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-        </svg>`
-    }
-];
-
-// Methods
-const createPizarra = async () => {
-    if (isSubmitting.value) return;
-
-    isSubmitting.value = true;
-
-    try {
-        await router.post('/pizarra-unificada', form);
-
-        Swal.fire({
-            icon: 'success',
-            title: 'Pizarra creada',
-            text: 'Tu pizarra ha sido creada exitosamente',
-            timer: 2000,
-            showConfirmButton: false
-        });
-    } catch (error) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'No se pudo crear la pizarra'
-        });
-    } finally {
-        isSubmitting.value = false;
-    }
-};
-
-const goBack = () => {
-    router.visit('/pizarra-unificada');
-};
-</script>
 
 <style scoped>
 .animate-spin {

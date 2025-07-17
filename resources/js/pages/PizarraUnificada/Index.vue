@@ -51,10 +51,32 @@ const deletePizarra = async (id: number) => {
     if (result.isConfirmed) {
         try {
             await axios.delete(`/pizarra-unificada/${id}`);
-            Swal.fire('Eliminado', 'La pizarra ha sido eliminada', 'success');
+            Swal.fire({
+                icon: 'success',
+                title: 'Eliminado',
+                text: 'La pizarra ha sido eliminada',
+                timer: 2000,
+                showConfirmButton: false
+            });
             router.reload();
         } catch (error: any) {
-            Swal.fire('Error', 'No se pudo eliminar la pizarra', error.response?.data?.message || 'Error desconocido');
+            console.error('Error al eliminar pizarra:', error);
+
+            let errorMessage = 'No se pudo eliminar la pizarra';
+
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.status === 403) {
+                errorMessage = 'No tienes permisos para eliminar esta pizarra';
+            } else if (error.response?.status === 404) {
+                errorMessage = 'La pizarra no fue encontrada';
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMessage
+            });
         }
     }
 };
@@ -62,20 +84,64 @@ const deletePizarra = async (id: number) => {
 const acceptInvitation = async (id: number) => {
     try {
         await axios.post(`/pizarra-unificada/${id}/accept`);
-        Swal.fire('Aceptado', 'Invitación aceptada correctamente', 'success');
+        Swal.fire({
+            icon: 'success',
+            title: 'Aceptado',
+            text: 'Invitación aceptada correctamente',
+            timer: 2000,
+            showConfirmButton: false
+        });
         router.reload();
     } catch (error: any) {
-        Swal.fire('Error', 'No se pudo aceptar la invitación', error.response?.data?.message || 'Error desconocido');
+        console.error('Error al aceptar invitación:', error);
+
+        let errorMessage = 'No se pudo aceptar la invitación';
+
+        if (error.response?.data?.message) {
+            errorMessage = error.response.data.message;
+        } else if (error.response?.status === 403) {
+            errorMessage = 'No tienes permisos para aceptar esta invitación';
+        } else if (error.response?.status === 404) {
+            errorMessage = 'La invitación no fue encontrada';
+        }
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: errorMessage
+        });
     }
 };
 
 const rejectInvitation = async (id: number) => {
     try {
         await axios.post(`/pizarra-unificada/${id}/reject`);
-        Swal.fire('Rechazado', 'Invitación rechazada correctamente', 'success');
+        Swal.fire({
+            icon: 'success',
+            title: 'Rechazado',
+            text: 'Invitación rechazada correctamente',
+            timer: 2000,
+            showConfirmButton: false
+        });
         router.reload();
     } catch (error: any) {
-        Swal.fire('Error', 'No se pudo rechazar la invitación', error.response?.data?.message || 'Error desconocido');
+        console.error('Error al rechazar invitación:', error);
+
+        let errorMessage = 'No se pudo rechazar la invitación';
+
+        if (error.response?.data?.message) {
+            errorMessage = error.response.data.message;
+        } else if (error.response?.status === 403) {
+            errorMessage = 'No tienes permisos para rechazar esta invitación';
+        } else if (error.response?.status === 404) {
+            errorMessage = 'La invitación no fue encontrada';
+        }
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: errorMessage
+        });
     }
 };
 
@@ -94,10 +160,32 @@ const leaveCollaboration = async (id: number) => {
     if (result.isConfirmed) {
         try {
             await axios.post(`/pizarra-unificada/${id}/leave`);
-            Swal.fire('Salida exitosa', 'Has salido de la colaboración', 'success');
+            Swal.fire({
+                icon: 'success',
+                title: 'Salida exitosa',
+                text: 'Has salido de la colaboración',
+                timer: 2000,
+                showConfirmButton: false
+            });
             router.reload();
         } catch (error: any) {
-            Swal.fire('Error', 'No se pudo salir de la colaboración', error.response?.data?.message || 'Error desconocido');
+            console.error('Error al salir de colaboración:', error);
+
+            let errorMessage = 'No se pudo salir de la colaboración';
+
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.status === 403) {
+                errorMessage = 'No tienes permisos para salir de esta colaboración';
+            } else if (error.response?.status === 404) {
+                errorMessage = 'La colaboración no fue encontrada';
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMessage
+            });
         }
     }
 };

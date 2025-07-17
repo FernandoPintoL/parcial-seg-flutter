@@ -13,7 +13,7 @@ class PizarraPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return true; // Todos los usuarios pueden ver la lista
     }
 
     /**
@@ -21,7 +21,12 @@ class PizarraPolicy
      */
     public function view(User $user, Pizarra $pizarra): bool
     {
-        return false;
+        // El usuario puede ver si es el creador o es un colaborador aceptado
+        return $pizarra->user_id === $user->id || 
+               $pizarra->collaborators()
+                       ->where('user_id', $user->id)
+                       ->where('status', 'accepted')
+                       ->exists();
     }
 
     /**
@@ -29,7 +34,7 @@ class PizarraPolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return true; // Todos los usuarios autenticados pueden crear pizarras
     }
 
     /**
@@ -37,7 +42,12 @@ class PizarraPolicy
      */
     public function update(User $user, Pizarra $pizarra): bool
     {
-        return false;
+        // Solo el creador o colaboradores aceptados pueden actualizar
+        return $pizarra->user_id === $user->id || 
+               $pizarra->collaborators()
+                       ->where('user_id', $user->id)
+                       ->where('status', 'accepted')
+                       ->exists();
     }
 
     /**
@@ -45,7 +55,8 @@ class PizarraPolicy
      */
     public function delete(User $user, Pizarra $pizarra): bool
     {
-        return false;
+        // Solo el creador puede eliminar la pizarra
+        return $pizarra->user_id === $user->id;
     }
 
     /**
@@ -53,7 +64,8 @@ class PizarraPolicy
      */
     public function restore(User $user, Pizarra $pizarra): bool
     {
-        return false;
+        // Solo el creador puede restaurar
+        return $pizarra->user_id === $user->id;
     }
 
     /**
@@ -61,6 +73,7 @@ class PizarraPolicy
      */
     public function forceDelete(User $user, Pizarra $pizarra): bool
     {
-        return false;
+        // Solo el creador puede eliminar permanentemente
+        return $pizarra->user_id === $user->id;
     }
 }

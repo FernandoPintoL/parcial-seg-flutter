@@ -29,7 +29,7 @@ import WidgetsPropertiesPanel from '@/pages/PizarraFlutter/WidgetsPropertiesPane
 import ReiniciarPantalla from '@/pages/PizarraFlutter/ReiniciarPantalla.vue';
 import WidgetDraggable from '@/pages/PizarraFlutter/WidgetDraggable.vue';
 import ScreenManager from '@/pages/PizarraFlutter/ScreenManager.vue';
-import AppBarFlutter from '@/pages/PizarraFlutter/WidgetsFlutter/AppBarFlutter.vue';
+import AppBarFlutter from '@/pages/WidgetsFlutter/AppBarFlutter.vue';
 
 // Props
 const props = defineProps({

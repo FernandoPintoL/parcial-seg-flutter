@@ -29,12 +29,21 @@ export interface UnifiedElement {
     type: string;
     framework: 'flutter' | 'angular' | 'both';
     props: Record<string, any>;
+    properties?: Record<string, any>;
     children: UnifiedElement[];
     code_string?: string;
     position?: {
         x: number;
         y: number;
     };
+    size?: {
+        width: number;
+        height: number;
+    };
+    zIndex?: number;
+    transform?: string;
+    opacity?: number;
+    textContent?: string;
     created_at?: string;
     updated_at?: string;
 }

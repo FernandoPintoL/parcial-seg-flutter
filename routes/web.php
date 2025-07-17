@@ -67,18 +67,18 @@ Route::post('/whiteboard/activity', [WhiteboardActivityController::class, 'store
 
 // Pizarra Unificada Routes
 Route::resource('/pizarra-unificada', PizarraUnificadaController::class);
-Route::get('/pizarra-unificada/{pizarra}/collaborators', [PizarraUnificadaController::class, 'getCollaborators'])->name('pizarra-unificada.collaborators');
-Route::post('/pizarra-unificada/{pizarra}/invite', [PizarraUnificadaController::class, 'inviteCollaborator'])->name('pizarra-unificada.invite');
-Route::post('/pizarra-unificada/{pizarra}/accept', [PizarraUnificadaController::class, 'acceptInvitation'])->name('pizarra-unificada.accept');
-Route::post('/pizarra-unificada/{pizarra}/reject', [PizarraUnificadaController::class, 'rejectInvitation'])->name('pizarra-unificada.reject');
-Route::post('/pizarra-unificada/{pizarra}/leave', [PizarraUnificadaController::class, 'leaveCollaboration'])->name('pizarra-unificada.leave');
-Route::get('/pizarra-unificada/invite/{pizarra}', [PizarraUnificadaController::class, 'handleInviteLink'])->name('pizarra-unificada.invite-link');
-Route::post('/pizarra-unificada/{pizarra}/process-diagram', [PizarraUnificadaController::class, 'processDiagram'])->name('pizarra-unificada.process-diagram');
-Route::post('/pizarra-unificada/{pizarra}/generate-code', [PizarraUnificadaController::class, 'generateCode'])->name('pizarra-unificada.generate-code');
-Route::post('/pizarra-unificada/{pizarra}/download-code', [PizarraUnificadaController::class, 'downloadCode'])->name('pizarra-unificada.download-code');
-Route::post('/pizarra-unificada/{pizarra}/update-framework', [PizarraUnificadaController::class, 'updateFramework'])->name('pizarra-unificada.update-framework');
-Route::post('/pizarra-unificada/{pizarra}/elements', [PizarraUnificadaController::class, 'updateElements'])->name('pizarra-unificada.update-elements');
-Route::post('/pizarra-unificada/{pizarra}/screens', [PizarraUnificadaController::class, 'updateScreens'])->name('pizarra-unificada.update-screens');
+Route::get('/pizarra-unificada/{pizarra_unificada}/collaborators', [PizarraUnificadaController::class, 'getCollaborators'])->name('pizarra-unificada.collaborators');
+Route::post('/pizarra-unificada/{pizarra_unificada}/invite', [PizarraUnificadaController::class, 'inviteCollaborator'])->name('pizarra-unificada.invite');
+Route::post('/pizarra-unificada/{pizarra_unificada}/accept', [PizarraUnificadaController::class, 'acceptInvitation'])->name('pizarra-unificada.accept');
+Route::post('/pizarra-unificada/{pizarra_unificada}/reject', [PizarraUnificadaController::class, 'rejectInvitation'])->name('pizarra-unificada.reject');
+Route::post('/pizarra-unificada/{pizarra_unificada}/leave', [PizarraUnificadaController::class, 'leaveCollaboration'])->name('pizarra-unificada.leave');
+Route::get('/pizarra-unificada/invite/{pizarra_unificada}', [PizarraUnificadaController::class, 'handleInviteLink'])->name('pizarra-unificada.invite-link');
+Route::post('/pizarra-unificada/{pizarra_unificada}/process-diagram', [PizarraUnificadaController::class, 'processDiagram'])->name('pizarra-unificada.process-diagram');
+Route::post('/pizarra-unificada/{pizarra_unificada}/generate-code', [PizarraUnificadaController::class, 'generateCode'])->name('pizarra-unificada.generate-code');
+Route::post('/pizarra-unificada/{pizarra_unificada}/download-code', [PizarraUnificadaController::class, 'downloadCode'])->name('pizarra-unificada.download-code');
+Route::post('/pizarra-unificada/{pizarra_unificada}/update-framework', [PizarraUnificadaController::class, 'updateFramework'])->name('pizarra-unificada.update-framework');
+Route::post('/pizarra-unificada/{pizarra_unificada}/elements', [PizarraUnificadaController::class, 'updateElements'])->name('pizarra-unificada.update-elements');
+Route::post('/pizarra-unificada/{pizarra_unificada}/screens', [PizarraUnificadaController::class, 'updateScreens'])->name('pizarra-unificada.update-screens');
 
 Route::resource('/pizarra', PizarraController::class);
 Route::get('/pizarra/flutter', [PizarraController::class, 'indexFlutter'])->name('pizarra.flutter.index');

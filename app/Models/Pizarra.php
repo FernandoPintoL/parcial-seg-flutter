@@ -45,6 +45,15 @@ class Pizarra extends Model
     }
     public function isCollaboratingOrPropietario($userId): bool
     {
+        // Verificar que la pizarra tiene un ID válido antes de hacer consultas
+        if (!$this->id) {
+            \Log::warning('Intento de verificar colaboración en pizarra sin ID válido', [
+                'pizarra_attributes' => $this->getAttributes(),
+                'user_id' => $userId
+            ]);
+            return false;
+        }
+        
         return $this->collaborators()->where('user_id', $userId)->exists() || $this->user_id === $userId;
     }
     public function chatMessages()

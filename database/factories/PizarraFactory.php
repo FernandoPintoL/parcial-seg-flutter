@@ -17,7 +17,16 @@ class PizarraFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => $this->faker->sentence(3),
+            'user_id' => \App\Models\User::factory(),
+            'isHome' => true,
+            'screens' => json_encode([]),
+            'elements' => json_encode([]),
+            'room_id' => null,
+            'pizarra_id' => null,
+            'type' => 'flutter',
+            'framework' => 'flutter',
+            'description' => $this->faker->text(100),
         ];
     }
 }

@@ -7,7 +7,7 @@ import axios from 'axios';
 import { AlertService } from '@/services/AlertService';
 import { getSocketConfig } from '@/lib/socketConfig';
 import type { BreadcrumbItem } from '@/types';
-import type { PizarraUnificada, UnifiedScreen, CodeExportOptions, User } from '@/Data/PizarraUnificada';
+import type { PizarraUnificada, UnifiedScreen, CodeExportOptions, User, UnifiedElement } from '@/Data/PizarraUnificada';
 import { UnifiedCollaborationService } from '@/services/UnifiedCollaborationService';
 import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
 import { UnifiedCodeGenerationService } from '@/services/UnifiedCodeGenerationService';
@@ -16,6 +16,9 @@ import { AIService } from '@/services/AIService';
 import { ImageProcessingService } from '@/services/ImageProcessingService';
 import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
 import ChatAI from '@/pages/Chat/ChatAI.vue';
+import UnifiedWidgetPalette from './UnifiedWidgetPalette.vue';
+import UnifiedPropertiesPanel from './UnifiedPropertiesPanel.vue';
+import UnifiedCanvas from './UnifiedCanvas.vue';
 import './PizarraUnificada.css';
 
 // Props
@@ -226,11 +229,18 @@ const switchFramework = (framework: 'flutter' | 'angular' | 'both') => {
 };
 
 // Widget management
-/*const addWidget = (widgetType: string) => {
-    const newElement = UnifiedWidgetService.createUnifiedElement(
+const selectedElement = ref<UnifiedElement | null>(null);
+const showWidgetPalette = ref<boolean>(true);
+const showPropertiesPanel = ref<boolean>(true);
+const showScreenManager = ref<boolean>(false);
+
+const addWidget = (widgetType: string) => {
+    const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+    const position = { x: 100, y: 100 }; // Posición por defecto
+    const newElement = UnifiedWidgetService.createElement(
         widgetType,
-        selectedFramework.value,
-        availableWidgets.value
+        framework,
+        position
     );
 
     if (newElement && currentScreen.value) {
@@ -257,16 +267,25 @@ const selectElement = (element: UnifiedElement) => {
 const updateElementProperty = (propertyName: string, value: any) => {
     if (!selectedElement.value) return;
 
-    UnifiedWidgetService.updateElementProperty(
+    const updatedElement = UnifiedWidgetService.updateElementProperties(
         selectedElement.value,
-        propertyName,
-        value,
-        selectedFramework.value
+        { [propertyName]: value }
     );
+
+    // Update the selected element
+    selectedElement.value = updatedElement;
+
+    // Update in screen elements
+    if (currentScreen.value) {
+        const index = currentScreen.value.elements.findIndex(e => e.id === updatedElement.id);
+        if (index !== -1) {
+            currentScreen.value.elements[index] = updatedElement;
+        }
+    }
 
     // Emit to collaborators
     if (collaborationService) {
-        collaborationService.emitElementUpdated(selectedElement.value, currentScreen.value?.id);
+        collaborationService.emitElementUpdated(updatedElement, currentScreen.value?.id);
     }
 
     savePizarra();
@@ -280,8 +299,8 @@ const removeElement = (element: UnifiedElement) => {
         currentScreen.value.elements.splice(index, 1);
 
         // Emit to collaborators
-        if (collaborationService) {
-            collaborationService.emitElementDeleted(element.id, currentScreen.value.id);
+        if (collaborationService && currentScreen.value.id) {
+            collaborationService.emitElementDeleted(element.id || '', currentScreen.value.id);
         }
 
         if (selectedElement.value?.id === element.id) {
@@ -318,14 +337,10 @@ const deleteScreen = async (index: number) => {
         return;
     }
 
-    const result = await Swal.fire({
-        title: '¿Estás seguro?',
-        text: 'Esta acción no se puede deshacer',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    });
+    const result = await AlertService.prototype.confirm(
+        '¿Estás seguro?',
+        'Esta acción no se puede deshacer'
+    );
 
     if (result.isConfirmed) {
         screens.value.splice(index, 1);
@@ -346,7 +361,7 @@ const setHomeScreen = (index: number) => {
         screen.isHome = i === index;
     });
     savePizarra();
-}; */
+};
 
 // AI functionality
 const toggleAIChat = () => {
@@ -592,12 +607,34 @@ const addProcessedWidgets = (widgets: any[]) => {
     if (!currentScreen.value) return;
 
     widgets.forEach(widget => {
-        const element = UnifiedWidgetService.convertFlutterToUnified(widget);
-        currentScreen.value.elements.push(element);
+        // Create a unified element from the widget data
+        const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+        const position = { x: Math.random() * 100, y: Math.random() * 100 };
 
-        // Emit to collaborators
-        if (collaborationService) {
-            collaborationService.emitElementAdded(element, currentScreen.value.id);
+        try {
+            const element = UnifiedWidgetService.createElement(
+                widget.type || 'Container',
+                framework,
+                position
+            );
+
+            // Update element properties with widget data
+            if (widget.props) {
+                const updatedElement = UnifiedWidgetService.updateElementProperties(
+                    element,
+                    widget.props
+                );
+                currentScreen.value.elements.push(updatedElement);
+            } else {
+                currentScreen.value.elements.push(element);
+            }
+
+            // Emit to collaborators
+            if (collaborationService) {
+                collaborationService.emitElementAdded(element, currentScreen.value.id);
+            }
+        } catch (error) {
+            console.error('Error creating element from widget:', error);
         }
     });
 
@@ -671,20 +708,86 @@ const savePizarra = async () => {
                 <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg">
                         <div class="p-6 bg-white dark:bg-gray-800">
-                            <!-- Main content will be implemented here -->
-                            <div class="text-center">
-                                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                                    Pizarra Unificada
-                                </h3>
-                                <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                    Framework seleccionado: {{ selectedFramework }}
-                                </p>
-                                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                    Pantalla actual: {{ currentScreen?.name }}
-                                </p>
-                                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                                    Elementos en pantalla: {{ currentScreen?.elements?.length || 0 }}
-                                </p>
+                            <!-- Main UI for editing components -->
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <!-- Widget Palette -->
+                                <div v-if="showWidgetPalette" class="w-full md:w-64">
+                                    <UnifiedWidgetPalette :available-widgets="availableWidgets"
+                                        :selected-framework="selectedFramework" @add-widget="addWidget"
+                                        @drag-start="(widgetType) => console.log('Drag start:', widgetType)"
+                                        @drag-end="() => console.log('Drag end')" />
+                                </div>
+
+                                <!-- Canvas Area -->
+                                <div
+                                    class="flex-1 min-h-[500px] border border-gray-200 dark:border-gray-700 rounded-lg">
+                                    <UnifiedCanvas :current-screen="currentScreen" :available-widgets="availableWidgets"
+                                        :selected-framework="selectedFramework" @select-element="selectElement"
+                                        @remove-element="removeElement" @add-element="addWidget"
+                                        @drop="(widgetType) => addWidget(widgetType)" />
+                                </div>
+
+                                <!-- Properties Panel -->
+                                <div v-if="showPropertiesPanel" class="w-full md:w-80">
+                                    <UnifiedPropertiesPanel :selected-element="selectedElement"
+                                        :available-widgets="availableWidgets" :framework="selectedFramework"
+                                        @update-property="updateElementProperty"
+                                        @update-color-property="updateElementProperty" />
+                                </div>
+                            </div>
+
+                            <!-- Screen Info -->
+                            <div
+                                class="mt-4 flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-lg">
+                                <div>
+                                    <span class="font-medium">{{ currentScreen?.name }}</span>
+                                    <span class="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                                        ({{ currentScreen?.elements?.length || 0 }} elementos)
+                                    </span>
+                                </div>
+                                <div>
+                                    <button @click="showScreenManager = !showScreenManager"
+                                        class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                        Gestionar Pantallas
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Screen Manager -->
+                            <div v-if="showScreenManager" class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                                <h3 class="text-lg font-medium mb-2">Gestionar Pantallas</h3>
+                                <div class="flex flex-wrap gap-2">
+                                    <div v-for="(screen, index) in screens" :key="screen.id"
+                                        class="p-2 border rounded cursor-pointer" :class="{
+                                            'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20':
+                                                currentScreenIndex === index,
+                                            'border-gray-300 dark:border-gray-600':
+                                                currentScreenIndex !== index
+                                        }" @click="selectScreen(index)">
+                                        <div class="flex justify-between items-center">
+                                            <span>{{ screen.name }}</span>
+                                            <div class="flex gap-1">
+                                                <button v-if="!screen.isHome" @click.stop="setHomeScreen(index)"
+                                                    class="text-xs px-1 bg-green-500 text-white rounded">
+                                                    Home
+                                                </button>
+                                                <button @click.stop="deleteScreen(index)"
+                                                    class="text-xs px-1 bg-red-500 text-white rounded">
+                                                    X
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            {{ screen.elements.length }} elementos
+                                        </div>
+                                    </div>
+
+                                    <!-- Add Screen Button -->
+                                    <div class="p-2 border border-dashed border-gray-300 dark:border-gray-600 rounded cursor-pointer flex items-center justify-center"
+                                        @click="addScreen('Nueva Pantalla ' + (screens.length + 1))">
+                                        <span class="text-gray-500">+ Añadir Pantalla</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Action buttons -->
