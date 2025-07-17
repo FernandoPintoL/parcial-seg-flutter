@@ -136,6 +136,16 @@ const widgetProps = computed(() => {
 
     // Add common props based on widget type
     if (props.element.framework === 'flutter') {
+        // Special handling for TextFlutter component to maintain backward compatibility
+        if (props.element.type === 'Text') {
+            return {
+                properties: props.element.properties || {},
+                ...baseProps, // Also pass direct props for new format support
+                width: props.element.size?.width,
+                height: props.element.size?.height,
+            };
+        }
+
         return {
             ...baseProps,
             width: props.element.size?.width,

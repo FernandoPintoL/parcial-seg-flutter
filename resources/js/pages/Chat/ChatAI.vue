@@ -38,6 +38,8 @@ const mediaRecorder = ref<MediaRecorder | null>(null);
 const audioChunks = ref<Blob[]>([]);
 const recordingTime = ref(0);
 const recordingTimer = ref<number | null>(null);
+const microphoneSupported = ref(false);
+const microphonePermission = ref<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown');
 
 // Alternative: Web Speech API (browser-based)
 // Type definitions for Web Speech API
@@ -86,46 +88,119 @@ function initSpeechRecognition() {
     if (SpeechRecognitionConstructor) {
         recognition.value = new SpeechRecognitionConstructor() as ISpeechRecognition;
 
-        recognition.value.continuous = false;
-        recognition.value.interimResults = false;
+        recognition.value.continuous = true;
+        recognition.value.interimResults = true;
         recognition.value.lang = 'es-ES';
 
         recognition.value.onresult = (event: SpeechRecognitionEvent) => {
-            const transcript = event.results[0][0].transcript;
+            // Get the latest result
+            const resultIndex = event.results.length - 1;
+            const transcript = event.results[resultIndex][0].transcript;
+
+            // Update the prompt with the transcribed text
             localAIPrompt.value = transcript;
             emit('update:aiPrompt', localAIPrompt.value);
 
-            // Auto-send prompt
-            emit('sendAIPrompt');
+            // Don't auto-send until recording is stopped
+            // This allows the user to see the transcription in real-time
         };
 
         recognition.value.onerror = (event: SpeechRecognitionErrorEvent) => {
             console.error('Speech recognition error:', event.error);
             alert('Error en el reconocimiento de voz. Intenta nuevamente.');
+            isRecording.value = false;
         };
 
         recognition.value.onend = () => {
-            isRecording.value = false;
+            // If recording was stopped manually, send the prompt
+            if (isRecording.value) {
+                isRecording.value = false;
+                // Auto-send prompt when recording ends
+                if (localAIPrompt.value.trim()) {
+                    emit('sendAIPrompt');
+                }
+            }
         };
     }
 }
 
-// Alternative speech recording using Web Speech API
-/* async function startSpeechRecognition() {
+// Real-time speech recognition using Web Speech API
+async function startSpeechRecognition() {
     if (recognition.value) {
+        // Reset the prompt
+        localAIPrompt.value = '';
+        emit('update:aiPrompt', '');
+
+        // Start recording
         isRecording.value = true;
-        recognition.value.start();
+
+        try {
+            recognition.value.start();
+
+            // Start timer for recording time display
+            recordingTime.value = 0;
+            recordingTimer.value = window.setInterval(() => {
+                recordingTime.value++;
+            }, 1000);
+
+            console.log('Speech recognition started');
+        } catch (error) {
+            console.error('Error starting speech recognition:', error);
+            isRecording.value = false;
+            alert('Error al iniciar el reconocimiento de voz. Intenta nuevamente.');
+        }
     } else {
         alert('Tu navegador no soporta reconocimiento de voz.');
     }
-} */
+}
 
 function stopSpeechRecognition() {
     if (recognition.value) {
         recognition.value.stop();
         isRecording.value = false;
+
+        // Clear timer
+        if (recordingTimer.value) {
+            clearInterval(recordingTimer.value);
+            recordingTimer.value = null;
+        }
+
+        console.log('Speech recognition stopped');
     }
 }
+
+// Check microphone support and permissions on component mount
+const checkMicrophoneSupport = async () => {
+    try {
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn('getUserMedia is not supported in this browser');
+            microphoneSupported.value = false;
+            return;
+        }
+
+        microphoneSupported.value = true;
+
+        // Check permissions if available
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                microphonePermission.value = permission.state;
+
+                // Listen for permission changes
+                permission.onchange = () => {
+                    microphonePermission.value = permission.state;
+                };
+            } catch (error) {
+                console.warn('Could not query microphone permissions:', error);
+                microphonePermission.value = 'unknown';
+            }
+        }
+    } catch (error) {
+        console.error('Error checking microphone support:', error);
+        microphoneSupported.value = false;
+    }
+};
 
 // Watch for changes in aiPrompt prop and update local variable
 watch(() => props.aiPrompt, (val) => {
@@ -159,23 +234,102 @@ function addAIWidgetsToCanvas(widgets: any[]) {
 // Audio recording functions
 async function toggleRecording() {
     if (isRecording.value) {
-        stopRecording();
+        if (recognition.value) {
+            stopSpeechRecognition();
+        } else {
+            stopRecording();
+        }
     } else {
-        await startRecording();
+        if (recognition.value) {
+            // Use Web Speech API for real-time transcription
+            await startSpeechRecognition();
+        } else {
+            // Fallback to MediaRecorder if Speech Recognition is not available
+            await startRecording();
+        }
     }
 }
 
 async function startRecording() {
     try {
+        // Check if microphone is supported
+        if (!microphoneSupported.value) {
+            alert('Tu navegador no soporta grabación de audio. Por favor, usa un navegador moderno con HTTPS.');
+            return;
+        }
+
+        // Check if we're in a secure context (HTTPS or localhost)
+        if (!window.isSecureContext) {
+            alert('La grabación de audio requiere una conexión segura (HTTPS). Por favor, accede desde HTTPS o localhost.');
+            return;
+        }
+
+        // Check permissions
+        if (microphonePermission.value === 'denied') {
+            alert('Los permisos del micrófono han sido denegados. Por favor, habilita los permisos en la configuración del navegador.');
+            return;
+        }
+
         // Reset recording state
         audioChunks.value = [];
         recordingTime.value = 0;
 
-        // Request microphone access
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Request microphone access with error handling
+        let stream: MediaStream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100
+                }
+            });
+        } catch (permissionError: any) {
+            console.error('Permission error:', permissionError);
 
-        // Create media recorder
-        mediaRecorder.value = new MediaRecorder(stream);
+            if (permissionError.name === 'NotAllowedError') {
+                alert('Permisos de micrófono denegados. Por favor, permite el acceso al micrófono y recarga la página.');
+            } else if (permissionError.name === 'NotFoundError') {
+                alert('No se encontró ningún micrófono. Por favor, conecta un micrófono y intenta nuevamente.');
+            } else if (permissionError.name === 'NotReadableError') {
+                alert('El micrófono está siendo usado por otra aplicación. Por favor, cierra otras aplicaciones que puedan estar usando el micrófono.');
+            } else {
+                alert('Error al acceder al micrófono: ' + permissionError.message);
+            }
+            return;
+        }
+
+        // Check if MediaRecorder is supported
+        if (!window.MediaRecorder) {
+            alert('Tu navegador no soporta grabación de audio. Por favor, usa un navegador más reciente.');
+            stream.getTracks().forEach(track => track.stop());
+            return;
+        }
+
+        // Create media recorder with format fallback
+        const mimeTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/ogg;codecs=opus',
+            'audio/wav'
+        ];
+
+        let selectedMimeType = '';
+        for (const mimeType of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(mimeType)) {
+                selectedMimeType = mimeType;
+                break;
+            }
+        }
+
+        if (!selectedMimeType) {
+            alert('Tu navegador no soporta ningún formato de audio compatible.');
+            stream.getTracks().forEach(track => track.stop());
+            return;
+        }
+
+        mediaRecorder.value = new MediaRecorder(stream, { mimeType: selectedMimeType });
 
         // Set up event handlers
         mediaRecorder.value.ondataavailable = (event) => {
@@ -186,7 +340,7 @@ async function startRecording() {
 
         mediaRecorder.value.onstop = async () => {
             // Create audio blob from chunks
-            const audioBlob = new Blob(audioChunks.value, { type: 'audio/webm' });
+            const audioBlob = new Blob(audioChunks.value, { type: selectedMimeType });
 
             // Stop all tracks in the stream
             stream.getTracks().forEach(track => track.stop());
@@ -198,19 +352,51 @@ async function startRecording() {
             await processAudioToText(audioBlob);
         };
 
+        mediaRecorder.value.onerror = (event: any) => {
+            console.error('MediaRecorder error:', event);
+            alert('Error durante la grabación. Por favor, intenta nuevamente.');
+
+            // Clean up
+            stream.getTracks().forEach(track => track.stop());
+            isRecording.value = false;
+
+            if (recordingTimer.value) {
+                clearInterval(recordingTimer.value);
+                recordingTimer.value = null;
+            }
+        };
+
         // Start recording
-        mediaRecorder.value.start();
+        mediaRecorder.value.start(1000); // Collect data every second
         isRecording.value = true;
+
+        // Update permission status
+        microphonePermission.value = 'granted';
 
         // Start timer
         recordingTimer.value = window.setInterval(() => {
             recordingTime.value++;
         }, 1000);
 
-        console.log('Recording started');
-    } catch (error) {
+        console.log('Recording started successfully with format:', selectedMimeType);
+    } catch (error: any) {
         console.error('Error starting recording:', error);
-        alert('No se pudo acceder al micrófono. Por favor, verifica los permisos del navegador.');
+
+        // Reset state
+        isRecording.value = false;
+        if (recordingTimer.value) {
+            clearInterval(recordingTimer.value);
+            recordingTimer.value = null;
+        }
+
+        // User-friendly error messages
+        if (error.name === 'NotSupportedError') {
+            alert('Tu navegador no soporta grabación de audio. Por favor, usa Chrome, Firefox o Safari.');
+        } else if (error.name === 'SecurityError') {
+            alert('Error de seguridad. Asegúrate de estar usando HTTPS o localhost.');
+        } else {
+            alert('No se pudo iniciar la grabación. Verifica los permisos del micrófono en la configuración del navegador.');
+        }
     }
 }
 
@@ -297,11 +483,12 @@ onUnmounted(() => {
 });
 
 initSpeechRecognition();
+checkMicrophoneSupport();
 
 </script>
 
 <template>
-    <div v-if="showAIChat"
+    <div
         class="fixed bottom-20 right-4 z-50 w-80 sm:w-96 h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-xl flex flex-col transition-colors">
         <!-- AI Chat Header -->
         <div
@@ -363,10 +550,9 @@ initSpeechRecognition();
                 class="flex items-center justify-between bg-red-100 dark:bg-red-900 p-2 rounded-md mb-2">
                 <div class="flex items-center">
                     <div class="animate-pulse h-3 w-3 bg-red-500 rounded-full mr-2"></div>
-                    <span class="text-red-700 dark:text-red-300 text-sm">Grabando... {{
-                        formatRecordingTime(recordingTime) }}</span>
+                    <span class="text-red-700 dark:text-red-300 text-sm">Grabando... {{ formatRecordingTime(recordingTime) }}</span>
                 </div>
-                <button type="button" @click="stopRecording"
+                <button type="button" @click="toggleRecording"
                     class="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd"
@@ -378,19 +564,51 @@ initSpeechRecognition();
 
             <textarea v-model="localAIPrompt" rows="3" placeholder="Describe la interfaz que deseas crear..."
                 class="w-full px-3 py-2 border rounded-md resize-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                :disabled="localIsProcessingAI || isRecording" @input="onInput"></textarea>
+                :disabled="localIsProcessingAI"
+                :readonly="isRecording"
+                :class="{'bg-gray-50 dark:bg-gray-600': isRecording}"
+                @input="onInput"></textarea>
 
             <div class="flex gap-2">
-                <!-- Microphone button -->
-                <button type="button" @click="toggleRecording"
-                    class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    :disabled="localIsProcessingAI" :class="{ 'bg-red-600 animate-pulse': isRecording }">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd"
-                            d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                            clip-rule="evenodd" />
-                    </svg>
-                </button>
+                <!-- Microphone button with enhanced status indication -->
+                <div class="relative">
+                    <button type="button" @click="toggleRecording"
+                        class="px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        :disabled="localIsProcessingAI || !microphoneSupported"
+                        :class="{
+                            'bg-red-600 animate-pulse': isRecording,
+                            'bg-red-500 hover:bg-red-600': !isRecording && microphoneSupported,
+                            'bg-gray-400 cursor-not-allowed': !microphoneSupported
+                        }"
+                        :title="!microphoneSupported ? 'Micrófono no soportado en este navegador' :
+                               microphonePermission === 'denied' ? 'Permisos de micrófono denegados' :
+                               isRecording ? 'Detener grabación' : 'Iniciar grabación por voz'">
+
+                        <!-- Microphone icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                                clip-rule="evenodd" />
+                        </svg>
+
+                        <!-- Status indicator for microphone state -->
+                        <span v-if="!microphoneSupported" class="text-xs">No soportado</span>
+                        <span v-else-if="microphonePermission === 'denied'" class="text-xs">Sin permisos</span>
+                        <span v-else-if="isRecording" class="text-xs">Grabando</span>
+                    </button>
+
+                    <!-- Permission status indicator -->
+                    <div v-if="microphoneSupported" class="absolute -top-1 -right-1 w-3 h-3 rounded-full"
+                        :class="{
+                            'bg-green-500': microphonePermission === 'granted',
+                            'bg-yellow-500': microphonePermission === 'prompt' || microphonePermission === 'unknown',
+                            'bg-red-500': microphonePermission === 'denied'
+                        }"
+                        :title="microphonePermission === 'granted' ? 'Permisos concedidos' :
+                               microphonePermission === 'denied' ? 'Permisos denegados' :
+                               'Estado de permisos desconocido'">
+                    </div>
+                </div>
 
                 <!-- Send button -->
                 <button type="submit"
@@ -398,6 +616,40 @@ initSpeechRecognition();
                     :disabled="localIsProcessingAI || (!localAIPrompt.trim() && !isRecording)">
                     {{ isProcessingAI ? 'Generando...' : 'Generar Widgets' }}
                 </button>
+            </div>
+
+            <!-- Microphone setup help message -->
+            <div v-if="!microphoneSupported || microphonePermission === 'denied'"
+                 class="text-xs text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 p-2 rounded-md">
+                <div v-if="!microphoneSupported" class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-yellow-800 dark:text-yellow-200">Grabación de voz no disponible</p>
+                        <p class="mt-1">Para usar grabación de voz:</p>
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            <li>Usa un navegador moderno (Chrome, Firefox, Safari)</li>
+                            <li>Accede desde HTTPS o localhost</li>
+                            <li>Verifica que tengas un micrófono conectado</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div v-else-if="microphonePermission === 'denied'" class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-red-800 dark:text-red-200">Permisos de micrófono denegados</p>
+                        <p class="mt-1">Para habilitar la grabación de voz:</p>
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            <li>Haz clic en el ícono de micrófono en la barra de direcciones</li>
+                            <li>Selecciona "Permitir" para el micrófono</li>
+                            <li>Recarga la página si es necesario</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </form>
     </div>

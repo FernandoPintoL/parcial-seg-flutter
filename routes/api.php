@@ -36,6 +36,17 @@ $resources = [
     'ai' => AIController::class,
 ];
 
+// Speech API routes
+Route::middleware(['web', 'auth'])->prefix('speech')->group(function () {
+    Route::post('/speech-to-text', [SpeechController::class, 'speechToText'])->name('api.speech.speech-to-text');
+    Route::post('/text-to-speech', [SpeechController::class, 'textToSpeech'])->name('api.speech.text-to-speech');
+    Route::get('/voices', [SpeechController::class, 'getVoices'])->name('api.speech.voices');
+    Route::get('/auth-token', [SpeechController::class, 'getAuthToken'])->name('api.speech.auth-token');
+    Route::get('/config-status', [SpeechController::class, 'getConfigStatus'])->name('api.speech.config-status');
+    Route::get('/test', [SpeechController::class, 'testConfiguration'])->name('api.speech.test');
+    Route::get('/test-whisper', [SpeechController::class, 'testWhisper'])->name('api.speech.test-whisper');
+});
+
 // Resource routes with authentication
 Route::middleware(['web', 'auth'])->group(function () use ($resources) {
     foreach ($resources as $key => $controller) {
@@ -48,15 +59,4 @@ Route::middleware(['web', 'auth'])->group(function () use ($resources) {
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
-});
-
-// Speech Service routes
-Route::prefix('speech')->group(function () {
-    Route::get('/config-status', [SpeechController::class, 'getConfigStatus']);
-    Route::get('/test', [SpeechController::class, 'testConfiguration']);
-    Route::get('/voices', [SpeechController::class, 'getVoices']);
-    Route::get('/auth-token', [SpeechController::class, 'getAuthToken']);
-    Route::post('/text-to-speech', [SpeechController::class, 'textToSpeech']);
-    Route::post('/speech-to-text', [SpeechController::class, 'speechToText']);
-    Route::get('/test-whisper', [SpeechController::class, 'testWhisper']);
 });

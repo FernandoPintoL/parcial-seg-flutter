@@ -398,10 +398,12 @@ const setHomeScreen = (index: number) => {
 
 // AI functionality
 const toggleAIChat = () => {
+    console.log('Toggling AI Chat from PizarraUnificada.vue', showAIChat.value);
     showAIChat.value = !showAIChat.value;
     if (showAIChat.value) {
         showCollaborationChat.value = false;
     }
+    console.log('AI Chat is now:', showAIChat.value);
 };
 
 const sendAIPrompt = async () => {
@@ -982,7 +984,7 @@ const savePizarra = async () => {
             <!-- Floating Action Buttons -->
             <div class="fixed bottom-6 right-6 flex flex-col space-y-3 z-40">
                 <!-- AI Chat Button -->
-                <button @click="toggleAIChat"
+                <button @click="() => { console.log('AI Chat button clicked'); toggleAIChat(); }"
                     :class="showAIChat ? 'bg-green-600 scale-110' : 'bg-green-500 hover:bg-green-600'"
                     class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
                     <span class="material-icons text-xl">smart_toy</span>
@@ -1214,9 +1216,8 @@ const savePizarra = async () => {
         </AppLayout>
 
         <!-- AI Chat -->
-        <ChatAI v-if="showAIChat" :messages="aiMessages" :is-processing="isProcessingAI" @send-message="sendAIPrompt"
-            @close="toggleAIChat" />
-
+        <ChatAI v-if="showAIChat" :showAIChat="showAIChat" :aiMessages="aiMessages" :aiPrompt="aiPrompt"
+            :isProcessingAI="isProcessingAI" @toggleAIChat="toggleAIChat" @sendAIPrompt="sendAIPrompt" />
         <!-- Collaboration Chat -->
         <ChatColaborativo v-if="showCollaborationChat" :socket="collaborationService?.socket" :room-id="roomId"
             :current-user="currentUser" :show-chat="showCollaborationChat" @send-message="handleChatMessage"

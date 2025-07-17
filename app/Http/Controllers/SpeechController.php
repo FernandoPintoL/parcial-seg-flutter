@@ -28,7 +28,7 @@ class SpeechController extends Controller
     public function getConfigStatus(): JsonResponse
     {
         $status = $this->speechService->getConfigStatus();
-        
+
         return response()->json([
             'success' => true,
             'data' => $status,
@@ -127,7 +127,7 @@ class SpeechController extends Controller
         try {
             // Test basic configuration
             $configStatus = $this->speechService->getConfigStatus();
-            
+
             if (!$configStatus['configured']) {
                 return response()->json([
                     'success' => false,
@@ -157,7 +157,7 @@ class SpeechController extends Controller
             }
         } catch (\Exception $e) {
             Log::error('Speech service test error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'error' => 'Test failed',
@@ -190,9 +190,9 @@ class SpeechController extends Controller
         try {
             $audioFile = $request->file('audio');
             $language = $request->get('language', 'es');
-            
+
             $result = $this->whisperService->transcribeAudio($audioFile, $language);
-            
+
             if (isset($result['error'])) {
                 return response()->json([
                     'success' => false,
@@ -210,7 +210,7 @@ class SpeechController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error en speech-to-text: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno del servidor',
@@ -230,11 +230,11 @@ class SpeechController extends Controller
             $response = \Illuminate\Support\Facades\Http::withHeaders([
                 'Authorization' => 'Bearer ' . config('services.openai.key'),
             ])->get('https://api.openai.com/v1/models');
-            
+
             if ($response->successful()) {
                 $models = $response->json();
                 $whisperModel = collect($models['data'])->firstWhere('id', 'whisper-1');
-                
+
                 return response()->json([
                     'success' => true,
                     'message' => 'OpenAI API connection successful',
