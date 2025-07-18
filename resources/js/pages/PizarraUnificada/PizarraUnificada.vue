@@ -269,12 +269,29 @@ const toggleFullscreen = () => {
 
 const addWidget = (widgetType: string) => {
     const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
-    const position = { x: 100, y: 100 }; // Posición por defecto
+
+    // Calculate a better position for the new element to avoid overlapping
+    const position = calculateOptimalPosition(widgetType);
+
+    // Create the element with the optimal position
     const newElement = UnifiedWidgetService.createElement(
         widgetType,
         framework,
         position
     );
+
+    // Assign a higher z-index to make new elements appear on top
+    if (currentScreen.value && currentScreen.value.elements.length > 0) {
+        // Find the highest z-index in current elements
+        const highestZIndex = Math.max(
+            ...currentScreen.value.elements.map(el => el.zIndex || 1)
+        );
+        // Set new element's z-index higher
+        newElement.zIndex = highestZIndex + 1;
+    } else {
+        // First element gets z-index 1
+        newElement.zIndex = 1;
+    }
 
     if (newElement && currentScreen.value) {
         currentScreen.value.elements.push(newElement);
@@ -288,7 +305,139 @@ const addWidget = (widgetType: string) => {
     }
 };
 
+// Calculate an optimal position for a new element to position elements vertically
+const calculateOptimalPosition = (widgetType: string): { x: number, y: number } => {
+    if (!currentScreen.value || !currentScreen.value.elements || currentScreen.value.elements.length === 0) {
+        // If no elements exist, start at a default position
+        return { x: 100, y: 100 };
+    }
+
+    // Get existing elements
+    const existingElements = currentScreen.value.elements;
+
+    // Define constants for positioning
+    const startX = 100; // Fixed X position for vertical alignment
+    const startY = 100; // Initial Y position
+    const margin = 20;  // Margin between elements
+
+    // Find the bottom-most element to place new element below it
+    let maxBottom = startY;
+
+    existingElements.forEach(element => {
+        if (element.position && element.size) {
+            const elementBottom = element.position.y + (element.size.height || 0);
+            if (elementBottom > maxBottom) {
+                maxBottom = elementBottom;
+            }
+        }
+    });
+
+    // Add margin to the bottom-most element
+    let newY = maxBottom + margin;
+
+    // Determine the framework to adjust horizontal position if needed
+    const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+
+    // For Angular, we might want to center elements more
+    let newX = startX;
+    if (framework === 'angular') {
+        // Center more for Angular components in the browser view
+        const browserContent = document.querySelector('.browser-content');
+        if (browserContent) {
+            const rect = browserContent.getBoundingClientRect();
+            // Center horizontally with a slight offset
+            newX = Math.max(startX, (rect.width / 2) - 100);
+        }
+    }
+
+    // Get the default size for this widget type to ensure it fits
+    // Use the elementSizes from getMinDistance function
+    const elementSizes = {
+        'Container': { width: 150, height: 100 },
+        'Text': { width: 100, height: 30 },
+        'Button': { width: 120, height: 40 },
+        'ElevatedButton': { width: 120, height: 40 },
+        'TextButton': { width: 100, height: 40 },
+        'OutlinedButton': { width: 120, height: 40 },
+        'TextField': { width: 200, height: 40 },
+        'TextFormField': { width: 200, height: 40 },
+        'Image': { width: 150, height: 150 },
+        'Icon': { width: 40, height: 40 },
+        'AppBar': { width: 300, height: 56 },
+        'Scaffold': { width: 300, height: 400 },
+        'Row': { width: 200, height: 50 },
+        'Column': { width: 100, height: 200 },
+        'Padding': { width: 120, height: 80 },
+        'Slider': { width: 200, height: 40 },
+        'Switch': { width: 60, height: 30 },
+        'Radio': { width: 40, height: 40 },
+        'Checkbox': { width: 40, height: 40 },
+        'DropdownButton': { width: 150, height: 40 },
+        'Select': { width: 150, height: 40 },
+        'ListTile': { width: 250, height: 60 },
+        'div': { width: 150, height: 100 },
+        'span': { width: 80, height: 20 },
+        'p': { width: 200, height: 30 },
+        'h1': { width: 200, height: 40 },
+        'h2': { width: 180, height: 35 },
+        'h3': { width: 160, height: 30 },
+        'button': { width: 120, height: 40 },
+        'input': { width: 200, height: 40 },
+        'select': { width: 150, height: 40 },
+        'textarea': { width: 200, height: 100 },
+        'img': { width: 150, height: 150 },
+        'mat-button': { width: 120, height: 40 },
+        'mat-input': { width: 200, height: 40 },
+        'mat-select': { width: 150, height: 40 },
+        'mat-card': { width: 250, height: 200 },
+        'mat-toolbar': { width: 300, height: 64 },
+    };
+
+    const defaultSize = elementSizes[widgetType as keyof typeof elementSizes] || { width: 120, height: 80 };
+
+    // Check if the new position would be too far down
+    const canvasHeight = framework === 'angular' ? 600 : 500; // Different heights for different frameworks
+    if (newY + defaultSize.height > canvasHeight - margin) {
+        // If we're too far down, create a new column to the right
+        newX += 200; // Move to the right
+        newY = startY; // Reset Y to the top
+    }
+
+    console.log(`Positioning new ${widgetType} at (${newX}, ${newY})`);
+
+    return { x: newX, y: newY };
+};
+
+// Get minimum distance between different element types
+// (Removed duplicate getMinDistance function)
+
 const selectElement = (element: UnifiedElement) => {
+    // Bring the selected element to the front by updating its z-index
+    if (element && currentScreen.value) {
+        // Find the highest z-index in current elements
+        const highestZIndex = Math.max(
+            ...currentScreen.value.elements.map(el => el.zIndex || 1)
+        );
+
+        // Only update z-index if it's not already the highest
+        if (element.zIndex !== highestZIndex + 1) {
+            // Create updated element with higher z-index
+            const updatedElement = {
+                ...element,
+                zIndex: highestZIndex + 1
+            };
+
+            // Update the element in the screen
+            const index = currentScreen.value.elements.findIndex(e => e.id === element.id);
+            if (index !== -1) {
+                currentScreen.value.elements[index] = updatedElement;
+                // Update the selected element reference
+                element = updatedElement;
+            }
+        }
+    }
+
+    // Set the selected element
     selectedElement.value = element;
 
     // Emit to collaborators
@@ -325,22 +474,54 @@ const updateElementProperty = (propertyName: string, value: any) => {
 };
 
 const removeElement = (element: UnifiedElement) => {
-    if (!currentScreen.value) return;
+    console.log('🗑️ PizarraUnificada removeElement called with element:', element);
 
-    const index = currentScreen.value.elements.findIndex(e => e.id === element.id);
-    if (index !== -1) {
-        currentScreen.value.elements.splice(index, 1);
+    if (!currentScreen.value) {
+        console.error('❌ Cannot remove element: No current screen available');
+        return;
+    }
 
-        // Emit to collaborators
-        if (collaborationService && currentScreen.value.id) {
-            collaborationService.emitElementDeleted(element.id || '', currentScreen.value.id);
+    if (!element || !element.id) {
+        console.error('❌ Cannot remove element: Invalid element object', element);
+        return;
+    }
+
+    try {
+        console.log('🔍 Searching for element with ID:', element.id);
+        const index = currentScreen.value.elements.findIndex(e => e.id === element.id);
+        console.log('🔍 Element index in array:', index);
+
+        if (index !== -1) {
+            // Remove the element from the array
+            console.log('✂️ Removing element at index:', index);
+            currentScreen.value.elements.splice(index, 1);
+            console.log('✅ Element removed from array');
+
+            // Emit to collaborators
+            if (collaborationService && currentScreen.value.id) {
+                console.log('📡 Emitting element deleted to collaborators');
+                collaborationService.emitElementDeleted(element.id || '', currentScreen.value.id);
+            }
+
+            // Clear selection if needed
+            if (selectedElement.value?.id === element.id) {
+                console.log('🔄 Clearing selected element');
+                selectedElement.value = null;
+            }
+
+            // Save changes
+            console.log('💾 Saving pizarra after element removal');
+            savePizarra();
+
+            // Force UI update
+            setTimeout(() => {
+                console.log('🔄 Forced UI update after element removal');
+            }, 100);
+        } else {
+            console.warn('⚠️ Element not found in current screen:', element.id);
         }
-
-        if (selectedElement.value?.id === element.id) {
-            selectedElement.value = null;
-        }
-
-        savePizarra();
+    } catch (error) {
+        console.error('❌ Error in removeElement function:', error);
     }
 };
 
@@ -517,69 +698,80 @@ const addAIWidgetsToCanvas = (widgets: any[]) => {
     );
 };
 
-// Smart positioning function to prevent overlapping
+// Smart positioning function to position elements vertically
 const getSmartPosition = (elementType: string, existingElements: any[]) => {
-    const basePositions = {
-        'Container': { x: 50, y: 50 },
-        'Text': { x: 80, y: 80 },
-        'Button': { x: 110, y: 110 },
-        'TextField': { x: 140, y: 140 },
-        'TextFormField': { x: 170, y: 170 },
-        'ElevatedButton': { x: 200, y: 200 },
-        'Image': { x: 230, y: 230 },
-        'Row': { x: 50, y: 260 },
-        'Column': { x: 260, y: 50 },
-        'AppBar': { x: 50, y: 20 },
-        'Scaffold': { x: 30, y: 30 }
-    };
+    // Define constants for positioning
+    const startX = 100; // Fixed X position for vertical alignment
+    const startY = 100; // Initial Y position
+    const margin = 20;  // Margin between elements
 
-    const basePosition = basePositions[elementType as keyof typeof basePositions] || { x: 100, y: 100 };
+    // If no elements exist, start at a default position
+    if (!existingElements || existingElements.length === 0) {
+        return { x: startX, y: startY };
+    }
 
-    // Grid-based positioning with smaller steps for better distribution
-    const gridSize = 15; // Reduced grid size for finer positioning
-    const maxAttempts = 200; // Increased attempts
+    // Find the bottom-most element to place new element below it
+    let maxBottom = startY;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const offsetX = (attempt % 15) * gridSize; // More columns
-        const offsetY = Math.floor(attempt / 15) * gridSize;
+    existingElements.forEach(element => {
+        if (element.position && element.size) {
+            const elementBottom = element.position.y + (element.size.height || 0);
+            if (elementBottom > maxBottom) {
+                maxBottom = elementBottom;
+            }
+        }
+    });
 
-        const newPosition = {
-            x: basePosition.x + offsetX,
-            y: basePosition.y + offsetY
-        };
+    // Add margin to the bottom-most element
+    let newY = maxBottom + margin;
 
-        // Check if this position overlaps with existing elements
-        const hasOverlap = existingElements.some(element => {
-            if (!element.position) return false;
+    // Determine the framework to adjust horizontal position if needed
+    const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
 
-            const distance = Math.sqrt(
-                Math.pow(element.position.x - newPosition.x, 2) +
-                Math.pow(element.position.y - newPosition.y, 2)
-            );
-
-            // Minimum distance based on element types
-            const minDistance = getMinDistance(elementType, element.type);
-            return distance < minDistance;
-        });
-
-        if (!hasOverlap) {
-            return newPosition;
+    // For Angular, we might want to center elements more
+    let newX = startX;
+    if (framework === 'angular') {
+        // Center more for Angular components in the browser view
+        const browserContent = document.querySelector('.browser-content');
+        if (browserContent) {
+            const rect = browserContent.getBoundingClientRect();
+            // Center horizontally with a slight offset
+            newX = Math.max(startX, (rect.width / 2) - 100);
         }
     }
 
-    // If no good position found, use a more distributed random approach
-    const canvasWidth = 350; // Approximate mobile canvas width
-    const canvasHeight = 500; // Approximate mobile canvas height
-    const margin = 20;
-
-    return {
-        x: Math.random() * (canvasWidth - margin * 2) + margin,
-        y: Math.random() * (canvasHeight - margin * 2) + margin
+    // Get the element size to ensure it fits
+    const elementSizes = {
+        'Container': { width: 150, height: 100 },
+        'Text': { width: 100, height: 30 },
+        'Button': { width: 120, height: 40 },
+        'ElevatedButton': { width: 120, height: 40 },
+        'TextField': { width: 200, height: 40 },
+        'TextFormField': { width: 200, height: 40 },
+        'Image': { width: 150, height: 150 },
+        'Row': { width: 200, height: 50 },
+        'Column': { width: 100, height: 200 },
+        'AppBar': { width: 300, height: 56 },
+        'Scaffold': { width: 300, height: 400 }
     };
+
+    const elementSize = elementSizes[elementType as keyof typeof elementSizes] || { width: 120, height: 80 };
+
+    // Check if the new position would be too far down
+    const canvasHeight = framework === 'angular' ? 600 : 500; // Different heights for different frameworks
+    if (newY + elementSize.height > canvasHeight - margin) {
+        // If we're too far down, create a new column to the right
+        newX += 200; // Move to the right
+        newY = startY; // Reset Y to the top
+    }
+
+    console.log(`Smart positioning new ${elementType} at (${newX}, ${newY})`);
+
+    return { x: newX, y: newY };
 };
 
 // Get minimum distance between different element types
-const getMinDistance = (type1: string, type2: string) => {
+/*const getMinDistance = (type1: string, type2: string) => {
     const elementSizes = {
         'Container': 100,
         'Text': 60,
@@ -598,7 +790,7 @@ const getMinDistance = (type1: string, type2: string) => {
     const size2 = elementSizes[type2 as keyof typeof elementSizes] || 80;
 
     return Math.max(size1, size2) * 0.6; // 60% of the larger element size
-};
+};*/
 
 // Save pizarra data
 const savePizarra = async () => {

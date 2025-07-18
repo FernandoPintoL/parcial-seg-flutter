@@ -247,12 +247,127 @@ class AzureService
      */
     public function generateFlutterUI(string $prompt)
     {
-        $enhancedPrompt = "Generate Flutter UI code for the following description. The code should be a complete StatelessWidget class that can be directly copied and pasted into a Dart file. Include necessary imports and make sure the code is properly formatted with correct indentation. The StatelessWidget should have a build method that returns a Scaffold with an AppBar and the described UI in the body. Description: " . $prompt;
+        $enhancedPrompt = "You are an expert in Flutter and Angular development. Generate a structured JSON response for the following UI description. 
+
+REQUIRED JSON STRUCTURE:
+{
+    \"framework\": \"flutter\" | \"angular\",
+    \"widgets\": [
+        {
+            \"type\": \"Widget_Type\",
+            \"props\": {
+                \"prop1\": \"value1\",
+                \"prop2\": \"value2\"
+            },
+            \"children\": [],
+            \"position\": {
+                \"x\": number,
+                \"y\": number
+            }
+        }
+    ],
+    \"explanation\": \"Detailed explanation of the generated widgets\",
+    \"code\": \"Complete component code (optional)\"
+}
+
+FLUTTER WIDGETS AVAILABLE:
+- TextFormField, ElevatedButton, TextButton, OutlinedButton
+- DropdownButton, DropdownButtonFormField
+- RadioListTile, Radio, CheckboxListTile, Checkbox
+- Switch, SwitchListTile, Slider
+- Text
+
+ANGULAR COMPONENTS AVAILABLE:
+- input (text, email, password, number, etc.)
+- button, select, radio, checkbox, textarea
+- switch, toggle, slider, range, datepicker
+
+INSTRUCTIONS:
+1. Auto-detect framework from the prompt or default to Flutter
+2. Generate appropriate widgets with realistic properties
+3. Add automatic positioning (spacing ~100px between widgets)
+4. Include validation properties where appropriate
+5. Provide clear explanations
+
+User Request: " . $prompt;
 
         return $this->generateResponse($enhancedPrompt, [
-            'temperature' => 0.5, // Lower temperature for more deterministic code generation
-            'max_tokens' => 2000, // Allow more tokens for code generation
+            'temperature' => 0.3, // Lower temperature for more consistent JSON structure
+            'max_tokens' => 2500, // Allow more tokens for detailed JSON
         ]);
+    }
+
+    /**
+     * Generate Angular UI components based on a prompt
+     *
+     * @param string $prompt The prompt describing the UI to generate
+     * @return array The response containing Angular code
+     */
+    public function generateAngularUI(string $prompt)
+    {
+        $enhancedPrompt = "You are an expert Angular developer. Generate a structured JSON response for Angular components based on the following description.
+
+REQUIRED JSON STRUCTURE:
+{
+    \"framework\": \"angular\",
+    \"widgets\": [
+        {
+            \"type\": \"input\" | \"button\" | \"select\" | \"radio\" | \"checkbox\" | \"textarea\" | \"switch\" | \"slider\" | \"datepicker\",
+            \"props\": {
+                \"type\": \"text|email|password|number|submit|button\",
+                \"formControlName\": \"controlName\",
+                \"placeholder\": \"Placeholder text\",
+                \"class\": \"CSS classes\",
+                \"required\": true|false,
+                \"disabled\": \"expression\"
+            },
+            \"children\": [],
+            \"position\": {
+                \"x\": number,
+                \"y\": number
+            }
+        }
+    ],
+    \"explanation\": \"Detailed explanation with Angular best practices\",
+    \"code\": \"Complete Angular component TypeScript and HTML code\"
+}
+
+ANGULAR COMPONENTS GUIDELINES:
+- Use Reactive Forms (FormControl, FormGroup)
+- Include proper validation (Validators.required, Validators.email, etc.)
+- Use Angular Material or Bootstrap classes
+- Generate both TypeScript component code and HTML template
+- Include proper event handlers and form submission
+- Add accessibility attributes (aria-label, etc.)
+
+User Request: " . $prompt;
+
+        return $this->generateResponse($enhancedPrompt, [
+            'temperature' => 0.3,
+            'max_tokens' => 2500,
+        ]);
+    }
+
+    /**
+     * Generate UI components with automatic framework detection
+     *
+     * @param string $prompt The prompt describing the UI to generate
+     * @return array The response containing UI code
+     */
+    public function generateUI(string $prompt)
+    {
+        // Simple framework detection based on keywords
+        $promptLower = strtolower($prompt);
+        $isAngular = strpos($promptLower, 'angular') !== false || 
+                     strpos($promptLower, 'typescript') !== false || 
+                     strpos($promptLower, 'reactive form') !== false ||
+                     strpos($promptLower, 'formcontrol') !== false;
+
+        if ($isAngular) {
+            return $this->generateAngularUI($prompt);
+        } else {
+            return $this->generateFlutterUI($prompt);
+        }
     }
 
     /**

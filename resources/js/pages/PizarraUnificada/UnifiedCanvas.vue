@@ -1,9 +1,216 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
+import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
+import UnifiedWidgetRenderer from './UnifiedWidgetRenderer.vue';
+
+const props = defineProps<{
+    currentScreen: UnifiedScreen;
+    availableWidgets: any[];
+    selectedFramework: 'flutter' | 'angular' | 'both';
+}>();
+
+const emit = defineEmits([
+    'select-element',
+    'remove-element',
+    'add-element',
+    'update-element',
+    'drag-enter',
+    'drag-leave',
+    'drop'
+]);
+
+// Track the element being dragged over
+const dragOverElementId = ref<string | null>(null);
+
+// Track selected element
+const selectedElementId = ref<string | null>(null);
+
+// Computed property for elements to ensure reactivity
+const currentElements = computed(() => {
+    console.log('🔄 Computing currentElements:', props.currentScreen.elements?.length || 0);
+    return props.currentScreen.elements || [];
+});
+
+// Get framework icon
+function getFrameworkIcon(framework: string): string {
+    switch (framework) {
+        case 'flutter':
+            return '🎯';
+        case 'angular':
+            return '🅰️';
+        case 'both':
+            return '🔀';
+        default:
+            return '📦';
+    }
+}
+
+// Get framework header icon
+function getFrameworkHeaderIcon(framework: string): string {
+    switch (framework) {
+        case 'flutter':
+            return 'phone_iphone';
+        case 'angular':
+            return 'web';
+        case 'both':
+            return 'dashboard';
+        default:
+            return 'dashboard';
+    }
+}
+
+// Handle element selection
+function selectElement(element: UnifiedElement) {
+    selectedElementId.value = element.id ?? null;
+    emit('select-element', element);
+}
+
+// Handle element update
+function updateElement(element: UnifiedElement) {
+    emit('update-element', element);
+}
+
+// Handle element deletion
+function deleteElement(element: UnifiedElement) {
+    console.log('🎯 UnifiedCanvas deleteElement called for:', element.id);
+    console.log('🎯 Element to delete:', { id: element.id, type: element.type, framework: element.framework });
+
+    // Validate the element object
+    if (!element || !element.id) {
+        console.error('❌ Invalid element object received in deleteElement:', element);
+        return;
+    }
+
+    // Clear selection if this element is selected
+    if (selectedElementId.value === element.id) {
+        selectedElementId.value = null;
+        console.log('🔄 Cleared selection for deleted element');
+    }
+
+    try {
+        // Emit remove-element event to parent
+        console.log('📤 Emitting remove-element event with element:', element);
+        emit('remove-element', element);
+        console.log('📤 remove-element event emitted from UnifiedCanvas');
+
+        // Force update UI to reflect the deletion
+        setTimeout(() => {
+            console.log('🔄 Forced UI update after element deletion');
+        }, 50);
+    } catch (error) {
+        console.error('❌ Error in deleteElement function:', error);
+    }
+}
+
+// Handle element duplication
+function duplicateElement(element: UnifiedElement) {
+    const duplicatedElement = UnifiedWidgetService.duplicateElement(element);
+    if (duplicatedElement) {
+        // Offset the duplicated element slightly
+        if (duplicatedElement.position) {
+            duplicatedElement.position.x += 20;
+            duplicatedElement.position.y += 20;
+        }
+        emit('add-element', duplicatedElement);
+    }
+}
+
+function handleDrop(event: DragEvent, targetElementId: string | null = null) {
+    event.preventDefault();
+    dragOverElementId.value = null;
+
+    // Get the widget type from the dataTransfer
+    const widgetType = event.dataTransfer?.getData('widget-type');
+    console.log('🎯 UnifiedCanvas handleDrop called with:', { widgetType, targetElementId, selectedFramework: props.selectedFramework });
+
+    if (!widgetType) {
+        console.warn('⚠️ No widget type found in drag data');
+        return;
+    }
+
+    // Get a canvas container to calculate its width
+    const canvasContainer = document.querySelector('.canvas-content') as HTMLElement;
+    const canvasWidth = canvasContainer ? canvasContainer.clientWidth : 400;
+
+    // Calculate drop position
+    const rect = (event.target as HTMLElement).getBoundingClientRect();
+    const position = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+    };
+
+    console.log('📍 Drop position calculated:', position, 'Canvas width:', canvasWidth);
+
+    // Create a new element using the service with canvas width
+    try {
+        const targetFramework = props.selectedFramework === 'both' ? 'flutter' : props.selectedFramework;
+        console.log('🎯 Target framework for drop:', targetFramework);
+
+        const newElement = UnifiedWidgetService.createElement(
+            widgetType,
+            targetFramework,
+            position,
+            canvasWidth // Pass canvas width for full-width widgets
+        );
+
+        console.log('✨ Element created from drop:', newElement);
+        emit('add-element', newElement, targetElementId);
+        console.log('📤 add-element event emitted');
+    } catch (error) {
+        console.error('❌ Error creating element from drop:', error);
+    }
+}
+
+// Handle widget events from rendered components
+function handleWidgetEvent(eventData: any) {
+    console.log('Widget event:', eventData);
+
+    if (eventData.type === 'delete' && eventData.elementId) {
+        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
+        if (element) {
+            deleteElement(element);
+        }
+    } else if (eventData.type === 'duplicate' && eventData.elementId) {
+        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
+        if (element) {
+            duplicateElement(element);
+        }
+    }
+}
+
+// Handle keyboard events for element deletion
+function handleKeyDown(event: KeyboardEvent) {
+    // Check if a Delete key was pressed
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+        // Only delete it if we have a selected element
+        if (selectedElementId.value) {
+            console.log('🎯 Delete key pressed with selected element:', selectedElementId.value);
+
+            // Find the selected element
+            const elementToDelete = props.currentScreen.elements.find(el => el.id === selectedElementId.value);
+            if (elementToDelete) {
+                console.log('🗑️ Deleting element via keyboard shortcut:', elementToDelete.id);
+                deleteElement(elementToDelete);
+            }
+        }
+    }
+}
+
+// Set up event listeners on mount
+onMounted(() => {
+    console.log('🔄 Setting up keyboard event listeners');
+    document.addEventListener('keydown', handleKeyDown);
+});
+
+// Clean up event listeners on unmounting
+onUnmounted(() => {
+    console.log('🔄 Removing keyboard event listeners');
+    document.removeEventListener('keydown', handleKeyDown);
+});
+</script>
 <template>
-    <div
-        class="unified-canvas"
-        @dragover.prevent
-        @drop="handleDrop($event)"
-    >
+    <div class="unified-canvas" @dragover.prevent @drop="handleDrop($event)">
         <!-- Enhanced header with better visual design -->
         <div class="canvas-header">
             <div class="screen-info">
@@ -54,17 +261,20 @@
                                 <div class="status-right">
                                     <!-- Signal strength bars -->
                                     <svg class="status-icon signal-icon" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                                        <path
+                                            d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                                     </svg>
                                     <!-- WiFi icon -->
                                     <svg class="status-icon wifi-icon" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                                        <path fill-rule="evenodd"
+                                            d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 100-2 1 1 0 000 2z"
+                                            clip-rule="evenodd" />
                                     </svg>
                                     <!-- Battery icon -->
                                     <svg class="status-icon battery-icon" viewBox="0 0 24 20" fill="currentColor">
-                                        <path d="M3 7a2 2 0 012-2h11a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-                                        <path d="M21 9v2a1 1 0 01-1 1h-1V8h1a1 1 0 011 1z"/>
-                                        <rect x="4" y="8" width="10" height="4" rx="1" fill="white"/>
+                                        <path d="M3 7a2 2 0 012-2h11a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                        <path d="M21 9v2a1 1 0 01-1 1h-1V8h1a1 1 0 011 1z" />
+                                        <rect x="4" y="8" width="10" height="4" rx="1" fill="white" />
                                     </svg>
                                     <span class="battery-percentage">100%</span>
                                 </div>
@@ -75,20 +285,13 @@
                         <div class="phone-content-area">
                             <div class="canvas-content framework-flutter">
                                 <!-- Flutter widgets content -->
-                                <template v-if="currentScreen.elements && currentScreen.elements.length > 0">
-                                    <UnifiedWidgetRenderer
-                                        v-for="element in currentScreen.elements"
-                                        :key="element.id"
-                                        :element="element"
-                                        :is-editable="true"
-                                        :is-selected="selectedElementId === element.id"
-                                        @update:element="updateElement"
-                                        @delete-element="deleteElement"
-                                        @duplicate-element="duplicateElement"
-                                        @select="selectElement"
-                                        @widget-event="handleWidgetEvent"
-                                        class="canvas-element"
-                                    />
+                                <template v-if="currentElements && currentElements.length > 0">
+                                    <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id"
+                                        :element="element" :is-editable="true"
+                                        :is-selected="selectedElementId === element.id" @update:element="updateElement"
+                                        @delete-element="deleteElement" @duplicate-element="duplicateElement"
+                                        @select="selectElement" @widget-event="handleWidgetEvent"
+                                        class="canvas-element" />
                                 </template>
                                 <!-- Enhanced Flutter empty state -->
                                 <div v-else class="empty-canvas flutter-empty">
@@ -160,20 +363,12 @@
                     <div class="browser-content">
                         <div class="canvas-content framework-angular">
                             <!-- Angular widgets content -->
-                            <template v-if="currentScreen.elements && currentScreen.elements.length > 0">
-                                <UnifiedWidgetRenderer
-                                    v-for="element in currentScreen.elements"
-                                    :key="element.id"
-                                    :element="element"
-                                    :is-editable="true"
-                                    :is-selected="selectedElementId === element.id"
-                                    @update:element="updateElement"
-                                    @delete-element="deleteElement"
-                                    @duplicate-element="duplicateElement"
-                                    @select="selectElement"
-                                    @widget-event="handleWidgetEvent"
-                                    class="canvas-element"
-                                />
+                            <template v-if="currentElements && currentElements.length > 0">
+                                <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id"
+                                    :element="element" :is-editable="true"
+                                    :is-selected="selectedElementId === element.id" @update:element="updateElement"
+                                    @delete-element="deleteElement" @duplicate-element="duplicateElement"
+                                    @select="selectElement" @widget-event="handleWidgetEvent" class="canvas-element" />
                             </template>
                             <!-- Angular empty state -->
                             <div v-else class="empty-canvas angular-empty">
@@ -202,16 +397,11 @@
             <!-- Both frameworks view -->
             <div v-else class="unified-frame">
                 <div class="canvas-content framework-both">
-                    <template v-if="currentScreen.elements && currentScreen.elements.length > 0">
-                        <UnifiedWidgetRenderer
-                            v-for="element in currentScreen.elements"
-                            :key="element.id"
-                            :element="element"
-                            @update:element="updateElement"
-                            @widget-event="handleWidgetEvent"
-                            @click.stop="selectElement(element)"
-                            class="canvas-element"
-                        />
+                    <template v-if="currentElements && currentElements.length > 0">
+                        <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id" :element="element"
+                            @update:element="updateElement" @widget-event="handleWidgetEvent"
+                            @delete-element="deleteElement" @duplicate-element="duplicateElement"
+                            @select="selectElement" class="canvas-element" />
                     </template>
                     <!-- Both frameworks empty state -->
                     <div v-else class="empty-canvas both-empty">
@@ -238,297 +428,19 @@
     </div>
 </template>
 
-<script setup lang="ts">
-import { ref } from 'vue';
-import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
-import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
-import UnifiedWidgetRenderer from './UnifiedWidgetRenderer.vue';
-
-const props = defineProps<{
-    currentScreen: UnifiedScreen;
-    availableWidgets: any[];
-    selectedFramework: 'flutter' | 'angular' | 'both';
-}>();
-
-const emit = defineEmits([
-    'select-element',
-    'remove-element',
-    'add-element',
-    'update-element',
-    'drag-enter',
-    'drag-leave',
-    'drop'
-]);
-
-// Track the element being dragged over
-const dragOverElementId = ref<string | null>(null);
-
-// Track selected element
-const selectedElementId = ref<string | null>(null);
-
-// Get framework icon
-function getFrameworkIcon(framework: string): string {
-    switch (framework) {
-        case 'flutter':
-            return '🎯';
-        case 'angular':
-            return '🅰️';
-        case 'both':
-            return '🔀';
-        default:
-            return '📦';
-    }
-}
-
-// Get framework header icon
-function getFrameworkHeaderIcon(framework: string): string {
-    switch (framework) {
-        case 'flutter':
-            return 'phone_iphone';
-        case 'angular':
-            return 'web';
-        case 'both':
-            return 'dashboard';
-        default:
-            return 'dashboard';
-    }
-}
-
-// Handle element selection
-function selectElement(element: UnifiedElement) {
-    selectedElementId.value = element.id ?? null;
-    emit('select-element', element);
-}
-
-// Handle element removal
-function removeElement(element: UnifiedElement) {
-    emit('remove-element', element);
-}
-
-// Handle element update
-function updateElement(element: UnifiedElement) {
-    emit('update-element', element);
-}
-
-// Handle element deletion
-function deleteElement(element: UnifiedElement) {
-    selectedElementId.value = null;
-    emit('remove-element', element);
-}
-
-// Handle element duplication
-function duplicateElement(element: UnifiedElement) {
-    const duplicatedElement = UnifiedWidgetService.duplicateElement(element);
-    if (duplicatedElement) {
-        // Offset the duplicated element slightly
-        if (duplicatedElement.position) {
-            duplicatedElement.position.x += 20;
-            duplicatedElement.position.y += 20;
-        }
-        emit('add-element', duplicatedElement);
-    }
-}
-
-// Handle drag events
-function handleDragEnter(event: DragEvent, elementId: string) {
-    event.preventDefault();
-    dragOverElementId.value = elementId;
-    emit('drag-enter', event, elementId);
-}
-
-function handleDragLeave(event: DragEvent) {
-    event.preventDefault();
-    dragOverElementId.value = null;
-    emit('drag-leave', event);
-}
-
-function handleDrop(event: DragEvent, targetElementId: string | null = null) {
-    event.preventDefault();
-    dragOverElementId.value = null;
-
-    // Get the widget type from the dataTransfer
-    const widgetType = event.dataTransfer?.getData('widget-type');
-    if (!widgetType) return;
-
-    // Get canvas container to calculate its width
-    const canvasContainer = document.querySelector('.canvas-content') as HTMLElement;
-    const canvasWidth = canvasContainer ? canvasContainer.clientWidth : 400;
-
-    // Calculate drop position
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    const position = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
-    };
-
-    // Create new element using the service with canvas width
-    try {
-        const newElement = UnifiedWidgetService.createElement(
-            widgetType,
-            props.selectedFramework === 'both' ? 'flutter' : props.selectedFramework,
-            position,
-            canvasWidth // Pass canvas width for full-width widgets
-        );
-
-        emit('add-element', newElement, targetElementId);
-    } catch (error) {
-        console.error('Error creating element:', error);
-    }
-}
-
-// Enhanced positioning system to prevent overlapping
-const getSmartPosition = (elementType: string, existingElements: any[]) => {
-    const basePositions = {
-        'Container': { x: 50, y: 50 },
-        'Text': { x: 100, y: 100 },
-        'Button': { x: 150, y: 150 },
-        'TextField': { x: 200, y: 200 },
-        'Image': { x: 250, y: 250 },
-        'Row': { x: 50, y: 300 },
-        'Column': { x: 300, y: 50 }
-    };
-
-    const basePosition = basePositions[elementType as keyof typeof basePositions] || { x: 100, y: 100 };
-
-    // Calculate grid-based positioning to avoid overlaps
-    const gridSize = 20; // Grid spacing
-    const maxAttempts = 100;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const offsetX = (attempt % 10) * gridSize;
-        const offsetY = Math.floor(attempt / 10) * gridSize;
-
-        const newPosition = {
-            x: basePosition.x + offsetX,
-            y: basePosition.y + offsetY
-        };
-
-        // Check if this position overlaps with existing elements
-        const hasOverlap = existingElements.some(element => {
-            if (!element.position) return false;
-
-            const distance = Math.sqrt(
-                Math.pow(element.position.x - newPosition.x, 2) +
-                Math.pow(element.position.y - newPosition.y, 2)
-            );
-
-            return distance < 80; // Minimum distance between elements
-        });
-
-        if (!hasOverlap) {
-            return newPosition;
-        }
-    }
-
-    // Fallback to random position if no good spot found
-    return {
-        x: Math.random() * 200 + 50,
-        y: Math.random() * 200 + 50
-    };
-};
-
-// Auto-arrange elements to prevent overlapping
-const autoArrangeElements = () => {
-    if (!props.currentScreen.elements) return;
-
-    const arrangedElements = props.currentScreen.elements.map((element, index) => {
-        const newPosition = getSmartPosition(element.type, props.currentScreen.elements.slice(0, index));
-        return {
-            ...element,
-            position: newPosition,
-            zIndex: index + 1 // Assign incremental z-index
-        };
-    });
-
-    // Emit updated elements
-    arrangedElements.forEach(element => {
-        emit('update-element', element);
-    });
-};
-
-// Collision detection system
-const detectCollisions = (elements: UnifiedElement[]) => {
-    const collisions: string[] = [];
-
-    for (let i = 0; i < elements.length; i++) {
-        for (let j = i + 1; j < elements.length; j++) {
-            const elementA = elements[i];
-            const elementB = elements[j];
-
-            if (isColliding(elementA, elementB)) {
-                collisions.push(`${elementA.id}-${elementB.id}`);
-            }
-        }
-    }
-
-    return collisions;
-};
-
-// Check if two elements are colliding
-const isColliding = (elementA: UnifiedElement, elementB: UnifiedElement) => {
-    if (!elementA.position || !elementB.position || !elementA.size || !elementB.size) {
-        return false;
-    }
-
-    const rectA = {
-        left: elementA.position.x,
-        top: elementA.position.y,
-        right: elementA.position.x + elementA.size.width,
-        bottom: elementA.position.y + elementA.size.height
-    };
-
-    const rectB = {
-        left: elementB.position.x,
-        top: elementB.position.y,
-        right: elementB.position.x + elementB.size.width,
-        bottom: elementB.position.y + elementB.size.height
-    };
-
-    return !(rectA.right < rectB.left ||
-             rectB.right < rectA.left ||
-             rectA.bottom < rectB.top ||
-             rectB.bottom < rectA.top);
-};
-
-// Snap to grid functionality
-const snapToGrid = (position: { x: number, y: number }, gridSize: number = 10) => {
-    return {
-        x: Math.round(position.x / gridSize) * gridSize,
-        y: Math.round(position.y / gridSize) * gridSize
-    };
-};
-
-// Handle widget events from rendered components
-function handleWidgetEvent(eventData: any) {
-    console.log('Widget event:', eventData);
-
-    if (eventData.type === 'delete' && eventData.elementId) {
-        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
-        if (element) {
-            deleteElement(element);
-        }
-    } else if (eventData.type === 'duplicate' && eventData.elementId) {
-        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
-        if (element) {
-            duplicateElement(element);
-        }
-    }
-}
-</script>
-
 <style scoped>
-/* Modern Canvas Design */
+/* Modern Canvas Design - Maximized for Whiteboard */
 .unified-canvas {
     width: 100%;
     height: 100%;
-    min-height: 600px;
+    min-height: 80vh;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-    border-radius: 16px;
+    border-radius: 8px;
     overflow: hidden;
     position: relative;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -538,15 +450,15 @@ function handleWidgetEvent(eventData: any) {
     border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Enhanced Header */
+/* Compact Header */
 .canvas-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.8);
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     position: relative;
 }
 
@@ -584,7 +496,7 @@ function handleWidgetEvent(eventData: any) {
 }
 
 .screen-name {
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 600;
     margin: 0;
     color: #1f2937;
@@ -612,7 +524,7 @@ function handleWidgetEvent(eventData: any) {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -735,6 +647,99 @@ function handleWidgetEvent(eventData: any) {
 
 .canvas-both {
     background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+}
+
+/* Angular Web Frame */
+.web-frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 700px;
+}
+
+.browser-window {
+    width: 800px;
+    height: 600px;
+    background: linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%);
+    border-radius: 8px;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.1),
+        0 10px 20px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin: 20px auto;
+}
+
+.browser-header {
+    height: 40px;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+}
+
+.browser-controls {
+    display: flex;
+    gap: 6px;
+    margin-right: 10px;
+}
+
+.control-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.control-dot.close {
+    background-color: #ff5f57;
+}
+
+.control-dot.minimize {
+    background-color: #ffbd2e;
+}
+
+.control-dot.maximize {
+    background-color: #28c940;
+}
+
+.browser-url {
+    flex: 1;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 12px;
+    color: #333;
+}
+
+.browser-url .material-icons {
+    font-size: 14px;
+    margin-right: 4px;
+}
+
+.browser-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 10px;
+}
+
+.browser-actions .material-icons {
+    font-size: 16px;
+    color: #666;
+}
+
+.browser-content {
+    flex: 1;
+    background-color: #ffffff;
+    overflow: auto;
+    position: relative;
+    min-height: 500px;
+    padding: 20px;
 }
 
 /* Flutter Mobile Frame */
@@ -968,7 +973,7 @@ function handleWidgetEvent(eventData: any) {
     left: -5px;
     right: -5px;
     bottom: -5px;
-    background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent, rgba(255,255,255,0.05));
+    background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent, rgba(255, 255, 255, 0.05));
     border-radius: 42px;
     z-index: -1;
 }
@@ -981,7 +986,7 @@ function handleWidgetEvent(eventData: any) {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
     pointer-events: none;
     border-radius: 32px;
 }

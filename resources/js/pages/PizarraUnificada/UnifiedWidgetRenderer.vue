@@ -204,59 +204,134 @@ function handleMouseDown(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
 
+    // Set dragging state
     isDragging.value = true;
-    const rect = elementRef.value?.getBoundingClientRect();
-    if (rect) {
-        dragOffset.value = {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-        };
-    }
 
+    // Get element's current position
+    const rect = elementRef.value?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Calculate drag offset relative to the element
+    dragOffset.value = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+    };
+
+    // Bring element to front while dragging
+    const updatedElement = {
+        ...props.element,
+        zIndex: 1000 // High z-index during drag
+    };
+    emit('update:element', updatedElement);
+
+    // Add event listeners for drag operations
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+
+    // Add a class to indicate dragging state
+    if (elementRef.value) {
+        elementRef.value.classList.add('is-dragging');
+    }
 }
 
 function handleMouseMove(event: MouseEvent) {
     if (!isDragging.value || !props.isEditable) return;
 
-    // Calculate new position based on mouse movement
+    // Get the canvas container and its scroll position
+    const canvas = document.querySelector('.canvas-container');
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const scrollLeft = canvas.scrollLeft;
+    const scrollTop = canvas.scrollTop;
+
+    // Calculate new position based on mouse movement, accounting for scroll
     const newPosition = {
-        x: Math.max(0, event.clientX - dragOffset.value.x),
-        y: Math.max(0, event.clientY - dragOffset.value.y),
+        x: Math.max(0, event.clientX - canvasRect.left - dragOffset.value.x + scrollLeft),
+        y: Math.max(0, event.clientY - canvasRect.top - dragOffset.value.y + scrollTop),
     };
 
-    // Get parent container dimensions to constrain movement
-    const canvas = document.querySelector('.canvas-container');
-    if (canvas) {
-        const canvasRect = canvas.getBoundingClientRect();
-        const elementRect = elementRef.value?.getBoundingClientRect();
+    // Get element dimensions
+    const elementRect = elementRef.value?.getBoundingClientRect();
+    if (!elementRect) return;
 
-        if (elementRect) {
-            // Ensure element stays within canvas boundaries
-            if (newPosition.x + elementRect.width > canvasRect.width) {
-                newPosition.x = canvasRect.width - elementRect.width;
-            }
+    // Determine the container based on the framework
+    let containerWidth = canvasRect.width;
+    let containerHeight = canvasRect.height;
 
-            if (newPosition.y + elementRect.height > canvasRect.height) {
-                newPosition.y = canvasRect.height - elementRect.height;
-            }
-        }
+    // For Angular, check if we're in a browser-content container
+    const browserContent = document.querySelector('.browser-content');
+    if (browserContent && props.element.framework === 'angular') {
+        const browserRect = browserContent.getBoundingClientRect();
+        containerWidth = browserRect.width;
+        containerHeight = browserRect.height;
     }
 
-    // Update element with new position
+    // For Flutter, check if we're in a phone-content-area container
+    const phoneContent = document.querySelector('.phone-content-area');
+    if (phoneContent && props.element.framework === 'flutter') {
+        const phoneRect = phoneContent.getBoundingClientRect();
+        containerWidth = phoneRect.width;
+        containerHeight = phoneRect.height;
+    }
+
+    // Ensure element stays within container boundaries with a small margin
+    const margin = 5;
+    const maxX = containerWidth - elementRect.width - margin;
+    const maxY = containerHeight - elementRect.height - margin;
+
+    newPosition.x = Math.min(Math.max(margin, newPosition.x), maxX);
+    newPosition.y = Math.min(Math.max(margin, newPosition.y), maxY);
+
+    // Update element with new position and increase z-index during dragging
     const updatedElement = {
         ...props.element,
         position: newPosition,
+        zIndex: 1000, // Ensure dragged element is on top
     };
 
     emit('update:element', updatedElement);
+
+    // Force browser repaint to ensure smooth dragging
+    window.requestAnimationFrame(() => {
+        if (elementRef.value) {
+            elementRef.value.style.transform = 'translateZ(0)';
+        }
+    });
 }
 
 function handleMouseUp() {
-    isDragging.value = false;
+    // Remove event listeners first
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
+
+    // Only proceed if we were actually dragging
+    if (isDragging.value) {
+        // Keep the element's current z-index instead of resetting it
+        // This ensures elements maintain their stacking order after being moved
+        const updatedElement = {
+            ...props.element,
+            // We don't modify the z-index here, keeping whatever value it had
+        };
+
+        // Update the element
+        emit('update:element', updatedElement);
+
+        // Remove dragging class
+        if (elementRef.value) {
+            elementRef.value.classList.remove('is-dragging');
+
+            // Force a small delay to ensure UI updates properly
+            setTimeout(() => {
+                if (elementRef.value) {
+                    elementRef.value.style.transform = '';
+                }
+            }, 50);
+        }
+    }
+
+    // Set dragging state to false at the end
+    isDragging.value = false;
 }
 
 function handleResizeStart(event: MouseEvent, direction: string) {
@@ -364,11 +439,38 @@ function handleResizeStart(event: MouseEvent, direction: string) {
     document.addEventListener('mouseup', handleResizeEnd);
 }
 
-function handleDeleteElement() {
+const handleDeleteElement = (event: MouseEvent) => {
+    // Ensure the event doesn't propagate and prevent default behavior
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+
+    console.log('DELETE BUTTON CLICKED - Element:', {
+        id: props.element.id,
+        type: props.element.type,
+        isSelected: props.isSelected,
+        isEditable: props.isEditable,
+        element: props.element
+    });
+
+    // Add more detailed logging
+    console.log('Emitting delete-element event with full element object');
+
+    // Emit the delete-element event with the full element object
     emit('delete-element', props.element);
-}
+
+    // Log after emission
+    console.log('Delete event emitted successfully');
+
+    // Force a small delay to ensure event processing
+    setTimeout(() => {
+        console.log('Delete operation should be complete');
+    }, 100);
+};
 
 function handleDuplicateElement() {
+    console.log('📋 Duplicate button clicked for element:', props.element.id);
     emit('duplicate-element', props.element);
 }
 
@@ -462,11 +564,17 @@ onUnmounted(() => {
             </div>
 
             <!-- Quick actions -->
-            <div class="quick-actions">
-                <button class="quick-action-btn delete-btn" title="Eliminar" @click.stop="handleDeleteElement()">
+            <div class="quick-actions" v-if="props.isSelected">
+                <button class="quick-action-btn delete-btn" title="Eliminar" @click.stop="handleDeleteElement"
+                    @mousedown.stop @mouseup.stop
+                    onclick="event.stopPropagation(); console.log('Direct onclick handler triggered');" type="button"
+                    tabindex="0" style="z-index: 9999; position: relative;">
                     <span class="material-icons">delete</span>
+                    <span class="delete-text"
+                        style="position: absolute; width: 1px; height: 1px; overflow: hidden;">Eliminar</span>
                 </button>
-                <button class="quick-action-btn duplicate-btn" title="Duplicar" @click.stop="handleDuplicateElement()">
+                <button class="quick-action-btn duplicate-btn" title="Duplicar" @click.stop="handleDuplicateElement"
+                    @mousedown.stop @mouseup.stop>
                     <span class="material-icons">content_copy</span>
                 </button>
             </div>
@@ -502,12 +610,18 @@ onUnmounted(() => {
     cursor: grabbing;
     transform: scale(1.03);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    /* Mayor z-index durante el arrastre */
+    /* Higher z-index during drag */
     z-index: 1001 !important;
-    /* Desactivo transiciones durante el arrastre para movimiento inmediato */
-    transition: none;
-    /* Añado un borde más visible durante el arrastre */
-    border: 1px solid rgba(59, 130, 246, 0.5);
+    /* Disable transitions for immediate movement */
+    transition: none !important;
+    /* Add a more visible border during drag */
+    border: 2px solid rgba(59, 130, 246, 0.8);
+    /* Add a subtle glow effect */
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
+    /* Improve performance */
+    will-change: transform, left, top;
+    /* Ensure pointer events work correctly */
+    pointer-events: none;
 }
 
 .unified-widget-element.is-resizing {
@@ -717,5 +831,52 @@ onUnmounted(() => {
 .resize-sw .material-icons,
 .resize-se .material-icons {
     font-size: 10px;
+}
+
+/* Quick actions styling */
+.quick-actions {
+    position: absolute;
+    top: -35px;
+    right: 0;
+    display: flex;
+    gap: 8px;
+    pointer-events: all;
+    z-index: 1003;
+}
+
+.quick-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2);
+}
+
+.delete-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+}
+
+.delete-btn:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.duplicate-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.duplicate-btn:hover {
+    background: linear-gradient(135deg, #059669, #047857);
 }
 </style>

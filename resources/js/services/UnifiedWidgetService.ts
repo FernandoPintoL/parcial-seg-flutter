@@ -536,10 +536,16 @@ export class UnifiedWidgetService {
      * Crea un nuevo elemento unificado
      */
     static createElement(type: string, framework: 'flutter' | 'angular', position: { x: number, y: number }, canvasWidth?: number): UnifiedElement {
+        console.log('🏗️ UnifiedWidgetService.createElement called with:', { type, framework, position, canvasWidth });
+
         const widgets = this.getAvailableWidgets(framework);
+        console.log('📋 Available widgets for framework:', framework, 'count:', widgets.length);
+
         const widgetDefinition = widgets.find(w => w.type === type);
+        console.log('🔍 Widget definition search result:', widgetDefinition);
 
         if (!widgetDefinition) {
+            console.error('❌ Widget type not found:', { type, framework, availableTypes: widgets.map(w => w.type) });
             throw new Error(`Widget type "${type}" not found for framework "${framework}"`);
         }
 
@@ -547,6 +553,8 @@ export class UnifiedWidgetService {
         widgetDefinition.properties.forEach((prop: any) => {
             defaultProps[prop.name] = prop.defaultValue;
         });
+
+        console.log('⚙️ Default props generated:', defaultProps);
 
         // Generar una posición única si no se proporciona una específica
         const uniquePosition = {
@@ -557,7 +565,9 @@ export class UnifiedWidgetService {
         // Definir tamaño por defecto basado en el tipo de widget y ancho del canvas
         const defaultSize = this.getDefaultSize(type, framework, canvasWidth);
 
-        return {
+        console.log('📏 Default size calculated:', defaultSize);
+
+        const newElement: UnifiedElement = {
             id: `unified-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type,
             framework,
@@ -570,6 +580,9 @@ export class UnifiedWidgetService {
             opacity: 1,
             transform: 'none',
         };
+
+        console.log('✅ Element created successfully:', newElement);
+        return newElement;
     }
 
     /**
@@ -680,5 +693,22 @@ export class UnifiedWidgetService {
         }
 
         return true;
+    }
+
+    /**
+     * Duplica un elemento unificado
+     */
+    static duplicateElement(element: UnifiedElement): UnifiedElement {
+        const duplicatedElement: UnifiedElement = {
+            ...element,
+            id: `unified-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            position: element.position ? {
+                x: element.position.x + 20,
+                y: element.position.y + 20
+            } : { x: 120, y: 120 },
+            children: element.children ? element.children.map(child => this.duplicateElement(child)) : []
+        };
+
+        return duplicatedElement;
     }
 }

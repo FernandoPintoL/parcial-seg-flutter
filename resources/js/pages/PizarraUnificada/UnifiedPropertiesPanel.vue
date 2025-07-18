@@ -7,6 +7,7 @@ import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
 const props = defineProps<{
     selectedElement: UnifiedElement | null;
     framework: 'flutter' | 'angular' | 'both';
+    availableWidgets?: any[];
 }>();
 
 const emit = defineEmits(['update-property', 'update-element']);
@@ -16,7 +17,8 @@ const localProps = ref<Record<string, any>>({});
 
 // Get available widgets for current framework
 const availableWidgets = computed(() => {
-    return UnifiedWidgetService.getAvailableWidgets(props.framework);
+    // Use passed availableWidgets prop if available, otherwise get from service
+    return props.availableWidgets || UnifiedWidgetService.getAvailableWidgets(props.framework);
 });
 
 // Get current widget definition

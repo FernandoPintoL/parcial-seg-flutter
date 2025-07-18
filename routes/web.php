@@ -34,19 +34,16 @@ Route::get('/dashboard', function () {
     $user = Auth::user();
 
     // Get forms created by the user
-    $ownedForms = \App\Models\Pizarra::where('user_id', $user->id)
-                                        ->where('isHome', true)->get();
+    $ownedForms = \App\Models\Pizarra::where('user_id', $user->id)->get();
 
     // Get forms the user is collaborating on (with accepted status)
     $collaboratingPizarras = $user->collaborating()
         ->wherePivot('status', 'accepted')
-        ->with('pizarra:id,name')
         ->get();
 
     // Get pending invitations
     $pendingInvitations = $user->collaborating()
         ->wherePivot('status', 'pending')
-        ->with('pizarra:id,name')
         ->get();
 
     return Inertia::render('Dashboard', [
@@ -95,6 +92,7 @@ Route::get('/pizarra/invite/{pizarra}/flutter', [PizarraController::class, 'hand
 // AI Routes
 Route::post('/ai/generate-flutter-ui', [AIController::class, 'generateFlutterUI'])->name('ai.generate-flutter-ui');
 Route::post('/ai/generate-response', [AIController::class, 'generateResponse'])->name('ai.generate-response');
+Route::post('/ai/generate-ui-components', [AIController::class, 'generateUIComponents'])->name('ai.generate-ui-components');
 
 // Flutter Project Download Route
 Route::post('/pizarra/download-flutter-project', [PizarraController::class, 'downloadFlutterProject'])->name('pizarra.download-flutter-project');

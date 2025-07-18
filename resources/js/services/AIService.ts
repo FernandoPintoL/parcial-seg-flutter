@@ -85,7 +85,7 @@ export class AIService {
 
             // Create the audio config from the array buffer
             const pushStream = sdk.AudioInputStream.createPushStream();
-            pushStream.write(new Uint8Array(arrayBuffer));
+            pushStream.write(arrayBuffer);
             pushStream.close();
             const audioConfig = sdk.AudioConfig.fromStreamInput(pushStream);
 
@@ -601,7 +601,7 @@ export class AIService {
                         };
 
                         // Initialize properties with default values
-                        widgetDefinition.properties.forEach((prop) => {
+                        widgetDefinition.properties.forEach((prop: { name: string, defaultValue: any }) => {
                             newWidget.props[prop.name] = prop.defaultValue;
                         });
 
@@ -642,7 +642,7 @@ export class AIService {
                     };
 
                     // Initialize properties with default values
-                    widgetDefinition.properties.forEach((prop) => {
+                    widgetDefinition.properties.forEach((prop: { name: string, defaultValue: any }) => {
                         newWidget.props[prop.name] = prop.defaultValue;
                     });
 
@@ -667,82 +667,136 @@ export class AIService {
         console.log('Parsing AI response as JSON...');
 
         try {
-            // Check if the response starts with a markdown code block
-            if (aiResponse.trim().startsWith('```json')) {
-                console.log('Response starts with markdown code block, extracting JSON...');
+            // Normalize line endings and trim
+            const cleanResponse = aiResponse.replace(/\r\n/g, '\n').trim();
 
-                // Extract content from the markdown code block
-                const codeBlockMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
-                if (codeBlockMatch && codeBlockMatch[1]) {
-                    const jsonString = codeBlockMatch[1].trim();
-                    try {
-                        const jsonObject = JSON.parse(jsonString);
-                        console.log('Successfully parsed JSON from markdown code block:', jsonObject);
-                        return jsonObject;
-                    } catch (error: any) {
-                        console.error('Failed to parse JSON from markdown code block:', error.message);
-                        // Continue to other parsing methods
+            // First, try to find JSON in markdown code blocks
+            const jsonCodeBlockPatterns = [
+                /```json\s*([\s\S]*?)\s*```/gi,
+                /```\s*([\s\S]*?)\s*```/gi
+            ];
+
+            for (const pattern of jsonCodeBlockPatterns) {
+                const matches = [...cleanResponse.matchAll(pattern)];
+                for (const match of matches) {
+                    let jsonString = match[1]?.trim();
+                    if (jsonString) {
+                        try {
+                            // Clean up common JSON issues
+                            jsonString = this.cleanJsonString(jsonString);
+                            const jsonObject = JSON.parse(jsonString);
+
+                            // Validate that it has the expected structure
+                            if (this.isValidAIResponse(jsonObject)) {
+                                console.log('Successfully parsed JSON from markdown code block:', jsonObject);
+                                return jsonObject;
+                            }
+                        } catch (error: any) {
+                            console.log('Failed to parse JSON from code block, trying next...', error.message);
+                        }
                     }
                 }
             }
 
             // Try to parse the entire response as JSON
             try {
-                const jsonObject = JSON.parse(aiResponse);
-                console.log('Successfully parsed entire response as JSON:', jsonObject);
-                return jsonObject;
-            } catch (error: any) {
-                console.error('Failed to parse entire response as JSON:', error.message);
-                console.log('Could not parse entire response as JSON, trying to extract JSON...');
-            }
-
-            // If that fails, try to extract JSON from the response using various patterns
-
-            // Look for JSON code blocks with more flexible pattern
-            const jsonCodeBlockRegex = /```(?:json)?\s*([\s\S]*?)```/g;
-            let matches = [...aiResponse.matchAll(jsonCodeBlockRegex)];
-
-            // If no code blocks found, try to find JSON objects directly
-            if (matches.length === 0) {
-                // Try to find any JSON-like object in the response
-                const jsonObjectRegex = /({[\s\S]*?"widgets"\s*:\s*\[[\s\S]*?\]})/g;
-                matches = [...aiResponse.matchAll(jsonObjectRegex)];
-
-                // If still no matches, try a more general pattern
-                if (matches.length === 0) {
-                    const generalJsonRegex = /({[\s\S]*?})/g;
-                    matches = [...aiResponse.matchAll(generalJsonRegex)];
+                const cleanedResponse = this.cleanJsonString(cleanResponse);
+                const jsonObject = JSON.parse(cleanedResponse);
+                if (this.isValidAIResponse(jsonObject)) {
+                    console.log('Successfully parsed entire response as JSON:', jsonObject);
+                    return jsonObject;
                 }
+            } catch (error: any) {
+                console.log('Failed to parse entire response as JSON, trying to extract...', error.message);
             }
 
-            if (matches.length > 0) {
-                console.log(`Found ${matches.length} potential JSON matches in the response`);
+            // Look for JSON objects in the text using various patterns
+            const jsonPatterns = [
+                // Look for complete JSON objects with widgets property
+                /{[\s\S]*?"widgets"\s*:\s*\[[\s\S]*?\][\s\S]*?}/g,
+                // Look for any object that starts with { and ends with }
+                /{[^{}]*(?:{[^{}]*}[^{}]*)*}/g,
+                // Look for objects with nested structures
+                /{[\s\S]*?}/g
+            ];
 
-                // Use the first match that can be parsed as JSON
+            for (const pattern of jsonPatterns) {
+                const matches = [...cleanResponse.matchAll(pattern)];
                 for (const match of matches) {
-                    let jsonString = match[1] || match[0];
-
-                    // Clean up the string - remove any trailing commas which are invalid in JSON
-                    jsonString = jsonString.replace(/,\s*}/g, '}').replace(/,\s*\]/g, ']');
-
+                    let jsonString = match[0];
                     try {
+                        jsonString = this.cleanJsonString(jsonString);
                         const jsonObject = JSON.parse(jsonString);
-                        console.log('Successfully extracted and parsed JSON:', jsonObject);
-                        return jsonObject;
+                        if (this.isValidAIResponse(jsonObject)) {
+                            console.log('Successfully extracted and parsed JSON:', jsonObject);
+                            return jsonObject;
+                        }
                     } catch (error: any) {
-                        console.error('Failed to parse extracted JSON:', error.message);
-                        console.log('Failed to parse extracted JSON, trying next match...');
+                        console.log('Failed to parse extracted JSON, continuing...', error.message);
                     }
                 }
             }
 
-            // If we still haven't found valid JSON, log the response for debugging
-            console.log('No valid JSON found in AI response. Response content:', aiResponse);
-            return null;
+            // If we still haven't found valid JSON, try to construct one from text
+            console.log('No valid JSON found, attempting to construct from text...');
+            return this.constructJSONFromText(cleanResponse);
+
         } catch (error) {
             console.error('Error in parseAIResponseAsJSON:', error);
             return null;
         }
+    }
+
+    /**
+     * Cleans a JSON string to fix common formatting issues
+     * @param jsonString The JSON string to clean
+     * @returns The cleaned JSON string
+     */
+    private static cleanJsonString(jsonString: string): string {
+        return jsonString
+            // Remove trailing commas before } or ]
+            .replace(/,(\s*[}\]])/g, '$1')
+            // Fix unescaped quotes in strings
+            .replace(/(?<!\\)"/g, '"')
+            // Fix single quotes to double quotes (but be careful with apostrophes)
+            .replace(/'/g, '"')
+            // Remove any leading/trailing non-JSON characters
+            .replace(/^[^{]*({[\s\S]*})[^}]*$/, '$1')
+            .trim();
+    }
+
+    /**
+     * Validates if a parsed object has the expected AI response structure
+     * @param obj The object to validate
+     * @returns True if valid, false otherwise
+     */
+    private static isValidAIResponse(obj: any): boolean {
+        return obj &&
+            typeof obj === 'object' &&
+            (obj.widgets || obj.explanation || obj.framework || obj.code);
+    }
+
+    /**
+     * Attempts to construct a JSON object from plain text response
+     * @param text The text to analyze
+     * @returns A constructed JSON object or null
+     */
+    private static constructJSONFromText(text: string): any {
+        console.log('Attempting to construct JSON from text...');
+
+        // Look for framework mentions
+        const framework = /\b(flutter|angular)\b/i.exec(text)?.[1]?.toLowerCase() || 'flutter';
+
+        // This is a basic implementation - in a real scenario you might want more sophisticated text analysis
+        const constructedResponse = {
+            framework: framework,
+            explanation: text.length > 500 ? text.substring(0, 500) + '...' : text,
+            widgets: [],
+            code: null
+        };
+
+        console.log('Constructed basic response from text:', constructedResponse);
+        return constructedResponse;
     }
 
     /**
@@ -800,7 +854,33 @@ export class AIService {
             // Validar que las variables de entorno estén definidas
             if (!azureApiUrl || !azureApiKey || !azureModelName) {
                 console.error('Azure configuration is incomplete');
-                throw new Error('La configuración de Azure no está completa en el archivo .env.');
+
+                // Try to use the backend API as fallback
+                console.log('Trying backend API as fallback...');
+                const backendResponse = await this.sendPromptToBackend(prompt);
+                if (backendResponse.success) {
+                    // Process backend response
+                    const responseMessage = {
+                        text: backendResponse.explanation || 'Widgets generados correctamente',
+                        isUser: false,
+                        timestamp: Date.now(),
+                        widgets: backendResponse.widgets || [],
+                        framework: backendResponse.framework || 'flutter',
+                        code: backendResponse.code || null
+                    };
+
+                    updatedMessages.push(responseMessage);
+
+                    // Show success message
+                    await AlertService.prototype.success(
+                        'Éxito',
+                        `${(backendResponse.widgets || []).length} widgets de ${(backendResponse.framework || 'flutter').toUpperCase()} generados correctamente`
+                    );
+
+                    return { aiMessages: updatedMessages, isProcessingAI: false };
+                } else {
+                    throw new Error('La configuración de Azure no está completa y el backend falló.');
+                }
             }
 
             console.log('Azure configuration is complete, proceeding with API call');
@@ -814,7 +894,116 @@ export class AIService {
                 messages: [
                     {
                         role: 'system',
-                        content: 'Eres un asistente útil para Flutter. Cuando te pidan crear componentes, formularios o widgets de Flutter, responde SIEMPRE con un JSON que describa ÚNICAMENTE widgets de tipo input. El JSON debe tener la siguiente estructura: {"widgets": [{"type": "Widget_Type", "props": {"prop1": "value1"}, "children": []}], "explanation": "Explicación de los widgets"}.  \n\nLos tipos de widgets de input disponibles incluyen ÚNICAMENTE: TextFormField, ElevatedButton, Select, DropdownButton, Radio, RadioListTile, Checkbox, Switch, Text. Ten en cuenta que Select y DropdownButton son equivalentes, puedes usar cualquiera de los dos. Para Radio y RadioListTile, puedes usar la propiedad "options" o "items" con un array de objetos que tengan "label" y "value". No incluyas widgets de tipo layout como Container, Row, Column, SizedBox, Form, etc. ni otros tipos de widgets que no estén en la lista. \n\nEjemplo de respuesta para un formulario de login: \n```json\n{"widgets": [{"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Email\\")", "keyboardType": "TextInputType.email"}, "children": []}, {"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Password\\")", "obscureText": true}, "children": []}, {"type": "ElevatedButton", "props": {"child": "Text(\\"Login\\")", "onPressed": "() {}"}, "children": []}], "explanation": "Este es un formulario de login con campos para email y contraseña, y un botón para enviar."}\n```'
+                        content: `Eres un asistente especializado en Flutter y Angular. Cuando te pidan crear componentes, formularios o widgets, responde SIEMPRE con un JSON estructurado.
+
+ESTRUCTURA JSON REQUERIDA:
+{
+    "framework": "flutter" | "angular",
+    "widgets": [
+        {
+            "type": "Widget_Type",
+            "props": {
+                "prop1": "value1",
+                "prop2": "value2"
+            },
+            "children": [],
+            "position": {
+                "x": number,
+                "y": number
+            }
+        }
+    ],
+    "explanation": "Explicación detallada de los widgets creados",
+    "code": "Código completo del componente (opcional)"
+}
+
+WIDGETS FLUTTER DISPONIBLES:
+- TextFormField: Para campos de entrada de texto
+- ElevatedButton, TextButton, OutlinedButton: Botones
+- DropdownButton, DropdownButtonFormField: Selectores
+- RadioListTile, Radio: Botones de radio
+- CheckboxListTile, Checkbox: Casillas de verificación
+- Switch, SwitchListTile: Interruptores
+- Text: Texto estático
+- Slider: Control deslizante
+- DatePicker, TimePicker: Selectores de fecha/hora
+
+COMPONENTES ANGULAR DISPONIBLES:
+- input: Campos de entrada (text, email, password, number, etc.)
+- button: Botones (submit, button, reset)
+- select: Selectores desplegables
+- radio: Botones de radio
+- checkbox: Casillas de verificación
+- textarea: Áreas de texto
+- switch, toggle: Interruptores
+- slider, range: Controles deslizantes
+- datepicker: Selector de fecha
+
+EJEMPLO FLUTTER:
+{
+    "framework": "flutter",
+    "widgets": [
+        {
+            "type": "TextFormField",
+            "props": {
+                "decoration": "InputDecoration(labelText: 'Email')",
+                "keyboardType": "TextInputType.emailAddress",
+                "validator": "(value) => value?.isEmpty ?? true ? 'Campo requerido' : null"
+            },
+            "children": [],
+            "position": {"x": 50, "y": 100}
+        },
+        {
+            "type": "ElevatedButton",
+            "props": {
+                "onPressed": "() => _submitForm()",
+                "child": "Text('Enviar')",
+                "style": "ElevatedButton.styleFrom(primary: Colors.blue)"
+            },
+            "children": [],
+            "position": {"x": 50, "y": 200}
+        }
+    ],
+    "explanation": "Formulario de email con validación y botón de envío"
+}
+
+EJEMPLO ANGULAR:
+{
+    "framework": "angular",
+    "widgets": [
+        {
+            "type": "input",
+            "props": {
+                "type": "email",
+                "placeholder": "Ingresa tu email",
+                "formControlName": "email",
+                "required": true,
+                "class": "form-control"
+            },
+            "children": [],
+            "position": {"x": 50, "y": 100}
+        },
+        {
+            "type": "button",
+            "props": {
+                "type": "submit",
+                "class": "btn btn-primary",
+                "text": "Enviar",
+                "disabled": "!myForm.valid"
+            },
+            "children": [],
+            "position": {"x": 50, "y": 200}
+        }
+    ],
+    "explanation": "Formulario Angular con validación reactive forms"
+}
+
+INSTRUCCIONES:
+1. Detecta automáticamente si el usuario solicita Flutter o Angular
+2. Si no especifica, pregunta o asume Flutter por defecto
+3. Genera posiciones automáticas para los widgets (separación de ~80-100px)
+4. Incluye propiedades relevantes para cada tipo de widget
+5. Proporciona explicaciones claras y útiles`
                     },
                     { role: 'user', content: prompt }
                 ],
@@ -851,14 +1040,48 @@ export class AIService {
                 try {
                     const jsonResponse = this.parseAIResponseAsJSON(aiResponse);
                     if (jsonResponse && jsonResponse.widgets && Array.isArray(jsonResponse.widgets)) {
+                        // Determine framework
+                        const framework = jsonResponse.framework || 'flutter';
+
+                        // Define allowed widget types based on framework
+                        let allowedWidgetTypes: string[] = [];
+                        if (framework === 'flutter') {
+                            allowedWidgetTypes = [
+                                'TextFormField', 'ElevatedButton', 'TextButton', 'OutlinedButton',
+                                'DropdownButton', 'DropdownButtonFormField', 'RadioListTile', 'Radio',
+                                'CheckboxListTile', 'Checkbox', 'Switch', 'SwitchListTile',
+                                'Text', 'Slider', 'DatePicker', 'TimePicker'
+                            ];
+                        } else if (framework === 'angular') {
+                            allowedWidgetTypes = [
+                                'input', 'button', 'select', 'radio', 'checkbox',
+                                'textarea', 'switch', 'toggle', 'slider', 'range', 'datepicker'
+                            ];
+                        }
+
                         // Filter widgets to only include allowed types
-                        const allowedWidgetTypes = ['TextFormField', 'ElevatedButton', 'Select', 'DropdownButton', 'Radio', 'RadioListTile', 'Checkbox', 'Switch', 'Text'];
                         const filteredWidgets = jsonResponse.widgets.filter((widget: any) =>
                             allowedWidgetTypes.includes(widget.type)
                         );
 
+                        // Add automatic positioning if not provided
+                        filteredWidgets.forEach((widget: any, index: number) => {
+                            if (!widget.position) {
+                                widget.position = {
+                                    x: 50 + (index % 3) * 200, // 3 columns
+                                    y: 100 + Math.floor(index / 3) * 100 // New row every 3 widgets
+                                };
+                            }
+                            // Ensure widget has an ID
+                            if (!widget.id) {
+                                widget.id = `ai-widget-${Date.now()}-${index}`;
+                            }
+                            // Add framework info to widget
+                            widget.framework = framework;
+                        });
+
                         // Log filtered widgets for debugging
-                        console.log('Original widgets:', jsonResponse.widgets);
+                        console.log(`Parsed ${framework} widgets:`, jsonResponse.widgets);
                         console.log('Filtered widgets:', filteredWidgets);
 
                         // Add the response to the chat with filtered widgets
@@ -866,11 +1089,16 @@ export class AIService {
                             text: jsonResponse.explanation || aiResponse,
                             isUser: false,
                             timestamp: Date.now(),
-                            widgets: filteredWidgets
+                            widgets: filteredWidgets,
+                            framework: framework,
+                            code: jsonResponse.code || null
                         });
 
                         // Show success message
-                        await AlertService.prototype.success('Éxito', 'Widgets generados por la IA listos para añadir a la pizarra');
+                        await AlertService.prototype.success(
+                            'Éxito',
+                            `${filteredWidgets.length} widgets de ${framework.toUpperCase()} generados y listos para añadir a la pizarra`
+                        );
                     } else {
                         // Add the response to the chat without widgets
                         updatedMessages.push({
@@ -878,7 +1106,8 @@ export class AIService {
                             isUser: false,
                             timestamp: Date.now()
                         });
-                        // If JSON parsing fails, try to extract Flutter code
+
+                        // If JSON parsing fails, try to extract Flutter code (fallback)
                         const dart = this.extractFromFirstImport(aiResponse);
                         console.log('Extracted Dart code:', dart);
 
@@ -1015,6 +1244,49 @@ export class AIService {
         } catch (error) {
             console.error('Error filtering code for allowed widgets:', error);
             return code; // Return original code in case of error
+        }
+    }
+
+    /**
+     * Send prompt to backend API as fallback
+     * @param prompt The prompt to send
+     * @returns The backend response
+     */
+    private static async sendPromptToBackend(prompt: string): Promise<any> {
+        try {
+            const response = await axios.post('/ai/generate-ui-components', {
+                prompt: prompt,
+                framework: 'auto'
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                }
+            });
+
+            if (response.data && response.data.success) {
+                return {
+                    success: true,
+                    widgets: response.data.widgets || [],
+                    framework: response.data.framework || 'flutter',
+                    explanation: response.data.explanation || '',
+                    code: response.data.code || null
+                };
+            } else {
+                return {
+                    success: false,
+                    error: response.data?.error || 'Backend API error',
+                    message: response.data?.message || 'Unknown error'
+                };
+            }
+        } catch (error: any) {
+            console.error('Backend API error:', error);
+            return {
+                success: false,
+                error: 'Network error',
+                message: error.message || 'Failed to connect to backend'
+            };
         }
     }
 

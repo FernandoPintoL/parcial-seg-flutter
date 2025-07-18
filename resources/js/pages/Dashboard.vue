@@ -9,7 +9,7 @@ interface Pizarra {
     id: number;
     name: string;
     description?: string;
-    type: 'flutter' | 'angular' | 'both';
+    type: 'flutter' | 'angular' | 'unified' | 'both';
     framework?: string;
     created_at: string;
     updated_at: string;
@@ -28,9 +28,7 @@ const props = defineProps<{
     ownedForms: Pizarra[];
     collaboratingForms: any[];
     pendingInvitations: Invitation[];
-}>();
-
-// Reactive states
+}>();// Reactive states
 const selectedView = ref<'overview' | 'owned' | 'collaborating' | 'pending'>('overview');
 const searchQuery = ref('');
 const sortBy = ref<'name' | 'date' | 'type'>('date');
@@ -55,9 +53,7 @@ const filteredOwnedPizarras = computed(() => {
             return a.type.localeCompare(b.type);
         }
     });
-});
-
-const stats = computed(() => ({
+}); const stats = computed(() => ({
     total: (props.ownedForms?.length || 0) + (props.collaboratingForms?.length || 0),
     owned: props.ownedForms?.length || 0,
     collaborating: props.collaboratingForms?.length || 0,
@@ -87,6 +83,7 @@ const getFrameworkIcon = (type: string) => {
     switch (type) {
         case 'flutter': return '🎯';
         case 'angular': return '🅰️';
+        case 'unified': return '🔗';
         case 'both': return '🔄';
         default: return '📱';
     }
@@ -96,6 +93,7 @@ const getFrameworkColor = (type: string) => {
     switch (type) {
         case 'flutter': return 'from-blue-500 to-cyan-500';
         case 'angular': return 'from-red-500 to-pink-500';
+        case 'unified': return 'from-green-500 to-teal-500';
         case 'both': return 'from-purple-500 to-indigo-500';
         default: return 'from-gray-500 to-gray-600';
     }

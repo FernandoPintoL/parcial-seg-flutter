@@ -7,7 +7,14 @@ const props = defineProps({
         default: false
     },
     aiMessages: {
-        type: Array as () => { text: string; isUser: boolean; widgets?: any[] }[],
+        type: Array as () => {
+            text: string;
+            isUser: boolean;
+            widgets?: any[];
+            framework?: string;
+            code?: string;
+            timestamp?: number
+        }[],
         default: () => []
     },
     aiPrompt: {
@@ -112,13 +119,13 @@ function initSpeechRecognition() {
         };
 
         recognition.value.onend = () => {
-            // If recording was stopped manually, send the prompt
-            if (isRecording.value) {
-                isRecording.value = false;
-                // Auto-send prompt when recording ends
-                if (localAIPrompt.value.trim()) {
-                    emit('sendAIPrompt');
-                }
+            // Reset recording state when recognition ends
+            isRecording.value = false;
+
+            // Clear timer if active
+            if (recordingTimer.value) {
+                clearInterval(recordingTimer.value);
+                recordingTimer.value = null;
             }
         };
     }
@@ -155,7 +162,7 @@ async function startSpeechRecognition() {
 }
 
 function stopSpeechRecognition() {
-    if (recognition.value) {
+    if (recognition.value && isRecording.value) {
         recognition.value.stop();
         isRecording.value = false;
 
@@ -166,6 +173,13 @@ function stopSpeechRecognition() {
         }
 
         console.log('Speech recognition stopped');
+
+        // Auto-send prompt when recording ends if there's text
+        setTimeout(() => {
+            if (localAIPrompt.value.trim()) {
+                emit('sendAIPrompt');
+            }
+        }, 100); // Small delay to ensure the final text is captured
     }
 }
 
@@ -235,21 +249,91 @@ function addAIWidgetsToCanvas(widgets: any[]) {
     emit('addAIWidgetsToCanvas', widgets);
 }
 
-// Audio recording functions
-async function toggleRecording() {
-    if (isRecording.value) {
-        if (recognition.value) {
-            stopSpeechRecognition();
-        } else {
-            stopRecording();
+// Show code preview in a modal or popup
+function showCodePreview(code: string, framework: string) {
+    // Create a simple modal to show the code
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl max-h-full w-full overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Código ${framework.charAt(0).toUpperCase() + framework.slice(1)}
+                </h3>
+                <button onclick="this.closest('.fixed').remove()" 
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-auto max-h-96">
+                <pre class="bg-gray-100 dark:bg-gray-700 p-4 rounded text-sm overflow-x-auto"><code>${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-600 flex justify-end gap-2">
+                <button onclick="navigator.clipboard.writeText(\`${code.replace(/`/g, '\\`')}\`).then(() => alert('Código copiado al portapapeles'))" 
+                        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Copiar Código
+                </button>
+                <button onclick="this.closest('.fixed').remove()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
         }
-    } else {
+    });
+}
+
+// Audio recording functions with push-to-talk behavior
+async function startPushToTalk(event?: Event) {
+    // Prevent default behavior for touch events
+    if (event) {
+        event.preventDefault();
+    }
+
+    if (!isRecording.value) {
         if (recognition.value) {
             // Use Web Speech API for real-time transcription
             await startSpeechRecognition();
         } else {
             // Fallback to MediaRecorder if Speech Recognition is not available
             await startRecording();
+        }
+
+        // Add global event listeners to handle mouse/touch release outside the button
+        if (typeof window !== 'undefined') {
+            window.addEventListener('mouseup', stopPushToTalk);
+            window.addEventListener('touchend', stopPushToTalk);
+        }
+    }
+}
+
+async function stopPushToTalk(event?: Event) {
+    // Prevent default behavior for touch events
+    if (event) {
+        event.preventDefault();
+    }
+
+    if (isRecording.value) {
+        if (recognition.value) {
+            stopSpeechRecognition();
+        } else {
+            stopRecording();
+        }
+
+        // Remove global event listeners
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('mouseup', stopPushToTalk);
+            window.removeEventListener('touchend', stopPushToTalk);
         }
     }
 }
@@ -484,6 +568,12 @@ onUnmounted(() => {
         mediaRecorder.value.stop();
     }
     stopSpeechRecognition();
+
+    // Remove global event listeners if they exist
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('mouseup', stopPushToTalk);
+        window.removeEventListener('touchend', stopPushToTalk);
+    }
 });
 
 initSpeechRecognition();
@@ -512,15 +602,25 @@ checkMicrophoneSupport();
             <div v-if="aiMessages.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-4">
                 <p>Bienvenido al asistente IA para Flutter y Angular.</p>
                 <p class="mt-2">Describe la interfaz que deseas crear y la IA generará los componentes
-                    correspondientes para el framework que elijas.</p>
-                <p class="mt-2 text-sm font-semibold">Ejemplos de comandos por voz:</p>
+                    correspondientes en formato JSON optimizado para inserción directa en la pizarra.</p>
+                <p class="mt-2 text-sm font-semibold">Ejemplos de comandos:</p>
                 <div class="mt-1 text-xs space-y-2">
                     <p class="bg-purple-50 dark:bg-purple-900 dark:bg-opacity-20 p-2 rounded">
-                        <span class="font-semibold">Flutter:</span> "Genera un formulario Flutter para registro de usuarios con campos para nombre, email, contraseña y botón de registro"
+                        <span class="font-semibold">Flutter:</span> "Formulario de registro con email, contraseña,
+                        confirmación y botón"
                     </p>
                     <p class="bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 p-2 rounded">
-                        <span class="font-semibold">Angular:</span> "Crea un componente Angular para un dashboard con tarjetas de estadísticas y un gráfico de barras"
+                        <span class="font-semibold">Angular:</span> "Formulario de contacto Angular con validación
+                        reactive forms"
                     </p>
+                    <p class="bg-green-50 dark:bg-green-900 dark:bg-opacity-20 p-2 rounded">
+                        <span class="font-semibold">Auto-detección:</span> "Crear login con email y password" (detecta
+                        framework automáticamente)
+                    </p>
+                </div>
+                <div class="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                    <p><strong>Respuestas mejoradas:</strong> Ahora recibes widgets en formato JSON estructurado, con
+                        posicionamiento automático y información del framework.</p>
                 </div>
             </div>
 
@@ -536,10 +636,38 @@ checkMicrophoneSupport();
 
                     <!-- Add to Canvas button for AI responses -->
                     <div v-if="!msg.isUser && msg.widgets && msg.widgets.length > 0" class="mt-2">
-                        <button @click="addAIWidgetsToCanvas(msg.widgets)"
-                            class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors">
-                            Añadir a la Pizarra
-                        </button>
+                        <div class="flex flex-col gap-2">
+                            <!-- Framework indicator -->
+                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                <span class="font-semibold capitalize">{{ msg.framework || 'flutter' }}</span>
+                                - {{ msg.widgets.length }} widget{{ msg.widgets.length !== 1 ? 's' : '' }}
+                            </div>
+
+                            <!-- Widgets preview -->
+                            <div class="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                                <div class="font-semibold mb-1">Widgets incluidos:</div>
+                                <div class="flex flex-wrap gap-1">
+                                    <span v-for="widget in msg.widgets" :key="widget.id || widget.type"
+                                        class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
+                                        {{ widget.type }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Add to canvas button -->
+                            <button @click="addAIWidgetsToCanvas(msg.widgets)"
+                                class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors">
+                                Añadir {{ msg.widgets.length }} Widget{{ msg.widgets.length !== 1 ? 's' : '' }} a la
+                                Pizarra
+                            </button>
+
+                            <!-- Code preview button if available -->
+                            <button v-if="msg.code" @click="showCodePreview(msg.code, msg.framework || 'flutter')"
+                                class="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors">
+                                Ver Código {{ (msg.framework || 'flutter').charAt(0).toUpperCase() + (msg.framework ||
+                                'flutter').slice(1) }}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -560,39 +688,33 @@ checkMicrophoneSupport();
                 class="flex items-center justify-between bg-red-100 dark:bg-red-900 p-2 rounded-md mb-2">
                 <div class="flex items-center">
                     <div class="animate-pulse h-3 w-3 bg-red-500 rounded-full mr-2"></div>
-                    <span class="text-red-700 dark:text-red-300 text-sm">Grabando... {{ formatRecordingTime(recordingTime) }}</span>
+                    <span class="text-red-700 dark:text-red-300 text-sm">Grabando... {{
+                        formatRecordingTime(recordingTime) }}</span>
                 </div>
-                <button type="button" @click="toggleRecording"
-                    class="text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                            clip-rule="evenodd" />
-                    </svg>
-                </button>
+                <span class="text-red-700 dark:text-red-300 text-xs">Suelta para enviar</span>
             </div>
 
-            <textarea v-model="localAIPrompt" rows="3" placeholder="Solicita un formulario o componente para Flutter o Angular (ej: 'Genera un formulario Flutter para login' o 'Crea un componente Angular para galería de imágenes')..."
+            <textarea v-model="localAIPrompt" rows="3"
+                placeholder="Solicita un formulario o componente (ej: 'Genera un formulario Flutter para login', 'Crea un componente Angular para registro', 'Formulario de contacto con validación')..."
                 class="w-full px-3 py-2 border rounded-md resize-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                :disabled="localIsProcessingAI"
-                :readonly="isRecording"
-                :class="{'bg-gray-50 dark:bg-gray-600': isRecording}"
-                @input="onInput"></textarea>
+                :disabled="localIsProcessingAI" :readonly="isRecording"
+                :class="{ 'bg-gray-50 dark:bg-gray-600': isRecording }" @input="onInput"></textarea>
 
             <div class="flex gap-2">
                 <!-- Microphone button with enhanced status indication -->
                 <div class="relative">
-                    <button type="button" @click="toggleRecording"
-                        class="px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                        :disabled="localIsProcessingAI || !microphoneSupported"
-                        :class="{
+                    <button type="button" @mousedown="startPushToTalk" @mouseup="stopPushToTalk"
+                        @mouseleave="stopPushToTalk" @touchstart.prevent="startPushToTalk"
+                        @touchend.prevent="stopPushToTalk" @touchcancel.prevent="stopPushToTalk"
+                        class="px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 select-none"
+                        :disabled="localIsProcessingAI || !microphoneSupported" :class="{
                             'bg-red-600 animate-pulse': isRecording,
                             'bg-red-500 hover:bg-red-600': !isRecording && microphoneSupported,
                             'bg-gray-400 cursor-not-allowed': !microphoneSupported
-                        }"
-                        :title="!microphoneSupported ? 'Micrófono no soportado en este navegador' :
-                               microphonePermission === 'denied' ? 'Permisos de micrófono denegados' :
-                               isRecording ? 'Detener grabación' : 'Iniciar grabación por voz'">
+                        }" :title="!microphoneSupported ? 'Micrófono no soportado en este navegador' :
+                            microphonePermission === 'denied' ? 'Permisos de micrófono denegados' :
+                                'Mantén presionado para grabar por voz'"
+                        style="user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;">
 
                         <!-- Microphone icon -->
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -604,19 +726,18 @@ checkMicrophoneSupport();
                         <!-- Status indicator for microphone state -->
                         <span v-if="!microphoneSupported" class="text-xs">No soportado</span>
                         <span v-else-if="microphonePermission === 'denied'" class="text-xs">Sin permisos</span>
-                        <span v-else-if="isRecording" class="text-xs">Grabando</span>
+                        <span v-else-if="isRecording" class="text-xs">Suelta para enviar</span>
+                        <span v-else class="text-xs">Mantén presionado</span>
                     </button>
 
                     <!-- Permission status indicator -->
-                    <div v-if="microphoneSupported" class="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                        :class="{
-                            'bg-green-500': microphonePermission === 'granted',
-                            'bg-yellow-500': microphonePermission === 'prompt' || microphonePermission === 'unknown',
-                            'bg-red-500': microphonePermission === 'denied'
-                        }"
-                        :title="microphonePermission === 'granted' ? 'Permisos concedidos' :
-                               microphonePermission === 'denied' ? 'Permisos denegados' :
-                               'Estado de permisos desconocido'">
+                    <div v-if="microphoneSupported" class="absolute -top-1 -right-1 w-3 h-3 rounded-full" :class="{
+                        'bg-green-500': microphonePermission === 'granted',
+                        'bg-yellow-500': microphonePermission === 'prompt' || microphonePermission === 'unknown',
+                        'bg-red-500': microphonePermission === 'denied'
+                    }" :title="microphonePermission === 'granted' ? 'Permisos concedidos' :
+                        microphonePermission === 'denied' ? 'Permisos denegados' :
+                            'Estado de permisos desconocido'">
                     </div>
                 </div>
 
@@ -628,12 +749,36 @@ checkMicrophoneSupport();
                 </button>
             </div>
 
-            <!-- Microphone setup help message -->
+            <!-- Push-to-talk instructions -->
+            <div v-if="microphoneSupported && microphonePermission === 'granted'"
+                class="text-xs text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 p-2 rounded-md">
+                <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-blue-800 dark:text-blue-200">Grabación por voz activada (JSON
+                            optimizado)</p>
+                        <p class="mt-1"><strong>Instrucciones:</strong></p>
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            <li><strong>Mantén presionado</strong> el botón del micrófono para empezar a grabar</li>
+                            <li><strong>Suelta el botón</strong> para detener la grabación y enviar automáticamente</li>
+                            <li>Los widgets se generan en <strong>formato JSON estructurado</strong> para inserción
+                                directa</li>
+                            <li>Soporte automático para <strong>Flutter y Angular</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div> <!-- Microphone setup help message -->
             <div v-if="!microphoneSupported || microphonePermission === 'denied'"
-                 class="text-xs text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 p-2 rounded-md">
+                class="text-xs text-gray-600 dark:text-gray-400 bg-yellow-50 dark:bg-yellow-900 dark:bg-opacity-20 p-2 rounded-md">
                 <div v-if="!microphoneSupported" class="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                     <div>
                         <p class="font-semibold text-yellow-800 dark:text-yellow-200">Grabación de voz no disponible</p>
@@ -647,8 +792,10 @@ checkMicrophoneSupport();
                 </div>
 
                 <div v-else-if="microphonePermission === 'denied'" class="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
                     </svg>
                     <div>
                         <p class="font-semibold text-red-800 dark:text-red-200">Permisos de micrófono denegados</p>
