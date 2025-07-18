@@ -98,7 +98,7 @@ class PizarraUnificadaController extends Controller
             ]),
         ]);
 
-        return redirect()->route('pizarra-unificada.show', $pizarra->id);
+        return redirect()->route('pizarra_unificada.show', $pizarra->id);
     }
 
     /**

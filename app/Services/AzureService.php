@@ -11,23 +11,40 @@ class AzureService
     protected $apiUrl;
     protected $modelName;
     protected $deploymentName;
+    protected $openaiApiKey;
+    protected $openaiBaseUrl;
 
     public function __construct()
     {
-        $this->apiKey = env('AZURE_API_KEY');
-        $this->apiUrl = env('AZURE_API_URL');
-        $this->modelName = env('AZURE_MODEL_NAME', 'gpt-4.1');
-        $this->deploymentName = env('AZURE_DEPLOYMENT_NAME', 'gpt-4.1');
+        // Azure configuration
+        $this->apiKey = config('services.azure.openai.api_key');
+        $this->apiUrl = config('services.azure.openai.api_url');
+        $this->modelName = config('services.azure.openai.model_name', 'gpt-4.1');
+        $this->deploymentName = config('services.azure.openai.deployment_name', 'gpt-4.1');
+
+        // OpenAI configuration (for fallback)
+        $this->openaiApiKey = config('services.openai.key');
+        $this->openaiBaseUrl = 'https://api.openai.com/v1';
     }
 
     /**
-     * Validate that all required configuration is present
+     * Validate that all required Azure configuration is present
      *
      * @return bool
      */
     public function isConfigured(): bool
     {
         return !empty($this->apiKey) && !empty($this->apiUrl) && !empty($this->modelName) && !empty($this->deploymentName);
+    }
+
+    /**
+     * Validate that all required OpenAI configuration is present
+     *
+     * @return bool
+     */
+    public function isOpenAIConfigured(): bool
+    {
+        return !empty($this->openaiApiKey);
     }
 
     /**
@@ -38,14 +55,48 @@ class AzureService
     public function getConfigStatus(): array
     {
         return [
-            'configured' => $this->isConfigured(),
-            'api_key_set' => !empty($this->apiKey),
-            'api_url_set' => !empty($this->apiUrl),
-            'model_name_set' => !empty($this->modelName),
-            'deployment_name_set' => !empty($this->deploymentName),
-            'model_name' => $this->modelName,
-            'deployment_name' => $this->deploymentName,
+            'azure' => [
+                'configured' => $this->isConfigured(),
+                'api_key_set' => !empty($this->apiKey),
+                'api_url_set' => !empty($this->apiUrl),
+                'model_name_set' => !empty($this->modelName),
+                'deployment_name_set' => !empty($this->deploymentName),
+                'model_name' => $this->modelName,
+                'deployment_name' => $this->deploymentName,
+            ],
+            'openai' => [
+                'configured' => $this->isOpenAIConfigured(),
+                'api_key_set' => !empty($this->openaiApiKey),
+            ],
+            'fallback_enabled' => $this->isConfigured() && $this->isOpenAIConfigured(),
         ];
+    }
+
+    /**
+     * Generate a response from Azure OpenAI with fallback to OpenAI
+     *
+     * @param string $prompt The prompt to send to the AI
+     * @param array $options Additional options for the API call
+     * @return array The response from the AI
+     */
+    public function generateResponse(string $prompt, array $options = [])
+    {
+        // Try Azure first
+        $azureResponse = $this->generateAzureResponse($prompt, $options);
+
+        // If Azure succeeds, return the response
+        if ($azureResponse['success']) {
+            return $azureResponse;
+        }
+
+        // If Azure fails and OpenAI is configured, try OpenAI as fallback
+        if ($this->isOpenAIConfigured()) {
+            Log::info('Azure OpenAI API failed, falling back to OpenAI API');
+            return $this->generateOpenAIResponse($prompt, $options);
+        }
+
+        // If OpenAI is not configured, return the Azure error
+        return $azureResponse;
     }
 
     /**
@@ -55,7 +106,7 @@ class AzureService
      * @param array $options Additional options for the API call
      * @return array The response from the AI
      */
-    public function generateResponse(string $prompt, array $options = [])
+    private function generateAzureResponse(string $prompt, array $options = [])
     {
         try {
             if (!$this->isConfigured()) {
@@ -63,6 +114,7 @@ class AzureService
                     'success' => false,
                     'error' => 'Azure OpenAI Service not configured',
                     'message' => 'Missing API key, URL, model name, or deployment name configuration',
+                    'provider' => 'azure',
                 ];
             }
 
@@ -91,6 +143,7 @@ class AzureService
                 return [
                     'success' => true,
                     'data' => $response->json(),
+                    'provider' => 'azure',
                 ];
             } else {
                 Log::error('Azure OpenAI API error: ' . $response->body());
@@ -98,6 +151,7 @@ class AzureService
                     'success' => false,
                     'error' => 'API request failed: ' . $response->status(),
                     'message' => $response->json()['error']['message'] ?? 'Unknown error',
+                    'provider' => 'azure',
                 ];
             }
         } catch (\Exception $e) {
@@ -106,6 +160,81 @@ class AzureService
                 'success' => false,
                 'error' => 'Service error',
                 'message' => $e->getMessage(),
+                'provider' => 'azure',
+            ];
+        }
+    }
+
+    /**
+     * Generate a response from OpenAI (fallback)
+     *
+     * @param string $prompt The prompt to send to the AI
+     * @param array $options Additional options for the API call
+     * @return array The response from the AI
+     */
+    private function generateOpenAIResponse(string $prompt, array $options = [])
+    {
+        try {
+            if (!$this->isOpenAIConfigured()) {
+                return [
+                    'success' => false,
+                    'error' => 'OpenAI API not configured',
+                    'message' => 'Missing API key configuration',
+                    'provider' => 'openai',
+                ];
+            }
+
+            $defaultOptions = [
+                'model' => 'gpt-4o',  // Use a suitable OpenAI model
+                'messages' => [
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 1000,
+            ];
+
+            // Merge options, but ensure we're using the OpenAI model format
+            $requestOptions = array_merge($defaultOptions, $options);
+            if (isset($requestOptions['model_name'])) {
+                unset($requestOptions['model_name']);
+            }
+            if (isset($requestOptions['deployment_name'])) {
+                unset($requestOptions['deployment_name']);
+            }
+
+            // OpenAI API endpoint
+            $endpoint = $this->openaiBaseUrl . '/chat/completions';
+
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $this->openaiApiKey
+            ])->post($endpoint, $requestOptions);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                    'provider' => 'openai',
+                ];
+            } else {
+                Log::error('OpenAI API error: ' . $response->body());
+                return [
+                    'success' => false,
+                    'error' => 'API request failed: ' . $response->status(),
+                    'message' => $response->json()['error']['message'] ?? 'Unknown error',
+                    'provider' => 'openai',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('OpenAI service error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Service error',
+                'message' => $e->getMessage(),
+                'provider' => 'openai',
             ];
         }
     }

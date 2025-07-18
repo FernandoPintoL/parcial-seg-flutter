@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('label')->nullable();
             $table->string('icon')->nullable();
             $table->boolean('hasChildren')->default(false);
+            $table->text('code_string')->nullable()->after('hasChildren');
             $table->timestamps();
             $table->foreignId('categoria_widget_id')->constrained('categoria_widgets')->cascadeOnDelete()->cascadeOnUpdate();
         });

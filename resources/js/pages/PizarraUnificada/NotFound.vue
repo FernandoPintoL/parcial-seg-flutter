@@ -42,10 +42,10 @@ import { router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 const goToList = () => {
-    router.visit('/pizarra-unificada');
+    router.visit('/pizarra_unificada');
 };
 
 const createNew = () => {
-    router.visit('/pizarra-unificada/create');
+    router.visit('/pizarra_unificada/create');
 };
 </script>

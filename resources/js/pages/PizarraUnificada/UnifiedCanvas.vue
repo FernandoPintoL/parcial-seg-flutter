@@ -83,8 +83,10 @@
                                         :is-editable="true"
                                         :is-selected="selectedElementId === element.id"
                                         @update:element="updateElement"
+                                        @delete-element="deleteElement"
+                                        @duplicate-element="duplicateElement"
+                                        @select="selectElement"
                                         @widget-event="handleWidgetEvent"
-                                        @click.stop="selectElement(element)"
                                         class="canvas-element"
                                     />
                                 </template>
@@ -163,9 +165,13 @@
                                     v-for="element in currentScreen.elements"
                                     :key="element.id"
                                     :element="element"
+                                    :is-editable="true"
+                                    :is-selected="selectedElementId === element.id"
                                     @update:element="updateElement"
+                                    @delete-element="deleteElement"
+                                    @duplicate-element="duplicateElement"
+                                    @select="selectElement"
                                     @widget-event="handleWidgetEvent"
-                                    @click.stop="selectElement(element)"
                                     class="canvas-element"
                                 />
                             </template>
@@ -300,8 +306,27 @@ function removeElement(element: UnifiedElement) {
 }
 
 // Handle element update
-function updateElement(updatedElement: UnifiedElement) {
-    emit('update-element', updatedElement);
+function updateElement(element: UnifiedElement) {
+    emit('update-element', element);
+}
+
+// Handle element deletion
+function deleteElement(element: UnifiedElement) {
+    selectedElementId.value = null;
+    emit('remove-element', element);
+}
+
+// Handle element duplication
+function duplicateElement(element: UnifiedElement) {
+    const duplicatedElement = UnifiedWidgetService.duplicateElement(element);
+    if (duplicatedElement) {
+        // Offset the duplicated element slightly
+        if (duplicatedElement.position) {
+            duplicatedElement.position.x += 20;
+            duplicatedElement.position.y += 20;
+        }
+        emit('add-element', duplicatedElement);
+    }
 }
 
 // Handle drag events
@@ -325,6 +350,10 @@ function handleDrop(event: DragEvent, targetElementId: string | null = null) {
     const widgetType = event.dataTransfer?.getData('widget-type');
     if (!widgetType) return;
 
+    // Get canvas container to calculate its width
+    const canvasContainer = document.querySelector('.canvas-content') as HTMLElement;
+    const canvasWidth = canvasContainer ? canvasContainer.clientWidth : 400;
+
     // Calculate drop position
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const position = {
@@ -332,12 +361,13 @@ function handleDrop(event: DragEvent, targetElementId: string | null = null) {
         y: event.clientY - rect.top
     };
 
-    // Create new element using the service
+    // Create new element using the service with canvas width
     try {
         const newElement = UnifiedWidgetService.createElement(
             widgetType,
             props.selectedFramework === 'both' ? 'flutter' : props.selectedFramework,
-            position
+            position,
+            canvasWidth // Pass canvas width for full-width widgets
         );
 
         emit('add-element', newElement, targetElementId);
@@ -346,10 +376,143 @@ function handleDrop(event: DragEvent, targetElementId: string | null = null) {
     }
 }
 
+// Enhanced positioning system to prevent overlapping
+const getSmartPosition = (elementType: string, existingElements: any[]) => {
+    const basePositions = {
+        'Container': { x: 50, y: 50 },
+        'Text': { x: 100, y: 100 },
+        'Button': { x: 150, y: 150 },
+        'TextField': { x: 200, y: 200 },
+        'Image': { x: 250, y: 250 },
+        'Row': { x: 50, y: 300 },
+        'Column': { x: 300, y: 50 }
+    };
+
+    const basePosition = basePositions[elementType as keyof typeof basePositions] || { x: 100, y: 100 };
+
+    // Calculate grid-based positioning to avoid overlaps
+    const gridSize = 20; // Grid spacing
+    const maxAttempts = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const offsetX = (attempt % 10) * gridSize;
+        const offsetY = Math.floor(attempt / 10) * gridSize;
+
+        const newPosition = {
+            x: basePosition.x + offsetX,
+            y: basePosition.y + offsetY
+        };
+
+        // Check if this position overlaps with existing elements
+        const hasOverlap = existingElements.some(element => {
+            if (!element.position) return false;
+
+            const distance = Math.sqrt(
+                Math.pow(element.position.x - newPosition.x, 2) +
+                Math.pow(element.position.y - newPosition.y, 2)
+            );
+
+            return distance < 80; // Minimum distance between elements
+        });
+
+        if (!hasOverlap) {
+            return newPosition;
+        }
+    }
+
+    // Fallback to random position if no good spot found
+    return {
+        x: Math.random() * 200 + 50,
+        y: Math.random() * 200 + 50
+    };
+};
+
+// Auto-arrange elements to prevent overlapping
+const autoArrangeElements = () => {
+    if (!props.currentScreen.elements) return;
+
+    const arrangedElements = props.currentScreen.elements.map((element, index) => {
+        const newPosition = getSmartPosition(element.type, props.currentScreen.elements.slice(0, index));
+        return {
+            ...element,
+            position: newPosition,
+            zIndex: index + 1 // Assign incremental z-index
+        };
+    });
+
+    // Emit updated elements
+    arrangedElements.forEach(element => {
+        emit('update-element', element);
+    });
+};
+
+// Collision detection system
+const detectCollisions = (elements: UnifiedElement[]) => {
+    const collisions: string[] = [];
+
+    for (let i = 0; i < elements.length; i++) {
+        for (let j = i + 1; j < elements.length; j++) {
+            const elementA = elements[i];
+            const elementB = elements[j];
+
+            if (isColliding(elementA, elementB)) {
+                collisions.push(`${elementA.id}-${elementB.id}`);
+            }
+        }
+    }
+
+    return collisions;
+};
+
+// Check if two elements are colliding
+const isColliding = (elementA: UnifiedElement, elementB: UnifiedElement) => {
+    if (!elementA.position || !elementB.position || !elementA.size || !elementB.size) {
+        return false;
+    }
+
+    const rectA = {
+        left: elementA.position.x,
+        top: elementA.position.y,
+        right: elementA.position.x + elementA.size.width,
+        bottom: elementA.position.y + elementA.size.height
+    };
+
+    const rectB = {
+        left: elementB.position.x,
+        top: elementB.position.y,
+        right: elementB.position.x + elementB.size.width,
+        bottom: elementB.position.y + elementB.size.height
+    };
+
+    return !(rectA.right < rectB.left ||
+             rectB.right < rectA.left ||
+             rectA.bottom < rectB.top ||
+             rectB.bottom < rectA.top);
+};
+
+// Snap to grid functionality
+const snapToGrid = (position: { x: number, y: number }, gridSize: number = 10) => {
+    return {
+        x: Math.round(position.x / gridSize) * gridSize,
+        y: Math.round(position.y / gridSize) * gridSize
+    };
+};
+
 // Handle widget events from rendered components
 function handleWidgetEvent(eventData: any) {
     console.log('Widget event:', eventData);
-    // Handle widget-specific events here if needed
+
+    if (eventData.type === 'delete' && eventData.elementId) {
+        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
+        if (element) {
+            deleteElement(element);
+        }
+    } else if (eventData.type === 'duplicate' && eventData.elementId) {
+        const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
+        if (element) {
+            duplicateElement(element);
+        }
+    }
 }
 </script>
 

@@ -103,12 +103,12 @@ const getFrameworkColor = (type: string) => {
 
 const createNewPizarra = () => {
     isLoading.value = true;
-    router.visit('/pizarra-unificada/create');
+    router.visit('/pizarra_unificada/create');
 };
 
 const openPizarra = (pizarraId: number) => {
     isLoading.value = true;
-    router.visit(`/pizarra-unificada/${pizarraId}/edit`);
+    router.visit(`/pizarra_unificada/${pizarraId}/edit`);
 };
 
 const breadcrumbs: BreadcrumbItem[] = [

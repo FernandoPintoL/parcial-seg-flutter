@@ -17,11 +17,14 @@ return new class extends Migration
             $table->string('name');
             $table->json('users')->nullable();
             $table->boolean('isHome')->default(false);
-            $table->foreignId('pizarra_id')->nullable()->constrained('pizarras')->nullOnDelete();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->cascadeOnUpdate();
             $table->json('elements')->nullable();
             $table->json('screens')->nullable()->after('elements');
+            $table->enum('type', ['flutter', 'angular', 'unified'])->default('flutter')->after('name');
+            $table->enum('framework', ['flutter', 'angular'])->default('flutter')->after('type');
+            $table->text('description')->nullable()->after('framework');
             $table->timestamps();
+            $table->foreignId('pizarra_id')->nullable()->constrained('pizarras')->nullOnDelete();
+            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete()->cascadeOnUpdate();
         });
     }
 

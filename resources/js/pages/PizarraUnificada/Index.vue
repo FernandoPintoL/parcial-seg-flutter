@@ -25,15 +25,15 @@ const props = defineProps({
 
 // Methods
 const createPizarra = () => {
-    router.visit('/pizarra-unificada/create');
+    router.visit('/pizarra_unificada/create');
 };
 
 const openPizarra = (id: number) => {
-    router.visit(`/pizarra-unificada/${id}`);
+    router.visit(`/pizarra_unificada/${id}`);
 };
 
 const editPizarra = (id: number) => {
-    router.visit(`/pizarra-unificada/${id}/edit`);
+    router.visit(`/pizarra_unificada/${id}/edit`);
 };
 
 const deletePizarra = async (id: number) => {
@@ -50,7 +50,7 @@ const deletePizarra = async (id: number) => {
 
     if (result.isConfirmed) {
         try {
-            await axios.delete(`/pizarra-unificada/${id}`);
+            await axios.delete(`/pizarra_unificada/${id}`);
             Swal.fire({
                 icon: 'success',
                 title: 'Eliminado',
@@ -83,7 +83,7 @@ const deletePizarra = async (id: number) => {
 
 const acceptInvitation = async (id: number) => {
     try {
-        await axios.post(`/pizarra-unificada/${id}/accept`);
+        await axios.post(`/pizarra_unificada/${id}/accept`);
         Swal.fire({
             icon: 'success',
             title: 'Aceptado',
@@ -115,7 +115,7 @@ const acceptInvitation = async (id: number) => {
 
 const rejectInvitation = async (id: number) => {
     try {
-        await axios.post(`/pizarra-unificada/${id}/reject`);
+        await axios.post(`/pizarra_unificada/${id}/reject`);
         Swal.fire({
             icon: 'success',
             title: 'Rechazado',
@@ -159,7 +159,7 @@ const leaveCollaboration = async (id: number) => {
 
     if (result.isConfirmed) {
         try {
-            await axios.post(`/pizarra-unificada/${id}/leave`);
+            await axios.post(`/pizarra_unificada/${id}/leave`);
             Swal.fire({
                 icon: 'success',
                 title: 'Salida exitosa',

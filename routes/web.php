@@ -66,19 +66,19 @@ Route::post('/chat/message', [ChatController::class, 'storeMessage'])->name('cha
 Route::post('/whiteboard/activity', [WhiteboardActivityController::class, 'storeActivity'])->middleware('auth')->name('whiteboard.activity.store');*/
 
 // Pizarra Unificada Routes
-Route::resource('/pizarra-unificada', PizarraUnificadaController::class);
-Route::get('/pizarra-unificada/{pizarra_unificada}/collaborators', [PizarraUnificadaController::class, 'getCollaborators'])->name('pizarra-unificada.collaborators');
-Route::post('/pizarra-unificada/{pizarra_unificada}/invite', [PizarraUnificadaController::class, 'inviteCollaborator'])->name('pizarra-unificada.invite');
-Route::post('/pizarra-unificada/{pizarra_unificada}/accept', [PizarraUnificadaController::class, 'acceptInvitation'])->name('pizarra-unificada.accept');
-Route::post('/pizarra-unificada/{pizarra_unificada}/reject', [PizarraUnificadaController::class, 'rejectInvitation'])->name('pizarra-unificada.reject');
-Route::post('/pizarra-unificada/{pizarra_unificada}/leave', [PizarraUnificadaController::class, 'leaveCollaboration'])->name('pizarra-unificada.leave');
-Route::get('/pizarra-unificada/invite/{pizarra_unificada}', [PizarraUnificadaController::class, 'handleInviteLink'])->name('pizarra-unificada.invite-link');
-Route::post('/pizarra-unificada/{pizarra_unificada}/process-diagram', [PizarraUnificadaController::class, 'processDiagram'])->name('pizarra-unificada.process-diagram');
-Route::post('/pizarra-unificada/{pizarra_unificada}/generate-code', [PizarraUnificadaController::class, 'generateCode'])->name('pizarra-unificada.generate-code');
-Route::post('/pizarra-unificada/{pizarra_unificada}/download-code', [PizarraUnificadaController::class, 'downloadCode'])->name('pizarra-unificada.download-code');
-Route::post('/pizarra-unificada/{pizarra_unificada}/update-framework', [PizarraUnificadaController::class, 'updateFramework'])->name('pizarra-unificada.update-framework');
-Route::post('/pizarra-unificada/{pizarra_unificada}/elements', [PizarraUnificadaController::class, 'updateElements'])->name('pizarra-unificada.update-elements');
-Route::post('/pizarra-unificada/{pizarra_unificada}/screens', [PizarraUnificadaController::class, 'updateScreens'])->name('pizarra-unificada.update-screens');
+Route::resource('/pizarra_unificada', PizarraUnificadaController::class);
+Route::get('/pizarra_unificada/{pizarra_unificada}/collaborators', [PizarraUnificadaController::class, 'getCollaborators'])->name('pizarra_unificada.collaborators');
+Route::post('/pizarra_unificada/{pizarra_unificada}/invite', [PizarraUnificadaController::class, 'inviteCollaborator'])->name('pizarra_unificada.invite');
+Route::post('/pizarra_unificada/{pizarra_unificada}/accept', [PizarraUnificadaController::class, 'acceptInvitation'])->name('pizarra_unificada.accept');
+Route::post('/pizarra_unificada/{pizarra_unificada}/reject', [PizarraUnificadaController::class, 'rejectInvitation'])->name('pizarra_unificada.reject');
+Route::post('/pizarra_unificada/{pizarra_unificada}/leave', [PizarraUnificadaController::class, 'leaveCollaboration'])->name('pizarra_unificada.leave');
+Route::get('/pizarra_unificada/invite/{pizarra_unificada}', [PizarraUnificadaController::class, 'handleInviteLink'])->name('pizarra_unificada.invite-link');
+Route::post('/pizarra_unificada/{pizarra_unificada}/process-diagram', [PizarraUnificadaController::class, 'processDiagram'])->name('pizarra_unificada.process-diagram');
+Route::post('/pizarra_unificada/{pizarra_unificada}/generate-code', [PizarraUnificadaController::class, 'generateCode'])->name('pizarra_unificada.generate-code');
+Route::post('/pizarra_unificada/{pizarra_unificada/download-code', [PizarraUnificadaController::class, 'downloadCode'])->name('pizarra_unificada.download-code');
+Route::post('/pizarra_unificada/{pizarra_unificada}/update-framework', [PizarraUnificadaController::class, 'updateFramework'])->name('pizarra_unificada.update-framework');
+Route::post('/pizarra_unificada/{pizarra_unificada}/elements', [PizarraUnificadaController::class, 'updateElements'])->name('pizarra_unificada.update-elements');
+Route::post('/pizarra_unificada/{pizarra_unificada}/screens', [PizarraUnificadaController::class, 'updateScreens'])->name('pizarra_unificada.update-screens');
 
 Route::resource('/pizarra', PizarraController::class);
 Route::get('/pizarra/flutter', [PizarraController::class, 'indexFlutter'])->name('pizarra.flutter.index');
@@ -127,7 +127,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         'categoria-widgets' => CategoriaWidgetController::class,
         'figma' => FigmaController::class,
         'pizarra' => PizarraController::class,
-        'pizarra-unificada' => PizarraUnificadaController::class,
+        'pizarra_unificada' => PizarraUnificadaController::class,
         'pizarra-widget' => PizarraWidgetController::class,
         'propiedades' => PropiedadesController::class,
         'node' => NodeController::class,

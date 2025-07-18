@@ -49,8 +49,7 @@ const createPizarra = async () => {
     isSubmitting.value = true;
 
     try {
-        const response = await router.post('/pizarra-unificada', form);
-        console.log('Pizarra creada:', response);
+        await router.post('/pizarra_unificada', form);
 
         Swal.fire({
             icon: 'success',
@@ -71,7 +70,7 @@ const createPizarra = async () => {
 };
 
 const goBack = () => {
-    router.visit('/pizarra-unificada');
+    router.visit('/pizarra_unificada');
 };
 </script>
 

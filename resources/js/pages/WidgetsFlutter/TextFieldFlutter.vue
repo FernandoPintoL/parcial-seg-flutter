@@ -4,15 +4,15 @@
       <input
         v-model="inputValue"
         :type="inputType"
-        :placeholder="properties.label"
-        :disabled="!properties.enabled"
+        :placeholder="properties?.label || 'Enter text'"
+        :disabled="!(properties?.enabled ?? true)"
         :class="inputClasses"
         :style="inputStyle"
         @input="handleInput"
         @focus="handleFocus"
         @blur="handleBlur"
       />
-      <label v-if="properties.label" class="input-label" :style="labelStyle">
+      <label v-if="properties?.label" class="input-label" :style="labelStyle">
         {{ properties.label }}
       </label>
       <div v-if="isFocused || inputValue" class="input-underline" :style="underlineStyle"></div>
@@ -48,8 +48,8 @@ const isFocused = ref(false);
 
 // Computed properties
 const inputType = computed(() => {
-  if (props.properties.obscureText) return 'password';
-  switch (props.properties.keyboardType) {
+  if (props.properties?.obscureText) return 'password';
+  switch (props.properties?.keyboardType) {
     case 'TextInputType.number':
       return 'number';
     case 'TextInputType.email':
@@ -62,9 +62,9 @@ const inputType = computed(() => {
 });
 
 const containerStyle = computed(() => ({
-  width: props.properties.width ? `${props.properties.width}px` : '100%',
-  height: props.properties.height ? `${props.properties.height}px` : 'auto',
-  backgroundColor: props.properties.backgroundColor || 'transparent',
+  width: props.properties?.width ? `${props.properties.width}px` : '100%',
+  height: props.properties?.height ? `${props.properties.height}px` : 'auto',
+  backgroundColor: props.properties?.backgroundColor || 'transparent',
   padding: '8px',
   marginBottom: '16px',
 }));
@@ -73,26 +73,26 @@ const inputClasses = computed(() => [
   'flutter-input',
   {
     'input-focused': isFocused.value,
-    'input-disabled': !props.properties.enabled,
+    'input-disabled': !(props.properties?.enabled ?? true),
     'input-filled': inputValue.value,
   }
 ]);
 
 const inputStyle = computed(() => ({
-  color: props.properties.textColor || '#000000',
+  color: props.properties?.textColor || '#000000',
   borderColor: isFocused.value
-    ? (props.properties.focusColor || '#2196F3')
-    : (props.properties.borderColor || '#E0E0E0'),
+    ? (props.properties?.focusColor || '#2196F3')
+    : (props.properties?.borderColor || '#E0E0E0'),
 }));
 
 const labelStyle = computed(() => ({
   color: isFocused.value
-    ? (props.properties.focusColor || '#2196F3')
+    ? (props.properties?.focusColor || '#2196F3')
     : '#757575',
 }));
 
 const underlineStyle = computed(() => ({
-  backgroundColor: props.properties.focusColor || '#2196F3',
+  backgroundColor: props.properties?.focusColor || '#2196F3',
   transform: isFocused.value ? 'scaleX(1)' : 'scaleX(0)',
 }));
 
@@ -113,7 +113,7 @@ const handleBlur = () => {
 
 // Watch for external changes
 watch(() => props.properties, (newProps) => {
-  if (newProps.controller) {
+  if (newProps?.controller) {
     inputValue.value = '';
   }
 }, { deep: true });

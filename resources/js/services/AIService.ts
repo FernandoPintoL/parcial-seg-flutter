@@ -759,15 +759,19 @@ export class AIService {
         isProcessingAI: boolean,
         parseFlutterWidgets: (code: string) => void
     ): Promise<{ aiMessages: any[], isProcessingAI: boolean }> {
+        console.log('=== AIService.sendAIPrompt STARTED ===');
         console.log('Sending AI prompt:', prompt);
-        console.log('Current AI messages:', aiMessages);
+        console.log('Current AI messages count:', aiMessages.length);
         console.log('Is AI processing:', isProcessingAI);
+
         if (!prompt.trim()) {
+            console.log('Empty prompt, returning early');
             return { aiMessages, isProcessingAI };
         }
 
         // Create a copy of the aiMessages array to avoid modifying the original
         const updatedMessages = [...aiMessages];
+        console.log('Created copy of aiMessages');
 
         // Add user message to chat
         updatedMessages.push({
@@ -775,6 +779,7 @@ export class AIService {
             isUser: true,
             timestamp: Date.now()
         });
+        console.log('Added user message to updatedMessages');
 
         // Set processing state to true for the function scope
         let processingState = true;
@@ -784,42 +789,63 @@ export class AIService {
         const azureApiKey = import.meta.env.VITE_AZURE_API_KEY;
         const azureModelName = import.meta.env.VITE_AZURE_MODEL_NAME;
         const azureDeploymentName = import.meta.env.VITE_AZURE_DEPLOYMENT_NAME || azureModelName;
-        console.log('Azure API URL:', azureApiUrl);
-        console.log('Azure Model Name:', azureModelName);
-        console.log('Azure Deployment Name:', azureDeploymentName);
-        console.log('Azure API Key:', azureApiKey ? '***' : 'Not provided');
+
+        console.log('Azure Configuration:');
+        console.log('- API URL:', azureApiUrl || 'NOT SET');
+        console.log('- Model Name:', azureModelName || 'NOT SET');
+        console.log('- Deployment Name:', azureDeploymentName || 'NOT SET');
+        console.log('- API Key:', azureApiKey ? 'SET (length: ' + azureApiKey.length + ')' : 'NOT SET');
 
         try {
             // Validar que las variables de entorno estén definidas
             if (!azureApiUrl || !azureApiKey || !azureModelName) {
+                console.error('Azure configuration is incomplete');
                 throw new Error('La configuración de Azure no está completa en el archivo .env.');
             }
 
+            console.log('Azure configuration is complete, proceeding with API call');
+
+            // Prepare the API endpoint URL
+            const apiEndpoint = `${azureApiUrl}/openai/deployments/${azureDeploymentName}/chat/completions?api-version=2023-05-15`;
+            console.log('API Endpoint:', apiEndpoint);
+
+            // Prepare the request payload
+            const requestPayload = {
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Eres un asistente útil para Flutter. Cuando te pidan crear componentes, formularios o widgets de Flutter, responde SIEMPRE con un JSON que describa ÚNICAMENTE widgets de tipo input. El JSON debe tener la siguiente estructura: {"widgets": [{"type": "Widget_Type", "props": {"prop1": "value1"}, "children": []}], "explanation": "Explicación de los widgets"}.  \n\nLos tipos de widgets de input disponibles incluyen ÚNICAMENTE: TextFormField, ElevatedButton, Select, DropdownButton, Radio, RadioListTile, Checkbox, Switch, Text. Ten en cuenta que Select y DropdownButton son equivalentes, puedes usar cualquiera de los dos. Para Radio y RadioListTile, puedes usar la propiedad "options" o "items" con un array de objetos que tengan "label" y "value". No incluyas widgets de tipo layout como Container, Row, Column, SizedBox, Form, etc. ni otros tipos de widgets que no estén en la lista. \n\nEjemplo de respuesta para un formulario de login: \n```json\n{"widgets": [{"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Email\\")", "keyboardType": "TextInputType.email"}, "children": []}, {"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Password\\")", "obscureText": true}, "children": []}, {"type": "ElevatedButton", "props": {"child": "Text(\\"Login\\")", "onPressed": "() {}"}, "children": []}], "explanation": "Este es un formulario de login con campos para email y contraseña, y un botón para enviar."}\n```'
+                    },
+                    { role: 'user', content: prompt }
+                ],
+                max_tokens: 1500,
+                temperature: 0.7
+            };
+            console.log('Request payload prepared');
+
+            // Prepare the request headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'api-key': azureApiKey
+            };
+            console.log('Request headers prepared');
+
+            console.log('Sending API request to Azure...');
             // Enviar el prompt al servicio de Azure
             const response = await axios.post(
-                `${azureApiUrl}/openai/deployments/${azureDeploymentName}/chat/completions?api-version=2023-05-15`,
-                {
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'Eres un asistente útil para Flutter. Cuando te pidan crear componentes, formularios o widgets de Flutter, responde SIEMPRE con un JSON que describa ÚNICAMENTE widgets de tipo input. El JSON debe tener la siguiente estructura: {"widgets": [{"type": "Widget_Type", "props": {"prop1": "value1"}, "children": []}], "explanation": "Explicación de los widgets"}.  \n\nLos tipos de widgets de input disponibles incluyen ÚNICAMENTE: TextFormField, ElevatedButton, Select, DropdownButton, Radio, RadioListTile, Checkbox, Switch, Text. Ten en cuenta que Select y DropdownButton son equivalentes, puedes usar cualquiera de los dos. Para Radio y RadioListTile, puedes usar la propiedad "options" o "items" con un array de objetos que tengan "label" y "value". No incluyas widgets de tipo layout como Container, Row, Column, SizedBox, Form, etc. ni otros tipos de widgets que no estén en la lista. \n\nEjemplo de respuesta para un formulario de login: \n```json\n{"widgets": [{"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Email\\")", "keyboardType": "TextInputType.email"}, "children": []}, {"type": "TextFormField", "props": {"decoration": "InputDecoration(labelText: \\"Password\\")", "obscureText": true}, "children": []}, {"type": "ElevatedButton", "props": {"child": "Text(\\"Login\\")", "onPressed": "() {}"}, "children": []}], "explanation": "Este es un formulario de login con campos para email y contraseña, y un botón para enviar."}\n```'
-                        },
-                        { role: 'user', content: prompt }
-                    ],
-                    max_tokens: 1500,
-                    temperature: 0.7
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'api-key': azureApiKey
-                    }
-                }
+                apiEndpoint,
+                requestPayload,
+                { headers }
             );
+
+            console.log('API response received:', response.status);
+            console.log('Response data available:', !!response.data);
+            console.log('Response choices available:', !!(response.data && response.data.choices));
 
             if (response.data && response.data.choices) {
                 const aiResponse = response.data.choices[0].message.content;
-                console.log('AI Response:', aiResponse);
+                console.log('AI Response content length:', aiResponse.length);
+                console.log('AI Response preview:', aiResponse.substring(0, 100) + '...');
 
                 // Try to parse the response as JSON
                 try {
@@ -892,14 +918,39 @@ export class AIService {
                 });
             }
         } catch (error: any) {
-            console.error('Error al consultar Azure:', error);
+            console.error('=== ERROR in AIService.sendAIPrompt ===');
+            console.error('Error type:', error.constructor.name);
+            console.error('Error message:', error.message);
+
+            // Log more detailed information about the error
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                console.error('Response status:', error.response.status);
+                console.error('Response headers:', error.response.headers);
+                console.error('Response data:', error.response.data);
+            } else if (error.request) {
+                // The request was made but no response was received
+                console.error('No response received. Request details:', error.request);
+            } else {
+                // Something happened in setting up the request that triggered an Error
+                console.error('Error during request setup:', error.message);
+            }
+
+            // Log the stack trace
+            console.error('Stack trace:', error.stack);
+
+            // Add error message to chat
             updatedMessages.push({
-                text: `Error: ${error.response?.data?.message || 'Error interno del servidor'}`,
+                text: `Error: ${error.response?.data?.message || error.message || 'Error interno del servidor'}`,
                 isUser: false,
                 timestamp: Date.now()
             });
+            console.log('Added error message to updatedMessages');
         } finally {
             processingState = false;
+            console.log('Set processingState to false');
+            console.log('=== AIService.sendAIPrompt COMPLETED ===');
         }
 
         return { aiMessages: updatedMessages, isProcessingAI: processingState };

@@ -58,14 +58,14 @@ const props = defineProps({
 // Early guard to prevent errors if pizarra is not provided
 if (!props.pizarra || !props.pizarra.id) {
     console.error('Pizarra data is required');
-    router.visit('/pizarra-unificada');
+    router.visit('/pizarra_unificada');
 }
 
 // Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Pizarra Unificada',
-        href: props.pizarra ? `/pizarra-unificada/${props.pizarra.id}/edit` : '/pizarra-unificada',
+        href: props.pizarra ? `/pizarra_unificada/${props.pizarra.id}/edit` : '/pizarra_unificada',
     },
 ];
 
@@ -344,6 +344,11 @@ const removeElement = (element: UnifiedElement) => {
     }
 };
 
+// Duplicar elemento
+
+// Mejorar la función removeElement para incluir confirmación
+// Removed unused removeElementWithConfirmation function to resolve unused variable error
+
 // Screen management
 const addScreen = (screenName: string) => {
     const newScreen: UnifiedScreen = {
@@ -407,8 +412,16 @@ const toggleAIChat = () => {
 };
 
 const sendAIPrompt = async () => {
-    if (!aiPrompt.value.trim() || isProcessingAI.value) return;
+    console.log('sendAIPrompt function called in PizarraUnificada.vue');
+    console.log('Current aiPrompt:', aiPrompt.value);
+    console.log('Current isProcessingAI:', isProcessingAI.value);
 
+    if (!aiPrompt.value.trim() || isProcessingAI.value) {
+        console.log('Returning early: empty prompt or already processing');
+        return;
+    }
+
+    console.log('Adding user message to aiMessages');
     aiMessages.value.push({
         text: aiPrompt.value,
         isUser: true,
@@ -416,10 +429,12 @@ const sendAIPrompt = async () => {
     });
 
     const prompt = aiPrompt.value;
+    console.log('Prompt to send:', prompt);
     aiPrompt.value = '';
     isProcessingAI.value = true;
 
     try {
+        console.log('Calling AIService.sendAIPrompt');
         const result = await AIService.sendAIPrompt(
             prompt,
             aiMessages.value,
@@ -427,6 +442,7 @@ const sendAIPrompt = async () => {
             (code: string) => parseAICode(code)
         );
 
+        console.log('AIService.sendAIPrompt result:', result);
         aiMessages.value = result.aiMessages;
         isProcessingAI.value = result.isProcessingAI;
     } catch (error: any) {
@@ -438,6 +454,166 @@ const sendAIPrompt = async () => {
         });
         isProcessingAI.value = false;
     }
+
+    console.log('sendAIPrompt function completed');
+};
+
+// Handle AI prompt input changes
+const handleAIPromptInput = () => {
+    console.log('AI prompt input changed in PizarraUnificada.vue:', aiPrompt.value);
+};
+
+// Handle adding AI-generated widgets to canvas
+const addAIWidgetsToCanvas = (widgets: any[]) => {
+    console.log('Adding AI widgets to canvas:', widgets);
+
+    if (!currentScreen.value) {
+        console.warn('No current screen available');
+        return;
+    }
+
+    widgets.forEach((widget) => {
+        try {
+            const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+
+            // Use smart positioning to prevent overlaps
+            const smartPosition = getSmartPosition(widget.type || 'Container', currentScreen.value.elements);
+
+            const newElement = UnifiedWidgetService.createElement(
+                widget.type || 'Container',
+                framework,
+                smartPosition
+            );
+
+            // Apply widget properties if they exist
+            if (widget.props && Object.keys(widget.props).length > 0) {
+                const updatedElement = UnifiedWidgetService.updateElementProperties(
+                    newElement,
+                    widget.props
+                );
+                currentScreen.value.elements.push(updatedElement);
+            } else {
+                currentScreen.value.elements.push(newElement);
+            }
+
+            // Emit to collaborators
+            if (collaborationService) {
+                collaborationService.emitElementAdded(newElement, currentScreen.value.id);
+            }
+
+            console.log('Added widget to canvas:', widget.type, 'at position:', smartPosition);
+        } catch (error) {
+            console.error('Error adding widget to canvas:', error);
+        }
+    });
+
+    // Save changes
+    savePizarra();
+
+    // Show success message
+    AlertService.prototype.success(
+        'Widgets añadidos',
+        `Se añadieron ${widgets.length} widget(s) al canvas sin superposiciones`
+    );
+};
+
+// Smart positioning function to prevent overlapping
+const getSmartPosition = (elementType: string, existingElements: any[]) => {
+    const basePositions = {
+        'Container': { x: 50, y: 50 },
+        'Text': { x: 80, y: 80 },
+        'Button': { x: 110, y: 110 },
+        'TextField': { x: 140, y: 140 },
+        'TextFormField': { x: 170, y: 170 },
+        'ElevatedButton': { x: 200, y: 200 },
+        'Image': { x: 230, y: 230 },
+        'Row': { x: 50, y: 260 },
+        'Column': { x: 260, y: 50 },
+        'AppBar': { x: 50, y: 20 },
+        'Scaffold': { x: 30, y: 30 }
+    };
+
+    const basePosition = basePositions[elementType as keyof typeof basePositions] || { x: 100, y: 100 };
+
+    // Grid-based positioning with smaller steps for better distribution
+    const gridSize = 15; // Reduced grid size for finer positioning
+    const maxAttempts = 200; // Increased attempts
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const offsetX = (attempt % 15) * gridSize; // More columns
+        const offsetY = Math.floor(attempt / 15) * gridSize;
+
+        const newPosition = {
+            x: basePosition.x + offsetX,
+            y: basePosition.y + offsetY
+        };
+
+        // Check if this position overlaps with existing elements
+        const hasOverlap = existingElements.some(element => {
+            if (!element.position) return false;
+
+            const distance = Math.sqrt(
+                Math.pow(element.position.x - newPosition.x, 2) +
+                Math.pow(element.position.y - newPosition.y, 2)
+            );
+
+            // Minimum distance based on element types
+            const minDistance = getMinDistance(elementType, element.type);
+            return distance < minDistance;
+        });
+
+        if (!hasOverlap) {
+            return newPosition;
+        }
+    }
+
+    // If no good position found, use a more distributed random approach
+    const canvasWidth = 350; // Approximate mobile canvas width
+    const canvasHeight = 500; // Approximate mobile canvas height
+    const margin = 20;
+
+    return {
+        x: Math.random() * (canvasWidth - margin * 2) + margin,
+        y: Math.random() * (canvasHeight - margin * 2) + margin
+    };
+};
+
+// Get minimum distance between different element types
+const getMinDistance = (type1: string, type2: string) => {
+    const elementSizes = {
+        'Container': 100,
+        'Text': 60,
+        'Button': 80,
+        'TextField': 120,
+        'TextFormField': 120,
+        'ElevatedButton': 90,
+        'Image': 100,
+        'Row': 150,
+        'Column': 150,
+        'AppBar': 200,
+        'Scaffold': 200
+    };
+
+    const size1 = elementSizes[type1 as keyof typeof elementSizes] || 80;
+    const size2 = elementSizes[type2 as keyof typeof elementSizes] || 80;
+
+    return Math.max(size1, size2) * 0.6; // 60% of the larger element size
+};
+
+// Save pizarra data
+const savePizarra = async () => {
+    try {
+        await axios.put(`/api/pizarra_unificada/${props.pizarra.id}`, {
+            name: projectName.value,
+            type: projectType.value,
+            screens: screens.value,
+            elements: currentScreen.value?.elements || []
+        });
+        console.log('Pizarra saved successfully');
+    } catch (error) {
+        console.error('Error saving pizarra:', error);
+        await AlertService.prototype.error('Error', 'No se pudo guardar la pizarra');
+    }
 };
 
 const parseAICode = (code: string) => {
@@ -446,7 +622,7 @@ const parseAICode = (code: string) => {
     // TODO: Implement code parsing logic
 };
 
-// Image processing
+// Image processing functions
 const toggleImageUpload = () => {
     showImageUpload.value = !showImageUpload.value;
     if (!showImageUpload.value) {
@@ -495,7 +671,7 @@ const processImage = async () => {
     }
 };
 
-// Diagram processing
+// Diagram processing functions
 const toggleDiagramUpload = () => {
     showDiagramUpload.value = !showDiagramUpload.value;
     if (!showDiagramUpload.value) {
@@ -573,7 +749,7 @@ const processDiagram = async () => {
     }
 };
 
-// Code generation
+// Code generation functions
 const toggleCodeViewer = () => {
     showCodeViewer.value = !showCodeViewer.value;
     if (showCodeViewer.value) {
@@ -616,7 +792,7 @@ const copyCode = async () => {
     }
 };
 
-// Collaboration chat
+// Collaboration chat functions
 const toggleCollaborationChat = () => {
     showCollaborationChat.value = !showCollaborationChat.value;
     if (showCollaborationChat.value) {
@@ -675,33 +851,6 @@ const addProcessedWidgets = (widgets: any[]) => {
 
     savePizarra();
 };
-const savePizarra = async () => {
-    try {
-        await axios.put(`/pizarra-unificada/${props.pizarra.id}`, {
-            name: projectName.value,
-            type: projectType.value,
-            screens: screens.value,
-            elements: currentScreen.value?.elements || []
-        });
-    } catch (error) {
-        console.error('Error saving pizarra:', error);
-    }
-};
-
-/* const toggleSocketServer = () => {
-    if (collaborationService) {
-        collaborationService.disconnect();
-    }
-
-    useLocalSocket.value = !useLocalSocket.value;
-    socketConfig.value = toggleSocketEnvironment(useLocalSocket.value);
-
-    initializeCollaboration();
-
-    AlertService.prototype.info(
-        `Servidor socket cambiado a ${useLocalSocket.value ? 'local' : 'producción'}: ${socketConfig.value.url}`
-    );
-}; */
 </script>
 
 <template>
@@ -1217,7 +1366,9 @@ const savePizarra = async () => {
 
         <!-- AI Chat -->
         <ChatAI v-if="showAIChat" :showAIChat="showAIChat" :aiMessages="aiMessages" :aiPrompt="aiPrompt"
-            :isProcessingAI="isProcessingAI" @toggleAIChat="toggleAIChat" @sendAIPrompt="sendAIPrompt" />
+            :isProcessingAI="isProcessingAI" @toggleAIChat="toggleAIChat" @sendAIPrompt="sendAIPrompt"
+            @update:aiPrompt="aiPrompt = $event" @update:isProcessingAI="isProcessingAI = $event"
+            @addAIWidgetsToCanvas="addAIWidgetsToCanvas" @onAIPromptInput="handleAIPromptInput" />
         <!-- Collaboration Chat -->
         <ChatColaborativo v-if="showCollaborationChat" :socket="collaborationService?.socket" :room-id="roomId"
             :current-user="currentUser" :show-chat="showCollaborationChat" @send-message="handleChatMessage"

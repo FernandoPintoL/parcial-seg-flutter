@@ -224,7 +224,11 @@ function toggleAIChat() {
 }
 
 const sendAIPrompt = async () => {
+    console.log('sendAIPrompt function called in ChatAI.vue');
+    console.log('Current aiPrompt:', localAIPrompt.value);
+    console.log('Current isProcessingAI:', localIsProcessingAI.value);
     emit('sendAIPrompt');
+    console.log('sendAIPrompt event emitted from ChatAI.vue');
 }
 
 function addAIWidgetsToCanvas(widgets: any[]) {
@@ -493,7 +497,7 @@ checkMicrophoneSupport();
         <!-- AI Chat Header -->
         <div
             class="bg-purple-600 dark:bg-purple-700 text-white px-4 py-2 rounded-t-lg flex justify-between items-center">
-            <h3 class="font-semibold">Asistente IA para Flutter</h3>
+            <h3 class="font-semibold">Asistente IA para Flutter y Angular</h3>
             <button @click="toggleAIChat" class="text-white hover:text-gray-200 focus:outline-none">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd"
@@ -506,12 +510,18 @@ checkMicrophoneSupport();
         <!-- AI Chat Messages -->
         <div class="flex-1 overflow-y-auto p-4">
             <div v-if="aiMessages.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-4">
-                <p>Bienvenido al asistente IA para Flutter.</p>
-                <p class="mt-2">Describe la interfaz que deseas crear y la IA generará los widgets
-                    correspondientes.</p>
-                <p class="mt-2 text-xs">Ejemplo: "Crea un formulario flutter para login con campos para email y
-                    contraseña, y un botón
-                    para iniciar sesión"</p>
+                <p>Bienvenido al asistente IA para Flutter y Angular.</p>
+                <p class="mt-2">Describe la interfaz que deseas crear y la IA generará los componentes
+                    correspondientes para el framework que elijas.</p>
+                <p class="mt-2 text-sm font-semibold">Ejemplos de comandos por voz:</p>
+                <div class="mt-1 text-xs space-y-2">
+                    <p class="bg-purple-50 dark:bg-purple-900 dark:bg-opacity-20 p-2 rounded">
+                        <span class="font-semibold">Flutter:</span> "Genera un formulario Flutter para registro de usuarios con campos para nombre, email, contraseña y botón de registro"
+                    </p>
+                    <p class="bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 p-2 rounded">
+                        <span class="font-semibold">Angular:</span> "Crea un componente Angular para un dashboard con tarjetas de estadísticas y un gráfico de barras"
+                    </p>
+                </div>
             </div>
 
             <div v-for="(msg, index) in aiMessages" :key="index" class="mb-4"
@@ -562,7 +572,7 @@ checkMicrophoneSupport();
                 </button>
             </div>
 
-            <textarea v-model="localAIPrompt" rows="3" placeholder="Describe la interfaz que deseas crear..."
+            <textarea v-model="localAIPrompt" rows="3" placeholder="Solicita un formulario o componente para Flutter o Angular (ej: 'Genera un formulario Flutter para login' o 'Crea un componente Angular para galería de imágenes')..."
                 class="w-full px-3 py-2 border rounded-md resize-none dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 :disabled="localIsProcessingAI"
                 :readonly="isRecording"

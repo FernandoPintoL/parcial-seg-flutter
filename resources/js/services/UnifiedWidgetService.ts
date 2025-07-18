@@ -1,6 +1,5 @@
 // services/UnifiedWidgetService.ts
-import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
-import { availableFlutterWidgets } from '@/Data/availableFlutterWidgets';
+import type { UnifiedElement } from '@/Data/PizarraUnificada';
 
 export class UnifiedWidgetService {
 
@@ -372,11 +371,13 @@ export class UnifiedWidgetService {
                     { name: 'subtitle', type: 'string', defaultValue: '' },
                     { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
                     { name: 'orientation', type: 'select', options: ['vertical', 'horizontal'], defaultValue: 'vertical' },
-                    { name: 'items', type: 'array', defaultValue: [
-                        { id: '1', label: 'Option 1', value: false },
-                        { id: '2', label: 'Option 2', value: false },
-                        { id: '3', label: 'Option 3', value: false },
-                    ]},
+                    {
+                        name: 'items', type: 'array', defaultValue: [
+                            { id: '1', label: 'Option 1', value: false },
+                            { id: '2', label: 'Option 2', value: false },
+                            { id: '3', label: 'Option 3', value: false },
+                        ]
+                    },
                 ]
             },
             {
@@ -392,11 +393,13 @@ export class UnifiedWidgetService {
                     { name: 'groupValue', type: 'string', defaultValue: '' },
                     { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
                     { name: 'orientation', type: 'select', options: ['vertical', 'horizontal'], defaultValue: 'vertical' },
-                    { name: 'items', type: 'array', defaultValue: [
-                        { id: '1', label: 'Option 1', value: '1' },
-                        { id: '2', label: 'Option 2', value: '2' },
-                        { id: '3', label: 'Option 3', value: '3' },
-                    ]},
+                    {
+                        name: 'items', type: 'array', defaultValue: [
+                            { id: '1', label: 'Option 1', value: '1' },
+                            { id: '2', label: 'Option 2', value: '2' },
+                            { id: '3', label: 'Option 3', value: '3' },
+                        ]
+                    },
                 ]
             },
         ];
@@ -532,7 +535,7 @@ export class UnifiedWidgetService {
     /**
      * Crea un nuevo elemento unificado
      */
-    static createElement(type: string, framework: 'flutter' | 'angular', position: { x: number, y: number }): UnifiedElement {
+    static createElement(type: string, framework: 'flutter' | 'angular', position: { x: number, y: number }, canvasWidth?: number): UnifiedElement {
         const widgets = this.getAvailableWidgets(framework);
         const widgetDefinition = widgets.find(w => w.type === type);
 
@@ -551,19 +554,18 @@ export class UnifiedWidgetService {
             y: position.y + (Math.random() * 20 - 10)
         };
 
-        // Definir tamaño por defecto basado en el tipo de widget
-        const defaultSize = this.getDefaultSize(type, framework);
+        // Definir tamaño por defecto basado en el tipo de widget y ancho del canvas
+        const defaultSize = this.getDefaultSize(type, framework, canvasWidth);
 
         return {
             id: `unified-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type,
             framework,
-            component: widgetDefinition.component || type,
             properties: defaultProps, // Cambiado de 'props' a 'properties'
+            props: defaultProps, // Agregado para cumplir con UnifiedElement
             position: uniquePosition,
             size: defaultSize,
             children: [],
-            parent: null,
             zIndex: 1,
             opacity: 1,
             transform: 'none',
@@ -573,7 +575,13 @@ export class UnifiedWidgetService {
     /**
      * Obtiene el tamaño por defecto para un tipo de widget
      */
-    private static getDefaultSize(type: string, framework: 'flutter' | 'angular'): { width: number, height: number } {
+    private static getDefaultSize(type: string, framework: 'flutter' | 'angular', canvasWidth?: number): { width: number, height: number } {
+        // Widgets que deben usar todo el ancho disponible
+        const fullWidthWidgets = [
+            'AppBar', 'Scaffold', 'Row', 'TextField', 'TextFormField', 'Container',
+            'div', 'mat-toolbar', 'card', 'mat-card', 'input', 'mat-input'
+        ];
+
         const sizeMap: Record<string, { width: number, height: number }> = {
             // Flutter widgets
             'Container': { width: 150, height: 100 },
@@ -624,7 +632,19 @@ export class UnifiedWidgetService {
             'mat-toolbar': { width: 300, height: 64 },
         };
 
-        return sizeMap[type] || { width: 120, height: 80 };
+        const defaultSize = sizeMap[type] || { width: 120, height: 80 };
+
+        // Si se especifica el ancho del canvas y el widget debe usar todo el ancho
+        if (canvasWidth && fullWidthWidgets.includes(type)) {
+            // Usar el 90% del ancho del canvas para dejar margen
+            const fullWidth = Math.max(canvasWidth * 0.9, defaultSize.width);
+            return {
+                width: fullWidth,
+                height: defaultSize.height
+            };
+        }
+
+        return defaultSize;
     }
 
     /**
