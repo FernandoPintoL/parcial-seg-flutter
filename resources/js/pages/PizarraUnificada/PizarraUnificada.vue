@@ -1221,8 +1221,9 @@ const duplicateElement = (element: UnifiedElement) => {
         <AppLayout :breadcrumbs="breadcrumbs">
             <!-- Enhanced Header -->
             <template #header>
-                <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white">
+                <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white shadow-lg border-b-4 border-blue-500">
                     <div class="flex justify-between items-center p-4">
+                        <!-- Left Section: Project Info -->
                         <div class="flex items-center space-x-4">
                             <div class="flex items-center space-x-2">
                                 <div class="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
@@ -1235,9 +1236,9 @@ const duplicateElement = (element: UnifiedElement) => {
                             </div>
                         </div>
 
-                        <!-- Enhanced Toolbar -->
-                        <div class="flex items-center space-x-3">
-                            <!-- Framework Selector with improved styling -->
+                        <!-- Center Section: Main Controls -->
+                        <div class="flex items-center space-x-4">
+                            <!-- Framework Selector -->
                             <div class="relative">
                                 <select v-model="selectedFramework" @change="switchFramework(selectedFramework)"
                                     class="appearance-none bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-lg px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-white/30">
@@ -1245,47 +1246,93 @@ const duplicateElement = (element: UnifiedElement) => {
                                     <option value="angular" class="text-gray-800">🅰️ Angular</option>
                                     <option value="both" class="text-gray-800">🔄 Ambos</option>
                                 </select>
-                                <span
-                                    class="material-icons absolute right-2 top-1/2 transform -translate-y-1/2 text-white pointer-events-none">
+                                <span class="material-icons absolute right-2 top-1/2 transform -translate-y-1/2 text-white pointer-events-none">
                                     expand_more
                                 </span>
+                            </div>
+
+                            <!-- Screen Info & Status -->
+                            <div class="flex items-center space-x-3">
+                                <!-- Screen Info -->
+                                <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                    <span class="text-sm font-medium">{{ currentScreen?.name }}</span>
+                                    <span class="text-xs bg-white/20 px-2 py-1 rounded-full">
+                                        {{ currentScreen?.elements?.length || 0 }} elementos
+                                    </span>
+                                </div>
+                                
+                                <!-- WebSocket Status -->
+                                <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                                    <div :class="socketConnected ? 'w-3 h-3 bg-green-400' : 'w-3 h-3 bg-red-400'" class="rounded-full animate-pulse shadow-lg"></div>
+                                    <span class="text-sm font-medium">{{ socketConnected ? '🟢 Conectado' : '🔴 Desconectado' }}</span>
+                                    <span class="text-xs bg-white/20 px-2 py-1 rounded-full">
+                                        {{ currentUser }}
+                                    </span>
+                                </div>
                             </div>
 
                             <!-- Panel Controls -->
                             <div class="flex items-center space-x-1 bg-white/10 backdrop-blur-sm rounded-lg p-1">
                                 <button @click="toggleWidgetPalette"
                                     :class="showWidgetPalette ? 'bg-white/20' : 'hover:bg-white/10'"
-                                    class="p-2 rounded-md transition-all duration-200 group">
+                                    class="p-2 rounded-md transition-all duration-200" title="Paleta de Widgets">
                                     <span class="material-icons text-sm">widgets</span>
                                 </button>
                                 <button @click="togglePropertiesPanel"
                                     :class="showPropertiesPanel ? 'bg-white/20' : 'hover:bg-white/10'"
-                                    class="p-2 rounded-md transition-all duration-200 group">
+                                    class="p-2 rounded-md transition-all duration-200" title="Panel de Propiedades">
                                     <span class="material-icons text-sm">tune</span>
                                 </button>
                                 <button @click="togglePanelsCollapse"
-                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200" title="Colapsar Paneles">
                                     <span class="material-icons text-sm">
                                         {{ isPanelsCollapsed ? 'unfold_more' : 'unfold_less' }}
                                     </span>
                                 </button>
                             </div>
+                        </div>
+
+                        <!-- Right Section: Actions -->
+                        <div class="flex items-center space-x-3">
+                            <!-- Screen Manager -->
+                            <button @click="showScreenManager = !showScreenManager"
+                                :class="showScreenManager ? 'bg-blue-500 shadow-lg' : 'hover:bg-white/10'"
+                                class="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 transition-all duration-200" title="Gestionar Pantallas">
+                                <span class="material-icons text-sm">layers</span>
+                                <span class="text-sm font-medium">{{ showScreenManager ? 'Cerrar' : 'Pantallas' }}</span>
+                                <span v-if="screens.length > 0" class="text-xs bg-white/20 px-1.5 py-0.5 rounded-full">{{ screens.length }}</span>
+                            </button>
 
                             <!-- Quick Actions -->
                             <div class="flex items-center space-x-1 bg-white/10 backdrop-blur-sm rounded-lg p-1">
-                                <button @click="toggleFullscreen"
-                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                <button @click="toggleFullscreen" class="p-2 rounded-md hover:bg-white/10 transition-all duration-200" title="Pantalla Completa">
                                     <span class="material-icons text-sm">fullscreen</span>
                                 </button>
-                                <button @click="savePizarra"
-                                    class="p-2 rounded-md hover:bg-white/10 transition-all duration-200">
+                                <button @click="savePizarra" class="p-2 rounded-md hover:bg-white/10 transition-all duration-200" title="Guardar">
                                     <span class="material-icons text-sm">save</span>
+                                </button>
+                                <button @click="toggleAIChat" :class="showAIChat ? 'bg-green-500' : 'hover:bg-white/10'" class="p-2 rounded-md transition-all duration-200" title="Chat AI">
+                                    <span class="material-icons text-sm">smart_toy</span>
+                                </button>
+                                <button @click="toggleImageUpload" :class="showImageUpload ? 'bg-purple-500' : 'hover:bg-white/10'" class="p-2 rounded-md transition-all duration-200" title="Subir Imagen">
+                                    <span class="material-icons text-sm">image</span>
+                                </button>
+                                <button @click="toggleCodeViewer" :class="showCodeViewer ? 'bg-blue-500' : 'hover:bg-white/10'" class="p-2 rounded-md transition-all duration-200" title="Ver Código">
+                                    <span class="material-icons text-sm">code</span>
+                                </button>
+                                <button @click="toggleDiagramUpload" :class="showDiagramUpload ? 'bg-orange-500' : 'hover:bg-white/10'" class="p-2 rounded-md transition-all duration-200" title="Subir Diagrama">
+                                    <span class="material-icons text-sm">account_tree</span>
+                                </button>
+                                <button @click="toggleCollaborationChat" :class="showCollaborationChat ? 'bg-indigo-500' : 'hover:bg-white/10'" class="p-2 rounded-md transition-all duration-200 relative" title="Chat Colaborativo">
+                                    <span class="material-icons text-sm">chat</span>
+                                    <span v-if="unreadMessages > 0" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{{ unreadMessages }}</span>
                                 </button>
                             </div>
 
-                            <!-- Dark Mode Toggle with enhanced styling -->
+                            <!-- Dark Mode Toggle -->
                             <button @click="toggleDarkMode"
-                                class="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all duration-200">
+                                class="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all duration-200" title="Modo Oscuro">
                                 <svg v-if="isDarkMode" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd"
                                         d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
@@ -1308,34 +1355,7 @@ const duplicateElement = (element: UnifiedElement) => {
                     <div
                         class="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 overflow-hidden">
 
-                        <!-- Status Bar -->
-                        <div
-                            class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-gray-200/50 dark:border-gray-700/50 px-6 py-3">
-                            <div class="flex justify-between items-center">
-                                <div class="flex items-center space-x-4">
-                                    <div class="flex items-center space-x-2">
-                                        <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {{ currentScreen?.name }}
-                                        </span>
-                                        <span
-                                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
-                                            {{ currentScreen?.elements?.length || 0 }} elementos
-                                        </span>
-                                    </div>
-                                </div>
 
-                                <div class="flex items-center space-x-2">
-                                    <!-- Screen Manager Button -->
-                                    <button @click="showScreenManager = !showScreenManager"
-                                        :class="showScreenManager ? 'bg-blue-500 text-white' : 'bg-white/50 text-gray-700 hover:bg-white/70'"
-                                        class="px-4 py-2 rounded-lg transition-all duration-200 border border-gray-200 dark:border-gray-600 backdrop-blur-sm flex items-center space-x-2">
-                                        <span class="material-icons text-sm">layers</span>
-                                        <span class="font-medium">Gestionar Pantallas</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
 
                         <!-- Enhanced Main Workspace -->
                         <div class="p-6">
@@ -1499,36 +1519,7 @@ const duplicateElement = (element: UnifiedElement) => {
                 </div>
             </div>
 
-            <!-- Floating Action Buttons -->
-            <div class="fixed bottom-6 right-6 flex flex-col space-y-3 z-40">
-                <!-- AI Chat Button -->
-                <button @click="() => { console.log('AI Chat button clicked'); toggleAIChat(); }"
-                    :class="showAIChat ? 'bg-green-600 scale-110' : 'bg-green-500 hover:bg-green-600'"
-                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
-                    <span class="material-icons text-xl">smart_toy</span>
-                </button>
 
-                <!-- Image Upload Button -->
-                <button @click="toggleImageUpload"
-                    :class="showImageUpload ? 'bg-purple-600 scale-110' : 'bg-purple-500 hover:bg-purple-600'"
-                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
-                    <span class="material-icons text-xl">image</span>
-                </button>
-
-                <!-- Diagram Upload Button -->
-                <button @click="toggleDiagramUpload"
-                    :class="showDiagramUpload ? 'bg-orange-600 scale-110' : 'bg-orange-500 hover:bg-orange-600'"
-                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
-                    <span class="material-icons text-xl">account_tree</span>
-                </button>
-
-                <!-- Code Viewer Button -->
-                <button @click="toggleCodeViewer"
-                    :class="showCodeViewer ? 'bg-blue-600 scale-110' : 'bg-blue-500 hover:bg-blue-600'"
-                    class="p-4 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm">
-                    <span class="material-icons text-xl">code</span>
-                </button>
-            </div>
 
             <!-- Enhanced Feature Panels -->
 

@@ -41,7 +41,6 @@ const isDragging = ref(false);
 const isResizing = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 const resizeStartSize = ref({ width: 0, height: 0 });
-const initialPosition = ref({ x: 0, y: 0 });
 
 // Computed properties
 const elementStyle = computed(() => {
@@ -733,8 +732,46 @@ function generatePropertyPanelContent(): string {
 
     let content = `
         <div class="p-4">
-            <h3 class="text-lg font-semibold mb-4">Propiedades de ${element.type}</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Propiedades de ${element.type}</h3>
+                <button class="delete-element-btn px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                        data-action="delete" title="Eliminar elemento">
+                    🗑️ Eliminar
+                </button>
+            </div>
             <div class="space-y-4">
+    `;
+
+    // Información del elemento
+    content += `
+        <div class="bg-gray-50 p-3 rounded-md">
+            <p class="text-sm text-gray-600"><strong>ID:</strong> ${element.id}</p>
+            <p class="text-sm text-gray-600"><strong>Tipo:</strong> ${element.type}</p>
+            <p class="text-sm text-gray-600"><strong>Framework:</strong> ${element.framework}</p>
+        </div>
+    `;
+
+    // Propiedades de posición
+    content += `
+        <div>
+            <h4 class="font-medium text-gray-900 mb-2">Posición</h4>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">X</label>
+                    <input type="number"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           value="${element.position?.x || 0}"
+                           data-property="position.x">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Y</label>
+                    <input type="number"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           value="${element.position?.y || 0}"
+                           data-property="position.y">
+                </div>
+            </div>
+        </div>
     `;
 
     // Propiedades comunes
@@ -743,7 +780,7 @@ function generatePropertyPanelContent(): string {
             <label class="block text-sm font-medium text-gray-700 mb-1">Texto</label>
             <input type="text"
                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   value="${element.props?.text || ''}"
+                   value="${element.props?.text || element.props?.label || ''}"
                    data-property="text">
         </div>
     `;
@@ -768,6 +805,18 @@ function generatePropertyPanelContent(): string {
         `;
     }
 
+    if (element.type === 'TextField' || element.type === 'TextFormField') {
+        content += `
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Placeholder</label>
+                <input type="text"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       value="${element.props?.hint || element.props?.placeholder || ''}"
+                       data-property="hint">
+            </div>
+        `;
+    }
+
     if (element.type === 'Card') {
         content += `
             <div>
@@ -777,26 +826,30 @@ function generatePropertyPanelContent(): string {
                        class="w-full"
                        value="${element.props?.elevation || 1}"
                        data-property="elevation">
+                <span class="text-sm text-gray-500">${element.props?.elevation || 1}</span>
             </div>
         `;
     }
 
     // Propiedades de tamaño
     content += `
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Ancho</label>
-                <input type="number"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                       value="${element.size?.width || 100}"
-                       data-property="width">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Alto</label>
-                <input type="number"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                       value="${element.size?.height || 50}"
-                       data-property="height">
+        <div>
+            <h4 class="font-medium text-gray-900 mb-2">Tamaño</h4>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ancho</label>
+                    <input type="number"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           value="${element.size?.width || 100}"
+                           data-property="size.width">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Alto</label>
+                    <input type="number"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           value="${element.size?.height || 50}"
+                           data-property="size.height">
+                </div>
             </div>
         </div>
     `;
@@ -813,15 +866,25 @@ function setupPropertyPanelListeners() {
     const propertyPanel = document.querySelector('.property-panel');
     if (!propertyPanel) return;
 
-    // Event listeners para inputs de texto
+    // Event listeners para inputs de texto y número
     propertyPanel.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
         input.addEventListener('input', (event) => {
             const target = event.target as HTMLInputElement;
             const property = target.dataset.property;
-            const value = target.value;
+            let value: any = target.value;
 
             if (property) {
-                updateWidgetProperty(property, value);
+                // Convertir a número si es necesario
+                if (target.type === 'number') {
+                    value = parseFloat(value) || 0;
+                }
+
+                // Manejar propiedades anidadas
+                if (property.includes('.')) {
+                    updateNestedProperty(property, value);
+                } else {
+                    updateWidgetProperty(property, value);
+                }
             }
         });
     });
@@ -851,6 +914,40 @@ function setupPropertyPanelListeners() {
             }
         });
     });
+
+    // Event listener para el botón de eliminación
+    const deleteButton = propertyPanel.querySelector('.delete-element-btn');
+    if (deleteButton) {
+        deleteButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            console.log('🗑️ Delete button clicked from property panel');
+            handleDeleteElement();
+        });
+    }
+}
+
+// Nueva función para manejar propiedades anidadas
+function updateNestedProperty(property: string, value: any) {
+    console.log('🔧 Updating nested property:', property, value);
+
+    const [parentKey, childKey] = property.split('.');
+    const updatedElement = { ...props.element };
+
+    if (parentKey === 'position') {
+        updatedElement.position = {
+            x: childKey === 'x' ? value : (updatedElement.position?.x ?? 0),
+            y: childKey === 'y' ? value : (updatedElement.position?.y ?? 0)
+        };
+    } else if (parentKey === 'size') {
+        updatedElement.size = {
+            width: childKey === 'width' ? value : (updatedElement.size?.width ?? 100),
+            height: childKey === 'height' ? value : (updatedElement.size?.height ?? 100)
+        };
+    }
+
+    emit('update:element', updatedElement);
+    emit('property-change', property, value);
 }
 </script>
 

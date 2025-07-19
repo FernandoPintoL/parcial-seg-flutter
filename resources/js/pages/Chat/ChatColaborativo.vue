@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, defineProps, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import type { Chats } from '@/Data/Pizarra';
 import { Socket } from 'socket.io-client';
 import axios from 'axios';

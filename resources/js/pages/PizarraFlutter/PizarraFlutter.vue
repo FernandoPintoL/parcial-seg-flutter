@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import './PizarraFlutter.css';
-import { ref, onMounted, onUnmounted, computed, defineProps, PropType, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, PropType, watch } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { AlertService } from '@/services/AlertService';

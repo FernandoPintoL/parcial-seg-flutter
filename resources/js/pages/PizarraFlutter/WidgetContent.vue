@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, ref } from 'vue';
+import { ref } from 'vue';
 import AppBarFlutter from '@/pages/WidgetsFlutter/AppBarFlutter.vue';
 import ScaffoldFlutter from '@/pages/WidgetsFlutter/ScaffoldFlutter.vue';
 import InputFlutter from '@/pages/WidgetsFlutter/InputFlutter.vue';

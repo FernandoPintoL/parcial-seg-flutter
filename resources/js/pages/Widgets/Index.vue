@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, defineProps, PropType } from 'vue';
+import { ref, onMounted, PropType } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import type { FlutterWidget } from '@/Data/Pizarra';

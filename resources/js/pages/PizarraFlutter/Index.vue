@@ -2,7 +2,7 @@
 import { Head, usePage, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/types';
-import { ref, defineProps, computed, onMounted, PropType } from 'vue';
+import { ref, computed, onMounted, PropType } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 // Using any type for now as Pizarra type might not be defined yet
