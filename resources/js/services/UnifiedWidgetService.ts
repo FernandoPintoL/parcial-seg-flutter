@@ -556,10 +556,10 @@ export class UnifiedWidgetService {
 
         console.log('⚙️ Default props generated:', defaultProps);
 
-        // Generar una posición única si no se proporciona una específica
-        const uniquePosition = {
-            x: position.x + (Math.random() * 20 - 10), // Pequeña variación aleatoria
-            y: position.y + (Math.random() * 20 - 10)
+        // Usar la posición exacta proporcionada sin variación aleatoria
+        const exactPosition = {
+            x: position.x,
+            y: position.y
         };
 
         // Definir tamaño por defecto basado en el tipo de widget y ancho del canvas
@@ -573,7 +573,7 @@ export class UnifiedWidgetService {
             framework,
             properties: defaultProps, // Cambiado de 'props' a 'properties'
             props: defaultProps, // Agregado para cumplir con UnifiedElement
-            position: uniquePosition,
+            position: exactPosition,
             size: defaultSize,
             children: [],
             zIndex: 1,
@@ -587,77 +587,146 @@ export class UnifiedWidgetService {
 
     /**
      * Obtiene el tamaño por defecto para un tipo de widget
+     * Corrige los errores: define los métodos getDefaultWidth y getDefaultHeight como métodos estáticos auxiliares.
      */
-    private static getDefaultSize(type: string, framework: 'flutter' | 'angular', canvasWidth?: number): { width: number, height: number } {
-        // Widgets que deben usar todo el ancho disponible
-        const fullWidthWidgets = [
-            'AppBar', 'Scaffold', 'Row', 'TextField', 'TextFormField', 'Container',
-            'div', 'mat-toolbar', 'card', 'mat-card', 'input', 'mat-input'
-        ];
+    static getDefaultSize(type: string, framework: 'flutter' | 'angular', canvasWidth?: number): { width: number, height: number } {
+        // Para Flutter, usar ancho completo del móvil con márgenes
+        if (framework === 'flutter') {
+            const mobileWidth = 300; // Ancho del móvil
+            const mobileMargin = 20; // Margen izquierdo y derecho
+            const availableWidth = mobileWidth - (mobileMargin * 2); // 260px disponible
 
-        const sizeMap: Record<string, { width: number, height: number }> = {
-            // Flutter widgets
-            'Container': { width: 150, height: 100 },
-            'Text': { width: 100, height: 30 },
-            'Button': { width: 120, height: 40 },
-            'ElevatedButton': { width: 120, height: 40 },
-            'TextButton': { width: 100, height: 40 },
-            'OutlinedButton': { width: 120, height: 40 },
-            'TextField': { width: 200, height: 40 },
-            'TextFormField': { width: 200, height: 40 },
-            'Image': { width: 150, height: 150 },
-            'Icon': { width: 40, height: 40 },
-            'AppBar': { width: 300, height: 56 },
-            'Scaffold': { width: 300, height: 400 },
-            'Row': { width: 200, height: 50 },
-            'Column': { width: 100, height: 200 },
-            'Padding': { width: 120, height: 80 },
-            'Slider': { width: 200, height: 40 },
-            'Switch': { width: 60, height: 30 },
-            'Radio': { width: 40, height: 40 },
-            'Checkbox': { width: 40, height: 40 },
-            'DropdownButton': { width: 150, height: 40 },
-            'Select': { width: 150, height: 40 },
-            'ListTile': { width: 250, height: 60 },
+            // Elementos de formulario ocupan todo el ancho disponible
+            const formElements = ['TextField', 'TextFormField', 'Button', 'ElevatedButton', 'TextButton', 'OutlinedButton', 'Container', 'Text', 'Label', 'Slider', 'DropdownButton', 'Select', 'ListTile'];
 
-            // Angular widgets
-            'div': { width: 150, height: 100 },
-            'span': { width: 80, height: 20 },
-            'p': { width: 200, height: 30 },
-            'h1': { width: 200, height: 40 },
-            'h2': { width: 180, height: 35 },
-            'h3': { width: 160, height: 30 },
-            'button': { width: 120, height: 40 },
-            'input': { width: 200, height: 40 },
-            'select': { width: 150, height: 40 },
-            'textarea': { width: 200, height: 100 },
-            'img': { width: 150, height: 150 },
-            'table': { width: 300, height: 200 },
-            'ul': { width: 200, height: 150 },
-            'ol': { width: 200, height: 150 },
-            'li': { width: 180, height: 25 },
+            if (formElements.includes(type)) {
+                return {
+                    width: availableWidth,
+                    height: UnifiedWidgetService.getDefaultHeight(type)
+                };
+            }
 
-            // Material Design
-            'mat-button': { width: 120, height: 40 },
-            'mat-input': { width: 200, height: 40 },
-            'mat-select': { width: 150, height: 40 },
-            'mat-card': { width: 250, height: 200 },
-            'mat-toolbar': { width: 300, height: 64 },
-        };
+            // Elementos pequeños mantienen su tamaño
+            const smallElements = ['Icon', 'Switch', 'Radio', 'Checkbox'];
+            if (smallElements.includes(type)) {
+                return {
+                    width: UnifiedWidgetService.getDefaultWidth(type),
+                    height: UnifiedWidgetService.getDefaultHeight(type)
+                };
+            }
 
-        const defaultSize = sizeMap[type] || { width: 120, height: 80 };
+            // Elementos de layout ocupan todo el ancho
+            const layoutElements = ['Row', 'Column', 'Padding'];
+            if (layoutElements.includes(type)) {
+                return {
+                    width: availableWidth,
+                    height: UnifiedWidgetService.getDefaultHeight(type)
+                };
+            }
 
-        // Si se especifica el ancho del canvas y el widget debe usar todo el ancho
-        if (canvasWidth && fullWidthWidgets.includes(type)) {
-            // Usar el 90% del ancho del canvas para dejar margen
-            const fullWidth = Math.max(canvasWidth * 0.9, defaultSize.width);
+            // Elementos de pantalla completa
+            const fullScreenElements = ['AppBar', 'Scaffold'];
+            if (fullScreenElements.includes(type)) {
+                return {
+                    width: mobileWidth,
+                    height: UnifiedWidgetService.getDefaultHeight(type)
+                };
+            }
+
+            // Por defecto, usar ancho completo para elementos de formulario
             return {
-                width: fullWidth,
-                height: defaultSize.height
+                width: availableWidth,
+                height: UnifiedWidgetService.getDefaultHeight(type)
             };
         }
 
-        return defaultSize;
+        // Para Angular, mantener los tamaños originales
+        return {
+            width: UnifiedWidgetService.getDefaultWidth(type),
+            height: UnifiedWidgetService.getDefaultHeight(type)
+        };
+    }
+
+    /**
+     * Devuelve el ancho por defecto para un tipo de widget
+     */
+    static getDefaultWidth(type: string): number {
+        // Puedes personalizar los valores según el tipo
+        switch (type) {
+            case 'Button':
+            case 'ElevatedButton':
+            case 'TextButton':
+            case 'OutlinedButton':
+            case 'TextField':
+            case 'TextFormField':
+            case 'Container':
+            case 'Slider':
+            case 'DropdownButton':
+            case 'Select':
+            case 'ListTile':
+                return 260;
+            case 'Icon':
+            case 'Switch':
+            case 'Radio':
+            case 'Checkbox':
+                return 40;
+            case 'AppBar':
+            case 'Scaffold':
+                return 300;
+            case 'Row':
+            case 'Column':
+            case 'Padding':
+                return 260;
+            case 'Text':
+            case 'Label':
+                return 120;
+            default:
+                return 120;
+        }
+    }
+
+    /**
+     * Devuelve la altura por defecto para un tipo de widget
+     */
+    static getDefaultHeight(type: string): number {
+        // Puedes personalizar los valores según el tipo
+        switch (type) {
+            case 'Button':
+            case 'ElevatedButton':
+            case 'TextButton':
+            case 'OutlinedButton':
+                return 48;
+            case 'TextField':
+            case 'TextFormField':
+                return 48;
+            case 'Container':
+                return 80;
+            case 'Slider':
+                return 40;
+            case 'DropdownButton':
+            case 'Select':
+                return 48;
+            case 'ListTile':
+                return 56;
+            case 'Icon':
+            case 'Switch':
+            case 'Radio':
+            case 'Checkbox':
+                return 40;
+            case 'AppBar':
+                return 56;
+            case 'Scaffold':
+                return 600;
+            case 'Row':
+            case 'Column':
+            case 'Padding':
+                return 80;
+            case 'Text':
+            case 'Label':
+                return 32;
+            default:
+                return 48;
+        }
     }
 
     /**

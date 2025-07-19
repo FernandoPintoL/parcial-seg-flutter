@@ -1067,10 +1067,27 @@ INSTRUCCIONES:
                         // Add automatic positioning if not provided
                         filteredWidgets.forEach((widget: any, index: number) => {
                             if (!widget.position) {
-                                widget.position = {
-                                    x: 50 + (index % 3) * 200, // 3 columns
-                                    y: 100 + Math.floor(index / 3) * 100 // New row every 3 widgets
-                                };
+                                // Usar posicionamiento vertical en lugar de grid aleatorio
+                                const startX = 50;
+                                const startY = 50;
+                                const margin = 30;
+                                
+                                // Calcular posición vertical para Flutter
+                                if (framework === 'flutter') {
+                                    widget.position = {
+                                        x: startX + (index * 10), // Pequeña variación horizontal
+                                        y: startY + (index * (80 + margin)) // Posicionamiento vertical
+                                    };
+                                } else {
+                                    // Para Angular, usar grid más ordenado
+                                    const maxElementsPerRow = 3;
+                                    const row = Math.floor(index / maxElementsPerRow);
+                                    const col = index % maxElementsPerRow;
+                                    widget.position = {
+                                        x: startX + (col * 200),
+                                        y: startY + (row * 100)
+                                    };
+                                }
                             }
                             // Ensure widget has an ID
                             if (!widget.id) {

@@ -73,8 +73,8 @@ function updateElement(element: UnifiedElement) {
 
 // Handle element deletion
 function deleteElement(element: UnifiedElement) {
-    console.log('🎯 UnifiedCanvas deleteElement called for:', element.id);
-    console.log('🎯 Element to delete:', { id: element.id, type: element.type, framework: element.framework });
+    console.log('🗑️ UnifiedCanvas deleteElement called for:', element.id);
+    console.log('🗑️ Element to delete:', { id: element.id, type: element.type, framework: element.framework });
 
     // Validate the element object
     if (!element || !element.id) {
@@ -89,7 +89,7 @@ function deleteElement(element: UnifiedElement) {
     }
 
     try {
-        // Emit remove-element event to parent
+        // Emit remove-element event to parent with the full element object
         console.log('📤 Emitting remove-element event with element:', element);
         emit('remove-element', element);
         console.log('📤 remove-element event emitted from UnifiedCanvas');
@@ -169,11 +169,13 @@ function handleWidgetEvent(eventData: any) {
     if (eventData.type === 'delete' && eventData.elementId) {
         const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
         if (element) {
+            console.log('🗑️ Deleting element via widget event:', element.id);
             deleteElement(element);
         }
     } else if (eventData.type === 'duplicate' && eventData.elementId) {
         const element = props.currentScreen.elements.find(el => el.id === eventData.elementId);
         if (element) {
+            console.log('📋 Duplicating element via widget event:', element.id);
             duplicateElement(element);
         }
     }
@@ -286,12 +288,18 @@ onUnmounted(() => {
                             <div class="canvas-content framework-flutter">
                                 <!-- Flutter widgets content -->
                                 <template v-if="currentElements && currentElements.length > 0">
-                                    <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id"
-                                        :element="element" :is-editable="true"
-                                        :is-selected="selectedElementId === element.id" @update:element="updateElement"
-                                        @delete-element="deleteElement" @duplicate-element="duplicateElement"
-                                        @select="selectElement" @widget-event="handleWidgetEvent"
-                                        class="canvas-element" />
+                                    <UnifiedWidgetRenderer
+                                        v-for="element in currentElements"
+                                        :key="element.id"
+                                        :element="element"
+                                        :is-selected="selectedElementId === element.id"
+                                        :is-editable="true"
+                                        @select="selectElement"
+                                        @update:element="updateElement"
+                                        @delete-element="deleteElement"
+                                        @duplicate-element="duplicateElement"
+                                        @widget-event="handleWidgetEvent"
+                                    />
                                 </template>
                                 <!-- Enhanced Flutter empty state -->
                                 <div v-else class="empty-canvas flutter-empty">
@@ -364,11 +372,18 @@ onUnmounted(() => {
                         <div class="canvas-content framework-angular">
                             <!-- Angular widgets content -->
                             <template v-if="currentElements && currentElements.length > 0">
-                                <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id"
-                                    :element="element" :is-editable="true"
-                                    :is-selected="selectedElementId === element.id" @update:element="updateElement"
-                                    @delete-element="deleteElement" @duplicate-element="duplicateElement"
-                                    @select="selectElement" @widget-event="handleWidgetEvent" class="canvas-element" />
+                                <UnifiedWidgetRenderer
+                                    v-for="element in currentElements"
+                                    :key="element.id"
+                                    :element="element"
+                                    :is-selected="selectedElementId === element.id"
+                                    :is-editable="true"
+                                    @select="selectElement"
+                                    @update:element="updateElement"
+                                    @delete-element="deleteElement"
+                                    @duplicate-element="duplicateElement"
+                                    @widget-event="handleWidgetEvent"
+                                />
                             </template>
                             <!-- Angular empty state -->
                             <div v-else class="empty-canvas angular-empty">
@@ -398,10 +413,18 @@ onUnmounted(() => {
             <div v-else class="unified-frame">
                 <div class="canvas-content framework-both">
                     <template v-if="currentElements && currentElements.length > 0">
-                        <UnifiedWidgetRenderer v-for="element in currentElements" :key="element.id" :element="element"
-                            @update:element="updateElement" @widget-event="handleWidgetEvent"
-                            @delete-element="deleteElement" @duplicate-element="duplicateElement"
-                            @select="selectElement" class="canvas-element" />
+                        <UnifiedWidgetRenderer
+                            v-for="element in currentElements"
+                            :key="element.id"
+                            :element="element"
+                            :is-selected="selectedElementId === element.id"
+                            :is-editable="true"
+                            @select="selectElement"
+                            @update:element="updateElement"
+                            @delete-element="deleteElement"
+                            @duplicate-element="duplicateElement"
+                            @widget-event="handleWidgetEvent"
+                        />
                     </template>
                     <!-- Both frameworks empty state -->
                     <div v-else class="empty-canvas both-empty">

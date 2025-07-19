@@ -17,9 +17,10 @@ import { ImageProcessingService } from '@/services/ImageProcessingService';
 import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
 import ChatAI from '@/pages/Chat/ChatAI.vue';
 import UnifiedWidgetPalette from './UnifiedWidgetPalette.vue';
-import UnifiedPropertiesPanel from './UnifiedPropertiesPanel.vue';
 import UnifiedCanvas from './UnifiedCanvas.vue';
+import PizarraPropertiesPanel from './components/PizarraPropertiesPanel.vue';
 import './PizarraUnificada.css';
+import { usePizarraCollaboration } from './composables/usePizarraCollaboration';
 
 // Props
 const props = defineProps({
@@ -309,18 +310,32 @@ const addWidget = (widgetType: string) => {
 const calculateOptimalPosition = (widgetType: string): { x: number, y: number } => {
     if (!currentScreen.value || !currentScreen.value.elements || currentScreen.value.elements.length === 0) {
         // If no elements exist, start at a default position
-        return { x: 100, y: 100 };
+        return { x: 50, y: 50 };
     }
 
     // Get existing elements
     const existingElements = currentScreen.value.elements;
 
     // Define constants for positioning
-    const startX = 100; // Fixed X position for vertical alignment
-    const startY = 100; // Initial Y position
-    const margin = 20;  // Margin between elements
+    const startX = 50; // Initial X position
+    const startY = 50; // Initial Y position
+    const margin = 30;  // Margin between elements
 
-    // Find the bottom-most element to place new element below it
+    // Determine the framework to adjust positioning strategy
+    const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+
+    if (framework === 'flutter') {
+        // Para Flutter: posicionar elementos uno debajo del otro como en un formulario
+        return calculateFlutterFormPosition(widgetType, existingElements, startX, startY, margin);
+    } else {
+        // Para Angular: mantener el sistema de filas y columnas
+        return calculateAngularGridPosition(widgetType, existingElements, startX, startY, margin);
+    }
+};
+
+// Función específica para posicionar elementos Flutter como formulario
+const calculateFlutterFormPosition = (widgetType: string, existingElements: any[], startX: number, startY: number, margin: number): { x: number, y: number } => {
+    // Encontrar el elemento más abajo
     let maxBottom = startY;
 
     existingElements.forEach(element => {
@@ -332,86 +347,187 @@ const calculateOptimalPosition = (widgetType: string): { x: number, y: number } 
         }
     });
 
-    // Add margin to the bottom-most element
-    let newY = maxBottom + margin;
+    // Posicionar el nuevo elemento debajo del último elemento
+    const newY = maxBottom + margin;
 
-    // Determine the framework to adjust horizontal position if needed
-    const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
+    // Para Flutter, usar ancho completo del móvil (300px) con márgenes
+    const mobileWidth = 300; // Ancho del móvil
+    const mobileMargin = 20; // Margen izquierdo y derecho
+    const availableWidth = mobileWidth - (mobileMargin * 2); // 260px disponible
 
-    // For Angular, we might want to center elements more
-    let newX = startX;
-    if (framework === 'angular') {
-        // Center more for Angular components in the browser view
-        const browserContent = document.querySelector('.browser-content');
-        if (browserContent) {
-            const rect = browserContent.getBoundingClientRect();
-            // Center horizontally with a slight offset
-            newX = Math.max(startX, (rect.width / 2) - 100);
-        }
-    }
+    // Posicionar al inicio del área disponible
+    const newX = mobileMargin;
 
-    // Get the default size for this widget type to ensure it fits
-    // Use the elementSizes from getMinDistance function
-    const elementSizes = {
-        'Container': { width: 150, height: 100 },
-        'Text': { width: 100, height: 30 },
-        'Button': { width: 120, height: 40 },
-        'ElevatedButton': { width: 120, height: 40 },
-        'TextButton': { width: 100, height: 40 },
-        'OutlinedButton': { width: 120, height: 40 },
-        'TextField': { width: 200, height: 40 },
-        'TextFormField': { width: 200, height: 40 },
-        'Image': { width: 150, height: 150 },
-        'Icon': { width: 40, height: 40 },
-        'AppBar': { width: 300, height: 56 },
-        'Scaffold': { width: 300, height: 400 },
-        'Row': { width: 200, height: 50 },
-        'Column': { width: 100, height: 200 },
-        'Padding': { width: 120, height: 80 },
-        'Slider': { width: 200, height: 40 },
-        'Switch': { width: 60, height: 30 },
-        'Radio': { width: 40, height: 40 },
-        'Checkbox': { width: 40, height: 40 },
-        'DropdownButton': { width: 150, height: 40 },
-        'Select': { width: 150, height: 40 },
-        'ListTile': { width: 250, height: 60 },
-        'div': { width: 150, height: 100 },
-        'span': { width: 80, height: 20 },
-        'p': { width: 200, height: 30 },
-        'h1': { width: 200, height: 40 },
-        'h2': { width: 180, height: 35 },
-        'h3': { width: 160, height: 30 },
-        'button': { width: 120, height: 40 },
-        'input': { width: 200, height: 40 },
-        'select': { width: 150, height: 40 },
-        'textarea': { width: 200, height: 100 },
-        'img': { width: 150, height: 150 },
-        'mat-button': { width: 120, height: 40 },
-        'mat-input': { width: 200, height: 40 },
-        'mat-select': { width: 150, height: 40 },
-        'mat-card': { width: 250, height: 200 },
-        'mat-toolbar': { width: 300, height: 64 },
-    };
-
-    const defaultSize = elementSizes[widgetType as keyof typeof elementSizes] || { width: 120, height: 80 };
-
-    // Check if the new position would be too far down
-    const canvasHeight = framework === 'angular' ? 600 : 500; // Different heights for different frameworks
-    if (newY + defaultSize.height > canvasHeight - margin) {
-        // If we're too far down, create a new column to the right
-        newX += 200; // Move to the right
-        newY = startY; // Reset Y to the top
-    }
-
-    console.log(`Positioning new ${widgetType} at (${newX}, ${newY})`);
+    console.log(`Positioning Flutter ${widgetType} at (${newX}, ${newY}) - full width layout, available width: ${availableWidth}px`);
 
     return { x: newX, y: newY };
+};
+
+// Función específica para posicionar elementos Angular en grid
+const calculateAngularGridPosition = (widgetType: string, existingElements: any[], startX: number, startY: number, margin: number): { x: number, y: number } => {
+    const maxElementsPerRow = 3; // Maximum elements per row
+
+    // Find the rightmost and bottommost elements
+    let maxX = startX;
+    let maxBottom = startY;
+
+    existingElements.forEach(element => {
+        if (element.position && element.size) {
+            const elementRight = element.position.x + (element.size.width || 0);
+            const elementBottom = element.position.y + (element.size.height || 0);
+
+            if (elementRight > maxX) {
+                maxX = elementRight;
+            }
+            if (elementBottom > maxBottom) {
+                maxBottom = elementBottom;
+            }
+        }
+    });
+
+    // Calculate new position
+    let newX = startX;
+    let newY = startY;
+
+    // Count elements in the current row
+    const elementsInCurrentRow = existingElements.filter(element => {
+        if (element.position) {
+            return Math.abs(element.position.y - maxBottom) < margin;
+        }
+        return false;
+    }).length;
+
+    if (elementsInCurrentRow >= maxElementsPerRow) {
+        // Start a new row
+        newX = startX;
+        newY = maxBottom + margin;
+    } else {
+        // Continue in the same row
+        newX = maxX + margin;
+        newY = maxBottom;
+    }
+
+    // Check if the new position would be too far down or right
+    const canvasHeight = 600;
+    const canvasWidth = 800;
+
+    if (newY + getElementHeight(widgetType) > canvasHeight - margin) {
+        // If we're too far down, start a new column
+        newX += 250;
+        newY = startY;
+    }
+
+    if (newX + getElementWidth(widgetType) > canvasWidth - margin) {
+        // If we're too far right, start a new row
+        newX = startX;
+        newY += 150;
+    }
+
+    console.log(`Positioning Angular ${widgetType} at (${newX}, ${newY}) - grid layout`);
+
+    return { x: newX, y: newY };
+};
+
+// Función auxiliar para obtener el ancho de un elemento
+const getElementWidth = (widgetType: string): number => {
+    const elementSizes = {
+        'Container': 150,
+        'Text': 100,
+        'Button': 120,
+        'ElevatedButton': 120,
+        'TextButton': 100,
+        'OutlinedButton': 120,
+        'TextField': 200,
+        'TextFormField': 200,
+        'Image': 150,
+        'Icon': 40,
+        'AppBar': 300,
+        'Scaffold': 300,
+        'Row': 200,
+        'Column': 100,
+        'Padding': 120,
+        'Slider': 200,
+        'Switch': 60,
+        'Radio': 40,
+        'Checkbox': 40,
+        'DropdownButton': 150,
+        'Select': 150,
+        'ListTile': 250,
+        'Label': 100, // Agregado para los Labels que aparecen en la imagen
+        'div': 150,
+        'span': 80,
+        'p': 200,
+        'h1': 200,
+        'h2': 180,
+        'h3': 160,
+        'button': 120,
+        'input': 200,
+        'select': 150,
+        'textarea': 200,
+        'img': 150,
+        'mat-button': 120,
+        'mat-input': 200,
+        'mat-select': 150,
+        'mat-card': 250,
+        'mat-toolbar': 300,
+    };
+
+    return elementSizes[widgetType as keyof typeof elementSizes] || 120;
+};
+
+// Función auxiliar para obtener la altura de un elemento
+const getElementHeight = (widgetType: string): number => {
+    const elementSizes = {
+        'Container': 100,
+        'Text': 30,
+        'Button': 40,
+        'ElevatedButton': 40,
+        'TextButton': 40,
+        'OutlinedButton': 40,
+        'TextField': 40,
+        'TextFormField': 40,
+        'Image': 150,
+        'Icon': 40,
+        'AppBar': 56,
+        'Scaffold': 400,
+        'Row': 50,
+        'Column': 200,
+        'Padding': 80,
+        'Slider': 40,
+        'Switch': 30,
+        'Radio': 40,
+        'Checkbox': 40,
+        'DropdownButton': 40,
+        'Select': 40,
+        'ListTile': 60,
+        'Label': 30, // Agregado para los Labels que aparecen en la imagen
+        'div': 100,
+        'span': 20,
+        'p': 30,
+        'h1': 40,
+        'h2': 35,
+        'h3': 30,
+        'button': 40,
+        'input': 40,
+        'select': 40,
+        'textarea': 100,
+        'img': 150,
+        'mat-button': 40,
+        'mat-input': 40,
+        'mat-select': 40,
+        'mat-card': 200,
+        'mat-toolbar': 64,
+    };
+
+    return elementSizes[widgetType as keyof typeof elementSizes] || 80;
 };
 
 // Get minimum distance between different element types
 // (Removed duplicate getMinDistance function)
 
 const selectElement = (element: UnifiedElement) => {
+    console.log('🎯 Element selected:', element.type, element.id);
+
     // Bring the selected element to the front by updating its z-index
     if (element && currentScreen.value) {
         // Find the highest z-index in current elements
@@ -439,6 +555,9 @@ const selectElement = (element: UnifiedElement) => {
 
     // Set the selected element
     selectedElement.value = element;
+
+    // Mostrar automáticamente el panel de propiedades
+    showPropertiesPanel.value = true;
 
     // Emit to collaborators
     if (collaborationService) {
@@ -1009,10 +1128,12 @@ const handleTyping = () => {
 const addProcessedWidgets = (widgets: any[]) => {
     if (!currentScreen.value) return;
 
-    widgets.forEach(widget => {
+    widgets.forEach((widget, index) => {
         // Create a unified element from the widget data
         const framework = selectedFramework.value === 'both' ? 'flutter' : selectedFramework.value;
-        const position = { x: Math.random() * 100, y: Math.random() * 100 };
+
+        // Usar el sistema de posicionamiento optimizado en lugar de posiciones aleatorias
+        const position = calculateOptimalPosition(widget.type || 'Container');
 
         try {
             const element = UnifiedWidgetService.createElement(
@@ -1042,6 +1163,53 @@ const addProcessedWidgets = (widgets: any[]) => {
     });
 
     savePizarra();
+};
+
+// Función para manejar la actualización del elemento desde el panel de propiedades
+const handleElementUpdate = (updatedElement: UnifiedElement) => {
+    console.log('🔧 Element updated from properties panel:', updatedElement);
+
+    // Actualizar el elemento seleccionado
+    selectedElement.value = updatedElement;
+
+    // Actualizar el elemento en la pantalla actual
+    if (currentScreen.value) {
+        const index = currentScreen.value.elements.findIndex(e => e.id === updatedElement.id);
+        if (index !== -1) {
+            currentScreen.value.elements[index] = updatedElement;
+        }
+    }
+
+    // Emitir a colaboradores
+    if (collaborationService) {
+        collaborationService.emitElementUpdated(updatedElement, currentScreen.value?.id);
+    }
+
+    // Guardar cambios
+    savePizarra();
+};
+
+// Función para duplicar elemento
+const duplicateElement = (element: UnifiedElement) => {
+    console.log('📋 Duplicating element:', element);
+
+    const duplicatedElement = UnifiedWidgetService.duplicateElement(element);
+    if (duplicatedElement && currentScreen.value) {
+        // Posicionar el elemento duplicado ligeramente desplazado
+        if (duplicatedElement.position) {
+            duplicatedElement.position.x += 20;
+            duplicatedElement.position.y += 20;
+        }
+
+        currentScreen.value.elements.push(duplicatedElement);
+
+        // Emitir a colaboradores
+        if (collaborationService) {
+            collaborationService.emitElementAdded(duplicatedElement, currentScreen.value.id);
+        }
+
+        savePizarra();
+    }
 };
 </script>
 
@@ -1224,22 +1392,31 @@ const addProcessedWidgets = (widgets: any[]) => {
                                 </div>
 
                                 <!-- Properties Panel - Enhanced -->
-                                <div v-if="showPropertiesPanel && !isPanelsCollapsed"
+                                <div v-if="(showPropertiesPanel && !isPanelsCollapsed) || selectedElement"
                                     class="w-80 transition-all duration-300 transform">
                                     <div
                                         class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 h-full">
                                         <div class="p-4 border-b border-gray-200/50 dark:border-gray-700/50">
-                                            <div class="flex items-center space-x-2">
-                                                <span class="material-icons text-purple-500">tune</span>
-                                                <h3 class="font-semibold text-gray-800 dark:text-gray-200">Propiedades
-                                                </h3>
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="material-icons text-purple-500">tune</span>
+                                                    <h3 class="font-semibold text-gray-800 dark:text-gray-200">Propiedades
+                                                    </h3>
+                                                </div>
+                                                <button @click="showPropertiesPanel = false"
+                                                    class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                                    <span class="material-icons text-gray-500 text-sm">close</span>
+                                                </button>
                                             </div>
                                         </div>
                                         <div class="p-4">
-                                            <UnifiedPropertiesPanel :selected-element="selectedElement"
-                                                :available-widgets="availableWidgets" :framework="selectedFramework"
-                                                @update-property="updateElementProperty"
-                                                @update-color-property="updateElementProperty" />
+                                            <PizarraPropertiesPanel
+                                                :selected-element="selectedElement"
+                                                @update-element="handleElementUpdate"
+                                                @delete-element="removeElement"
+                                                @duplicate-element="duplicateElement"
+                                                @close="showPropertiesPanel = false"
+                                            />
                                         </div>
                                     </div>
                                 </div>

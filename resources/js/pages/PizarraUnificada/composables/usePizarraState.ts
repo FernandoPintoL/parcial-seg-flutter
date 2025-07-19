@@ -4,13 +4,134 @@ import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
 import { AlertService } from '@/services/AlertService';
 import axios from 'axios';
 
-interface PizarraStateProps {
+export interface PizarraStateProps {
     user: User;
     pizarra: PizarraUnificada;
     creador: User;
     isCreador: boolean;
     colaboradores: User[];
 }
+
+// Función auxiliar para calcular posición optimizada
+const calculateOptimalPosition = (widgetType: string, currentScreen: any, selectedFramework: any): { x: number, y: number } => {
+    if (!currentScreen || !currentScreen.elements || currentScreen.elements.length === 0) {
+        return { x: 50, y: 50 };
+    }
+
+    const existingElements = currentScreen.elements;
+    const startX = 50;
+    const startY = 50;
+    const margin = 30;
+
+    const framework = selectedFramework === 'both' ? 'flutter' : selectedFramework;
+
+    if (framework === 'flutter') {
+        // Para Flutter: posicionar elementos uno debajo del otro como en un formulario
+        let maxBottom = startY;
+
+        existingElements.forEach((element: any) => {
+            if (element.position && element.size) {
+                const elementBottom = element.position.y + (element.size.height || 0);
+                if (elementBottom > maxBottom) {
+                    maxBottom = elementBottom;
+                }
+            }
+        });
+
+        const newY = maxBottom + margin;
+        const canvasWidth = 300;
+        const elementWidth = getElementWidth(widgetType);
+        const newX = Math.max(startX, (canvasWidth - elementWidth) / 2);
+
+        return { x: newX, y: newY };
+    } else {
+        // Para Angular: mantener el sistema de filas y columnas
+        const maxElementsPerRow = 3;
+        let maxX = startX;
+        let maxBottom = startY;
+
+        existingElements.forEach((element: any) => {
+            if (element.position && element.size) {
+                const elementRight = element.position.x + (element.size.width || 0);
+                const elementBottom = element.position.y + (element.size.height || 0);
+                
+                if (elementRight > maxX) {
+                    maxX = elementRight;
+                }
+                if (elementBottom > maxBottom) {
+                    maxBottom = elementBottom;
+                }
+            }
+        });
+
+        const elementsInCurrentRow = existingElements.filter((element: any) => {
+            if (element.position) {
+                return Math.abs(element.position.y - maxBottom) < margin;
+            }
+            return false;
+        }).length;
+
+        let newX = startX;
+        let newY = startY;
+
+        if (elementsInCurrentRow >= maxElementsPerRow) {
+            newX = startX;
+            newY = maxBottom + margin;
+        } else {
+            newX = maxX + margin;
+            newY = maxBottom;
+        }
+
+        return { x: newX, y: newY };
+    }
+};
+
+// Función auxiliar para obtener el ancho de un elemento
+const getElementWidth = (widgetType: string): number => {
+    const elementSizes: Record<string, number> = {
+        'Container': 280,
+        'Text': 280,
+        'Button': 280,
+        'ElevatedButton': 280,
+        'TextButton': 280,
+        'OutlinedButton': 280,
+        'TextField': 280,
+        'TextFormField': 280,
+        'Image': 280,
+        'Icon': 48,
+        'AppBar': 300,
+        'Scaffold': 300,
+        'Row': 280,
+        'Column': 280,
+        'Padding': 280,
+        'Slider': 280,
+        'Switch': 60,
+        'Radio': 280,
+        'Checkbox': 280,
+        'DropdownButton': 280,
+        'Select': 280,
+        'ListTile': 280,
+        'Label': 280,
+        'div': 150,
+        'span': 80,
+        'p': 200,
+        'h1': 200,
+        'h2': 180,
+        'h3': 160,
+        'button': 120,
+        'input': 200,
+        'select': 150,
+        'textarea': 200,
+        'img': 150,
+        'mat-button': 120,
+        'mat-input': 200,
+        'mat-select': 150,
+        'mat-card': 250,
+        'mat-toolbar': 300,
+    };
+
+    return elementSizes[widgetType] || 120;
+};
 
 export function usePizarraState(props: PizarraStateProps) {
     // Core State
@@ -109,7 +230,8 @@ export function usePizarraState(props: PizarraStateProps) {
 
         console.log('🎯 Target framework:', targetFramework);
 
-        const position = { x: 100, y: 100 };
+        // Usar el sistema de posicionamiento optimizado en lugar de posición fija
+        const position = calculateOptimalPosition(widgetType, currentScreen.value, selectedFramework.value);
         const newElement = UnifiedWidgetService.createElement(
             widgetType,
             targetFramework,
