@@ -1,5 +1,6 @@
 // services/WidgetService.ts
 import { FlutterWidget } from '@/Data/Pizarra';
+import { WidgetUtils } from '@/utils/WidgetUtils';
 
 export class WidgetService {
     private static widgetIdCounter = 1;
@@ -11,27 +12,20 @@ export class WidgetService {
      * @returns The created widget or null if the widget type is not found
      */
     static createWidget(widgetType: string, availableWidgets: any[]): FlutterWidget | null {
-        // Find the widget definition
+        // Encuentra la definición del widget
         const widgetDefinition = availableWidgets.find((w) => w.type === widgetType);
         if (!widgetDefinition) return null;
-
-        // Create a new widget
+        // Usa WidgetUtils para obtener las props por defecto
+        const defaultProps = WidgetUtils.getDefaultProps(widgetType, 'flutter', availableWidgets);
+        // Crea el widget Flutter específico
         const newWidget: FlutterWidget = {
             id: `widget-${this.widgetIdCounter++}`,
             type: widgetDefinition.type,
-            props: {},
-            children: [], // Always initialize as an array to avoid "elements must be an array" error
-            code_string: '' // Initialize code_string property
+            props: defaultProps,
+            children: [],
+            code_string: ''
         };
-
-        // Initialize properties with default values
-        widgetDefinition.properties.forEach((prop) => {
-            newWidget.props[prop.name] = prop.defaultValue;
-        });
-
-        // Generate default code_string based on widget type and properties
         newWidget.code_string = this.generateDefaultCodeString(newWidget, availableWidgets);
-
         return newWidget;
     }
 
@@ -44,9 +38,18 @@ export class WidgetService {
      * @returns The parent widget with the child added, or null if the parent is not found
      */
     static addChildWidget(parentId: string, widgetType: string, widgets: FlutterWidget[], availableWidgets: any[]): FlutterWidget | null {
-        // Create the child widget
-        const newWidget = this.createWidget(widgetType, availableWidgets);
-        if (!newWidget) return null;
+        // Usa WidgetUtils para obtener las props por defecto
+        const defaultProps = WidgetUtils.getDefaultProps(widgetType, 'flutter', availableWidgets);
+        const widgetDefinition = availableWidgets.find((w) => w.type === widgetType);
+        if (!widgetDefinition) return null;
+        const newWidget: FlutterWidget = {
+            id: `widget-${this.widgetIdCounter++}`,
+            type: widgetDefinition.type,
+            props: defaultProps,
+            children: [],
+            code_string: ''
+        };
+        newWidget.code_string = this.generateDefaultCodeString(newWidget, availableWidgets);
 
         // Find the parent widget recursively and add the child
         const addToParent = (widgets: FlutterWidget[]): FlutterWidget | null => {

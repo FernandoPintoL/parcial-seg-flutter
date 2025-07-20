@@ -10,10 +10,18 @@ const props = defineProps<{
     availableWidgets?: any[];
 }>();
 
-const emit = defineEmits(['update-property', 'update-element']);
+const emit = defineEmits(['update-property', 'update-element', 'delete-element']);
 
 // Local reactive copy of the selected element's properties
 const localProps = ref<Record<string, any>>({});
+
+// Function to handle element deletion
+function handleDeleteElement() {
+    if (props.selectedElement) {
+        console.log('🗑️ Delete element requested from properties panel:', props.selectedElement.id);
+        emit('delete-element', props.selectedElement);
+    }
+}
 
 // Get available widgets for current framework
 const availableWidgets = computed(() => {
@@ -259,7 +267,7 @@ function getHslColor(color: string): string {
     <div v-if="selectedElement"
         class="w-80 overflow-y-auto rounded-md bg-gray-100 p-4 dark:bg-gray-700 dark:text-white">
         <h2 class="mb-4 text-lg font-semibold">
-            {{ selectedElement.type }} Properties
+            {{ selectedElement.type }} Propiedades
             <span v-if="selectedElement.framework !== 'both'" class="ml-2 text-xs px-2 py-1 rounded" :class="{
                 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200': selectedElement.framework === 'flutter',
                 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': selectedElement.framework === 'angular'
@@ -267,6 +275,23 @@ function getHslColor(color: string): string {
                 {{ selectedElement.framework }}
             </span>
         </h2>
+
+        <!-- Botón de eliminar elemento -->
+        <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="material-icons text-red-500 mr-2">warning</span>
+                    <span class="text-sm text-red-700 dark:text-red-300">Acción destructiva</span>
+                </div>
+                <button 
+                    @click="handleDeleteElement"
+                    class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded-md transition-colors duration-200 flex items-center"
+                    title="Eliminar elemento">
+                    <span class="material-icons text-sm mr-1">delete</span>
+                    Eliminar
+                </button>
+            </div>
+        </div>
 
         <div class="flex flex-col gap-4">
             <div v-for="(props, category) in groupedProperties" :key="category" class="flex flex-col gap-2">
@@ -361,5 +386,28 @@ function getHslColor(color: string): string {
 </template>
 
 <style scoped>
-/* Add any specific styles for the properties panel */
+.properties-panel {
+    width: 320px;
+    max-width: 100vw;
+    min-width: 240px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: 100vh;
+    background: white;
+    border-left: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+}
+.property-item {
+    word-break: break-word;
+    min-width: 0;
+}
+input, select, textarea {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
 </style>

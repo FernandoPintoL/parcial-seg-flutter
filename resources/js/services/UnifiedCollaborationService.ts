@@ -165,6 +165,29 @@ export class UnifiedCollaborationService {
     }
 
     /**
+     * Emite mensaje de chat
+     */
+    emitChatMessage(message: string): void {
+        this.socketService.socket.emit('chatMessage', {
+            roomId: this.roomId,
+            message: message,
+            userId: this.currentUser,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
+     * Emite evento de typing
+     */
+    emitTyping(): void {
+        this.socketService.socket.emit('escribiendo', {
+            roomId: this.roomId,
+            user: this.currentUser,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    /**
      * Manejador para elemento agregado
      */
     private handleElementAdded(data: any): void {

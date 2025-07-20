@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, computed } from 'vue';
 import type { User, PizarraUnificada, UnifiedElement } from '@/Data/PizarraUnificada';
 import { UnifiedCollaborationService } from '@/services/UnifiedCollaborationService';
 import { getSocketConfig } from '@/lib/socketConfig';
@@ -29,6 +29,7 @@ export function usePizarraCollaboration(
     const socketConnected = ref<boolean>(false);
     const onlineCollaborators = ref<User[]>([]);
     const isCollaborating = ref<boolean>(false);
+    const showChat = ref<boolean>(false);
 
     // Socket configuration
     const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
@@ -36,19 +37,32 @@ export function usePizarraCollaboration(
     const roomId = ref<string | null>(props.pizarra?.room_id || null);
     const currentUser = ref(props.user?.name || 'Usuario');
 
+    // Computed service
+    const service = computed(() => collaborationService.value);
+
     // Initialize collaboration
     const initializeCollaboration = () => {
+        console.log('Initializing collaboration with:', {
+            roomId: roomId.value,
+            currentUser: currentUser.value,
+            pizarra: props.pizarra
+        });
+
         if (!roomId.value) {
             console.warn('No room ID provided for collaboration');
             return;
         }
 
         try {
+            console.log('Creating UnifiedCollaborationService with config:', socketConfig.value);
+            
             collaborationService.value = new UnifiedCollaborationService(
                 socketConfig.value,
                 roomId.value,
                 currentUser.value
             );
+
+            console.log('Collaboration service created:', collaborationService.value);
 
             // Setup event listeners
             setupEventListeners();
@@ -156,6 +170,25 @@ export function usePizarraCollaboration(
         }
     };
 
+    // Emit chat message
+    const emitChatMessage = (message: string) => {
+        if (collaborationService.value && isCollaborating.value) {
+            collaborationService.value.emitChatMessage(message);
+        }
+    };
+
+    // Emit typing indicator
+    const emitTyping = () => {
+        if (collaborationService.value && isCollaborating.value) {
+            collaborationService.value.emitTyping();
+        }
+    };
+
+    // Toggle chat visibility
+    const toggleChat = () => {
+        showChat.value = !showChat.value;
+    };
+
     // Reconnect to collaboration service
     const reconnect = () => {
         if (collaborationService.value) {
@@ -194,6 +227,7 @@ export function usePizarraCollaboration(
         isCollaborating,
         currentUser,
         roomId,
+        showChat,
 
         // Methods
         initializeCollaboration,
@@ -201,6 +235,9 @@ export function usePizarraCollaboration(
         emitElementUpdated,
         emitElementDeleted,
         emitFrameworkSwitched,
+        emitChatMessage,
+        emitTyping,
+        toggleChat,
         reconnect,
         disconnect,
         cleanup

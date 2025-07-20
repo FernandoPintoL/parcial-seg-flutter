@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useDropdown } from '@/composables/useDropdown';
 
 const props = defineProps<{
   value?: string;
@@ -7,7 +8,6 @@ const props = defineProps<{
   onChanged?: (value: string) => void;
 }>();
 
-const isOpen = ref(false);
 const selectedValue = ref(props.value || '');
 
 // Parse items if they're provided as a string array
@@ -27,21 +27,15 @@ const dropdownItems = computed(() => {
   return props.items;
 });
 
-function toggleDropdown() {
-  isOpen.value = !isOpen.value;
-}
-
-function selectOption(option: string) {
-  selectedValue.value = option;
-  isOpen.value = false;
-  if (props.onChanged) {
-    props.onChanged(option);
+// Usar el composable reutilizable
+const { isOpen, toggleDropdown, selectOption, closeDropdown } = useDropdown({
+  onSelect: (option: string) => {
+    selectedValue.value = option;
+    if (props.onChanged) {
+      props.onChanged(option);
+    }
   }
-}
-
-function closeDropdown() {
-  isOpen.value = false;
-}
+});
 </script>
 
 <template>

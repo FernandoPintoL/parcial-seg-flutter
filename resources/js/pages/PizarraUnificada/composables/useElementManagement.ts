@@ -1,216 +1,181 @@
-import { ref, computed } from 'vue';
-import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
+// composables/useElementManagement.ts
+import { ref, computed, watch, readonly } from 'vue';
 import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
+import { UnifiedElementManagementService } from '@/services/UnifiedElementManagementService';
+import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
 
-export interface UseElementManagementProps {
+export interface UseElementManagementOptions {
     currentScreen: UnifiedScreen;
     selectedFramework: 'flutter' | 'angular' | 'both';
 }
 
-export function useElementManagement(props: UseElementManagementProps) {
+export function useElementManagement(options: UseElementManagementOptions) {
+    // Reactive state
     const selectedElement = ref<UnifiedElement | null>(null);
     const availableWidgets = ref<any[]>([]);
 
-    // Update available widgets based on framework
+    // Service instance
+    const elementService = new UnifiedElementManagementService({
+        currentScreen: options.currentScreen,
+        selectedFramework: options.selectedFramework,
+        availableWidgets: availableWidgets.value
+    });
+
+    // Computed properties
+    const currentElements = computed(() => {
+        return options.currentScreen.elements || [];
+    });
+
+    const selectedElementId = computed(() => selectedElement.value?.id || null);
+
+    // Watchers
+    watch(() => options.selectedFramework, (newFramework) => {
+        updateAvailableWidgets();
+        elementService.updateOptions({ selectedFramework: newFramework });
+    });
+
+    watch(() => options.currentScreen, (newScreen) => {
+        elementService.updateOptions({ currentScreen: newScreen });
+    });
+
+    // Methods
     const updateAvailableWidgets = () => {
-        availableWidgets.value = UnifiedWidgetService.getAvailableWidgets(props.selectedFramework);
+        availableWidgets.value = UnifiedWidgetService.getAvailableWidgets(options.selectedFramework);
+        elementService.updateOptions({ availableWidgets: availableWidgets.value });
     };
 
-    // Calculate optimal position for new elements
-    const calculateOptimalPosition = (widgetType: string): { x: number, y: number } => {
-        if (!props.currentScreen || !props.currentScreen.elements || props.currentScreen.elements.length === 0) {
-            return { x: 50, y: 50 };
+    const addWidget = (widgetType: string, position?: { x: number; y: number }, canvasWidth?: number): UnifiedElement | null => {
+        const element = elementService.addWidget(widgetType, position, canvasWidth);
+        if (element) {
+            console.log('✅ Widget added via service:', element);
         }
-
-        const existingElements = props.currentScreen.elements;
-        const startX = 50;
-        const startY = 50;
-        const margin = 30;
-
-        const framework = props.selectedFramework === 'both' ? 'flutter' : props.selectedFramework;
-
-        if (framework === 'flutter') {
-            return calculateFlutterFormPosition(widgetType, existingElements, startX, startY, margin);
-        } else {
-            return calculateAngularGridPosition(widgetType, existingElements, startX, startY, margin);
-        }
+        return element;
     };
 
-    const calculateFlutterFormPosition = (widgetType: string, existingElements: any[], startX: number, startY: number, margin: number): { x: number, y: number } => {
-        let maxBottom = startY;
-
-        existingElements.forEach(element => {
-            if (element.position && element.size) {
-                const elementBottom = element.position.y + (element.size.height || 0);
-                if (elementBottom > maxBottom) {
-                    maxBottom = elementBottom;
-                }
-            }
-        });
-
-        const newY = maxBottom + margin;
-        const mobileWidth = 300;
-        const mobileMargin = 20;
-        const newX = mobileMargin;
-
-        return { x: newX, y: newY };
-    };
-
-    const calculateAngularGridPosition = (widgetType: string, existingElements: any[], startX: number, startY: number, margin: number): { x: number, y: number } => {
-        const maxElementsPerRow = 3;
-        let maxX = startX;
-        let maxBottom = startY;
-
-        existingElements.forEach(element => {
-            if (element.position && element.size) {
-                const elementRight = element.position.x + (element.size.width || 0);
-                const elementBottom = element.position.y + (element.size.height || 0);
-
-                if (elementRight > maxX) {
-                    maxX = elementRight;
-                }
-                if (elementBottom > maxBottom) {
-                    maxBottom = elementBottom;
-                }
-            }
-        });
-
-        let newX = startX;
-        let newY = startY;
-
-        const elementsInCurrentRow = existingElements.filter(element => {
-            if (element.position) {
-                return Math.abs(element.position.y - maxBottom) < margin;
-            }
-            return false;
-        }).length;
-
-        if (elementsInCurrentRow >= maxElementsPerRow) {
-            newX = startX;
-            newY = maxBottom + margin;
-        } else {
-            newX = maxX + margin;
-            newY = maxBottom;
-        }
-
-        return { x: newX, y: newY };
-    };
-
-    // Element management functions
-    const addWidget = (widgetType: string): UnifiedElement | null => {
-        const framework = props.selectedFramework === 'both' ? 'flutter' : props.selectedFramework;
-        const position = calculateOptimalPosition(widgetType);
-
-        const newElement = UnifiedWidgetService.createElement(
-            widgetType,
-            framework,
-            position
-        );
-
-        if (newElement && props.currentScreen) {
-            // Assign z-index
-            if (props.currentScreen.elements.length > 0) {
-                const highestZIndex = Math.max(
-                    ...props.currentScreen.elements.map(el => el.zIndex || 1)
-                );
-                newElement.zIndex = highestZIndex + 1;
-            } else {
-                newElement.zIndex = 1;
-            }
-
-            props.currentScreen.elements.push(newElement);
-            return newElement;
-        }
-
-        return null;
-    };
-
-    const selectElement = (element: UnifiedElement) => {
+    const selectElement = (element: UnifiedElement | null) => {
         selectedElement.value = element;
+        elementService.selectElement(element);
     };
 
-    const updateElementProperty = (propertyName: string, value: any) => {
-        if (!selectedElement.value) return;
-
-        const updatedElement = UnifiedWidgetService.updateElementProperties(
-            selectedElement.value,
-            { [propertyName]: value }
-        );
-
-        selectedElement.value = updatedElement;
-
-        if (props.currentScreen) {
-            const index = props.currentScreen.elements.findIndex(e => e.id === updatedElement.id);
-            if (index !== -1) {
-                props.currentScreen.elements[index] = updatedElement;
-            }
-        }
-
-        return updatedElement;
+    const deselectElement = () => {
+        selectedElement.value = null;
+        elementService.deselectElement();
     };
 
-    const updateElement = (element: UnifiedElement) => {
-        if (!props.currentScreen) return false;
-
-        const index = props.currentScreen.elements.findIndex(e => e.id === element.id);
-        if (index !== -1) {
-            props.currentScreen.elements[index] = element;
-
-            if (selectedElement.value?.id === element.id) {
-                selectedElement.value = element;
+    const updateElement = (updatedElement: UnifiedElement): boolean => {
+        const result = elementService.updateElement(updatedElement);
+        if (result.success && result.element) {
+            // Update selected element if it's the same
+            if (selectedElement.value && selectedElement.value.id === updatedElement.id) {
+                selectedElement.value = result.element;
             }
-
             return true;
         }
-
+        console.error('❌ Failed to update element:', result.error);
         return false;
     };
 
     const removeElement = (element: UnifiedElement): boolean => {
-        if (!props.currentScreen) return false;
-
-        const index = props.currentScreen.elements.findIndex(e => e.id === element.id);
-        if (index !== -1) {
-            props.currentScreen.elements.splice(index, 1);
-
-            if (selectedElement.value?.id === element.id) {
+        const success = elementService.removeElement(element);
+        if (success) {
+            // Deselect if it was the selected element
+            if (selectedElement.value && selectedElement.value.id === element.id) {
                 selectedElement.value = null;
             }
+        }
+        return success;
+    };
 
+    // Exponer directamente el método del servicio para evitar wrapper innecesario
+    const duplicateElement = elementService.duplicateElement.bind(elementService);
+
+    const updateElementProperties = (elementId: string, properties: Record<string, any>): boolean => {
+        const result = elementService.updateElementProperties(elementId, properties);
+        if (result.success && result.element) {
+            // Update selected element if it's the same
+            if (selectedElement.value && selectedElement.value.id === elementId) {
+                selectedElement.value = result.element;
+            }
             return true;
         }
-
+        console.error('❌ Failed to update element properties:', result.error);
         return false;
     };
 
-    const duplicateElement = (element: UnifiedElement): UnifiedElement | null => {
-        const duplicatedElement = UnifiedWidgetService.duplicateElement(element);
-        if (duplicatedElement && props.currentScreen) {
-            if (duplicatedElement.position) {
-                duplicatedElement.position.x += 20;
-                duplicatedElement.position.y += 20;
+    const updateElementPosition = (elementId: string, position: { x: number; y: number }): boolean => {
+        const result = elementService.updateElementPosition(elementId, position);
+        if (result.success && result.element) {
+            // Update selected element if it's the same
+            if (selectedElement.value && selectedElement.value.id === elementId) {
+                selectedElement.value = result.element;
             }
-
-            props.currentScreen.elements.push(duplicatedElement);
-            return duplicatedElement;
+            return true;
         }
-
-        return null;
+        console.error('❌ Failed to update element position:', result.error);
+        return false;
     };
+
+    const updateElementSize = (elementId: string, size: { width: number; height: number }): boolean => {
+        const result = elementService.updateElementSize(elementId, size);
+        if (result.success && result.element) {
+            // Update selected element if it's the same
+            if (selectedElement.value && selectedElement.value.id === elementId) {
+                selectedElement.value = result.element;
+            }
+            return true;
+        }
+        console.error('❌ Failed to update element size:', result.error);
+        return false;
+    };
+
+    const getElements = () => {
+        return elementService.getElements();
+    };
+
+    const findElementById = (elementId: string) => {
+        return elementService.findElementById(elementId);
+    };
+
+    const getElementsByType = (type: string) => {
+        return elementService.getElementsByType(type);
+    };
+
+    const getElementsByFramework = (framework: string) => {
+        return elementService.getElementsByFramework(framework);
+    };
+
+    const validateElement = (element: UnifiedElement) => {
+        return elementService.validateElement(element);
+    };
+
+    // Initialize
+    updateAvailableWidgets();
 
     return {
         // State
         selectedElement,
         availableWidgets,
+        currentElements,
+        selectedElementId,
 
-        // Actions
-        updateAvailableWidgets,
+        // Methods
         addWidget,
         selectElement,
-        updateElementProperty,
+        deselectElement,
         updateElement,
         removeElement,
         duplicateElement,
-        calculateOptimalPosition
+        updateElementProperties,
+        updateElementPosition,
+        updateElementSize,
+        getElements,
+        findElementById,
+        getElementsByType,
+        getElementsByFramework,
+        validateElement,
+        updateAvailableWidgets,
+
+        // Service access
+        elementService
     };
 } 

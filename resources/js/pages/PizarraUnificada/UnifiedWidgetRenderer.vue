@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { UnifiedElement } from '@/Data/PizarraUnificada';
+import { UnifiedInteractionService } from '@/services/UnifiedInteractionService';
 
 // Importar componentes de Flutter para renderizado real
 import AppBarFlutter from '@/pages/WidgetsFlutter/AppBarFlutter.vue';
@@ -37,76 +38,64 @@ const emit = defineEmits([
 
 // Reactive references
 const elementRef = ref<HTMLElement | null>(null);
-const isDragging = ref(false);
-const isResizing = ref(false);
-const dragOffset = ref({ x: 0, y: 0 });
-const resizeStartSize = ref({ width: 0, height: 0 });
+
+// Interaction service instance
+let interactionService: UnifiedInteractionService | null = null;
 
 // Computed properties
 const elementStyle = computed(() => {
-    const baseStyle: Record<string, any> = {
-        position: 'absolute' as const,
-        width: props.element.size?.width ? `${props.element.size.width}px` : 'auto',
-        height: props.element.size?.height ? `${props.element.size.height}px` : 'auto',
-        transform: props.element.transform || 'none',
-        opacity: props.element.opacity || 1,
-        // Transiciones suaves
-        transition: 'all 0.3s ease',
-        // Cursor apropiado
-        cursor: 'grab',
+    const style: Record<string, any> = {
+        position: 'relative',
+        display: 'block',
+        marginBottom: '10px',
+        zIndex: props.element.zIndex || 1,
     };
 
-    // Aplicar posición desde el estado
-    baseStyle.left = `${props.element.position?.x || 0}px`;
-    baseStyle.top = `${props.element.position?.y || 0}px`;
-    baseStyle.zIndex = props.isSelected ? 1000 : (props.element.zIndex || 1);
-
-    if (props.isSelected) {
-        baseStyle.outline = '2px solid #3b82f6';
-        baseStyle.outlineOffset = '2px';
-        baseStyle.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.1)';
-        baseStyle.cursor = 'grab';
+    // Si está arrastrando, cambiar a posición absoluta
+    if (interactionService?.getState().isDragging) {
+        style.position = 'absolute';
+        style.zIndex = 1001;
+        if (props.element.position) {
+            style.left = `${props.element.position.x}px`;
+            style.top = `${props.element.position.y}px`;
+        }
     }
 
-    // Durante el arrastre
-    if (isDragging.value) {
-        baseStyle.cursor = 'grabbing';
-        baseStyle.transition = 'none';
-        baseStyle.zIndex = 1001;
-    }
-
-    return baseStyle;
+    return style;
 });
 
+// Widget component mapping
 const widgetComponent = computed(() => {
     const widgetMap: Record<string, any> = {
         // Flutter widgets
-        'Container': LayoutsFlutter,
-        'Button': ElevatedButtonFlutter,
-        'ElevatedButton': ElevatedButtonFlutter,
-        'TextButton': ElevatedButtonFlutter,
-        'OutlinedButton': ElevatedButtonFlutter,
-        'Text': InputFlutter,
         'TextField': InputFlutter,
         'TextFormField': InputFlutter,
-        'Image': ImageFlutter,
+        'ElevatedButton': ElevatedButtonFlutter,
+        'Text': LayoutsFlutter,
+        'Container': LayoutsFlutter,
         'Row': LayoutsFlutter,
         'Column': LayoutsFlutter,
+        'Image': ImageFlutter,
+        'Icon': IconFlutter,
+        'Checkbox': CheckboxFlutter,
+        'DropdownButton': DropdownFlutter,
+        'Card': CardFlutter,
+        'AppBar': AppBarFlutter,
         'Scaffold': LayoutsFlutter,
+        'SafeArea': LayoutsFlutter,
         'Padding': LayoutsFlutter,
+        'Center': LayoutsFlutter,
+        'SizedBox': LayoutsFlutter,
+        'Label': LayoutsFlutter,
         'Slider': LayoutsFlutter,
         'Switch': LayoutsFlutter,
         'Radio': LayoutsFlutter,
-        'DropdownButton': DropdownFlutter,
-        'Select': LayoutsFlutter, // Added mapping for Select widget
+        'Select': LayoutsFlutter,
         'ListTile': LayoutsFlutter,
-        'AppBar': AppBarFlutter,
         'ScaffoldWidget': LayoutsFlutter,
         'TextWidget': LayoutsFlutter,
         'IconWidget': LayoutsFlutter,
         'ImageWidget': LayoutsFlutter,
-        'Checkbox': CheckboxFlutter,
-        'Card': CardFlutter,
 
         // Angular widgets
         'div': BasicElement,
@@ -184,46 +173,6 @@ const widgetProps = computed(() => {
 });
 
 // Event handlers
-function handleElementClick(event: MouseEvent) {
-    console.log('🎯 Element clicked:', props.element.type, props.element.id);
-
-    // Solo manejar clic si no estamos arrastrando
-    if (isDragging.value) {
-        console.log('🔄 Ignoring click during drag');
-        return;
-    }
-
-    // Prevenir la propagación para evitar conflictos
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Emitir el evento de selección
-    emit('select', props.element);
-
-    console.log('📤 Select event emitted for element:', props.element.id);
-}
-
-function handleElementDoubleClick(event: MouseEvent) {
-    console.log('🎯 Element double-clicked:', props.element.type, props.element.id);
-
-    // Solo manejar doble clic si no estamos arrastrando
-    if (isDragging.value) {
-        console.log('🔄 Ignoring double-click during drag');
-        return;
-    }
-
-    // Prevenir la propagación
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Emitir evento para abrir editor de propiedades
-    emit('widget-event', {
-        type: 'edit-properties',
-        elementId: props.element.id,
-        element: props.element
-    });
-}
-
 function handlePropertyChange(property: string, value: any) {
     console.log('🔧 Property changed:', property, value);
     const updatedElement = {
@@ -237,257 +186,50 @@ function handlePropertyChange(property: string, value: any) {
     emit('property-change', property, value);
 }
 
-// Sistema de arrastre basado en JavaScript puro (como en el ejemplo)
-function handleMouseDown(event: MouseEvent) {
-    if (!props.isEditable) return;
-
-    console.log('🖱️ Mouse down on element:', props.element.type, props.element.id);
-
-    // Prevenir la propagación
-    event.preventDefault();
-    event.stopPropagation();
-
-    // Obtener el canvas contenedor
-    const canvas = document.querySelector('.unified-canvas') ||
-                   document.querySelector('.canvas-container') ||
-                   document.querySelector('.phone-content-area');
-
-    if (!canvas) {
-        console.warn('⚠️ No se encontró el contenedor del canvas');
-        return;
-    }
-
-    const canvasRect = canvas.getBoundingClientRect();
-    const elementRect = elementRef.value?.getBoundingClientRect();
-
-    if (!elementRect) return;
-
-    // Calcular offset relativo al punto de clic dentro del elemento
-    dragOffset.value = {
-        x: event.clientX - elementRect.left,
-        y: event.clientY - elementRect.top,
-    };
-
-    console.log('📊 Canvas rect:', canvasRect);
-    console.log('📊 Element rect:', elementRect);
-    console.log('📊 Drag offset calculated:', dragOffset.value);
-
-    // Set dragging state
-    isDragging.value = true;
-
-    // Bring element to front while dragging
-    const updatedElement = {
-        ...props.element,
-        zIndex: 1001
-    };
-    emit('update:element', updatedElement);
-
-    // Add event listeners for drag operations
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    // Add a class to indicate dragging state
-    if (elementRef.value) {
-        elementRef.value.classList.add('is-dragging');
-    }
-
-    console.log('✅ Drag started successfully');
-}
-
-function handleMouseMove(event: MouseEvent) {
-    if (!isDragging.value || !props.isEditable) return;
-
-    // Get the canvas container
-    const canvas = document.querySelector('.unified-canvas') ||
-                   document.querySelector('.canvas-container') ||
-                   document.querySelector('.phone-content-area');
-
-    if (!canvas) {
-        console.warn('⚠️ No se encontró el contenedor del canvas');
-        return;
-    }
-
-    const canvasRect = canvas.getBoundingClientRect();
-
-    // Calculate new position (como en el ejemplo)
-    const newPosition = {
-        x: event.clientX - canvasRect.left - dragOffset.value.x,
-        y: event.clientY - canvasRect.top - dragOffset.value.y,
-    };
-
-    console.log('📍 New position calculated:', newPosition);
-
-    // Ensure element stays within container boundaries
-    const margin = 5;
-    const maxX = canvasRect.width - (props.element.size?.width || 100) - margin;
-    const maxY = canvasRect.height - (props.element.size?.height || 100) - margin;
-
-    newPosition.x = Math.min(Math.max(margin, newPosition.x), maxX);
-    newPosition.y = Math.min(Math.max(margin, newPosition.y), maxY);
-
-    console.log('📍 Position after boundary check:', newPosition);
-
-    // Update element with new position
-    const updatedElement = {
-        ...props.element,
-        position: newPosition,
-        zIndex: 1001,
-    };
-
-    // Emit the update
-    emit('update:element', updatedElement);
-}
-
-function handleMouseUp() {
-    console.log('🖱️ Mouse up - ending drag');
-
-    // Remove event listeners first
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-
-    // Only proceed if we were actually dragging
-    if (isDragging.value) {
-        console.log('🔄 Drag ended for element:', props.element.type, props.element.id);
-
-        // Mantener el z-index alto después del arrastre y preservar la posición actual
-        const updatedElement = {
-            ...props.element,
-            position: props.element.position, // Preserve the current position
-            zIndex: Math.max(props.element.zIndex || 1, 100)
-        };
-
-        // Update the element
-        emit('update:element', updatedElement);
-        console.log('📍 Final position preserved:', updatedElement.position);
-
-        // Remove dragging class
-        if (elementRef.value) {
-            elementRef.value.classList.remove('is-dragging');
-        }
-    }
-
-    // Set dragging state to false at the end
-    isDragging.value = false;
-    console.log('✅ Drag state reset');
-}
-
-function handleResizeStart(event: MouseEvent, direction: string) {
-    if (!props.isEditable) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    isResizing.value = true;
-    const startPosition = { x: props.element.position?.x || 0, y: props.element.position?.y || 0 };
-    resizeStartSize.value = {
-        width: props.element.size?.width || 100,
-        height: props.element.size?.height || 100,
-    };
-
-    const handleResizeMove = (e: MouseEvent) => {
-        if (!isResizing.value) return;
-
-        const deltaX = e.clientX - event.clientX;
-        const deltaY = e.clientY - event.clientY;
-
-        let newWidth = resizeStartSize.value.width;
-        let newHeight = resizeStartSize.value.height;
-        let newX = startPosition.x;
-        let newY = startPosition.y;
-
-        // Manejar cambios de tamaño según la dirección
-        switch (direction) {
-            case 'top-left':
-                newWidth -= deltaX;
-                newHeight -= deltaY;
-                newX += deltaX;
-                newY += deltaY;
-                break;
-            case 'top-right':
-                newWidth += deltaX;
-                newHeight -= deltaY;
-                newY += deltaY;
-                break;
-            case 'bottom-left':
-                newWidth -= deltaX;
-                newHeight += deltaY;
-                newX += deltaX;
-                break;
-            case 'bottom-right':
-                newWidth += deltaX;
-                newHeight += deltaY;
-                break;
-            case 'top':
-                newHeight -= deltaY;
-                newY += deltaY;
-                break;
-            case 'bottom':
-                newHeight += deltaY;
-                break;
-            case 'left':
-                newWidth -= deltaX;
-                newX += deltaX;
-                break;
-            case 'right':
-                newWidth += deltaX;
-                break;
-        }
-
-        // Aplicar límites mínimos
-        const minWidth = 50;
-        const minHeight = 30;
-
-        if (newWidth < minWidth) {
-            if (direction.includes('left')) {
-                newX = startPosition.x + (resizeStartSize.value.width - minWidth);
-            }
-            newWidth = minWidth;
-        }
-
-        if (newHeight < minHeight) {
-            if (direction.includes('top')) {
-                newY = startPosition.y + (resizeStartSize.value.height - minHeight);
-            }
-            newHeight = minHeight;
-        }
-
-        const updatedElement = {
-            ...props.element,
-            size: {
-                width: newWidth,
-                height: newHeight,
-            },
-            position: {
-                x: newX,
-                y: newY,
-            },
-        };
-
-        emit('update:element', updatedElement);
-    };
-
-    const handleResizeEnd = () => {
-        isResizing.value = false;
-        document.removeEventListener('mousemove', handleResizeMove);
-        document.removeEventListener('mouseup', handleResizeEnd);
-    };
-
-    document.addEventListener('mousemove', handleResizeMove);
-    document.addEventListener('mouseup', handleResizeEnd);
-}
-
 function handleDeleteElement() {
-    console.log('🗑️ Delete element:', props.element.type, props.element.id);
-
-    // Emitir evento para eliminar el elemento
+    console.log('🗑️ Delete element requested from UnifiedWidgetRenderer:', props.element.id);
+    console.log('🗑️ Element details:', { id: props.element.id, type: props.element.type, framework: props.element.framework });
+    
+    // Emitir el evento de eliminación
     emit('delete-element', props.element);
+    
+    console.log('📤 delete-element event emitted from UnifiedWidgetRenderer');
+}
+
+function handleElementClick() {
+    console.log('🖱️ Element clicked:', props.element.id);
+    
+    // Verificar si no está siendo arrastrado
+    if (!interactionService?.getState().isDragging) {
+        console.log('✅ Emitting select event for element:', props.element.id);
+        emit('select', props.element);
+    } else {
+        console.log('🚫 Click ignored - element is being dragged');
+    }
 }
 
 function handleDuplicateElement() {
-    console.log('📋 Duplicate element:', props.element.type, props.element.id);
-
-    // Emitir evento para duplicar el elemento
+    console.log('📋 Duplicate element requested:', props.element.id);
     emit('duplicate-element', props.element);
+}
+
+function handleToggleProperties() {
+    console.log('⚙️ Toggle properties requested for:', props.element.id);
+    
+    // Emitir evento para abrir el panel de propiedades
+    emit('widget-event', {
+        type: 'open-properties',
+        elementId: props.element.id,
+        element: props.element
+    });
+    
+    // También emitir el evento de selección para asegurar que el elemento esté seleccionado
+    emit('select', props.element);
+}
+
+function handleMoveStart(event: MouseEvent) {
+    console.log('🖱️ Move start on element:', props.element.type, props.element.id);
+    // El servicio de interacciones manejará esto automáticamente
 }
 
 // Función para obtener el nombre de visualización del elemento
@@ -568,16 +310,48 @@ function getWidgetProps(element: UnifiedElement) {
         case 'ElevatedButton':
             return {
                 ...processedProps,
-                label: processedProps.label || 'Botón',
-                onPressed: () => console.log('Botón presionado')
+                text: processedProps.text || 'Botón',
+                onPressed: processedProps.onPressed || '() {}'
             };
 
-        case 'DropdownButton':
+        case 'Text':
             return {
                 ...processedProps,
-                label: processedProps.label || 'Seleccionar opción',
-                items: processedProps.items || ['Opción 1', 'Opción 2', 'Opción 3'],
-                value: processedProps.value || null
+                text: processedProps.text || 'Texto de ejemplo',
+                style: processedProps.style || 'TextStyle(fontSize: 16)'
+            };
+
+        case 'Container':
+            return {
+                ...processedProps,
+                child: processedProps.child || 'Text("Contenedor")',
+                decoration: processedProps.decoration || 'BoxDecoration()'
+            };
+
+        case 'Row':
+        case 'Column':
+            return {
+                ...processedProps,
+                children: processedProps.children || '[]',
+                mainAxisAlignment: processedProps.mainAxisAlignment || 'MainAxisAlignment.start',
+                crossAxisAlignment: processedProps.crossAxisAlignment || 'CrossAxisAlignment.center'
+            };
+
+        case 'Image':
+            return {
+                ...processedProps,
+                src: processedProps.src || '/images/placeholder.png',
+                width: processedProps.width || 100,
+                height: processedProps.height || 100,
+                alt: processedProps.alt || 'Imagen'
+            };
+
+        case 'Icon':
+            return {
+                ...processedProps,
+                icon: processedProps.icon || 'Icons.star',
+                size: processedProps.size || 24,
+                color: processedProps.color || 'Colors.black'
             };
 
         case 'Checkbox':
@@ -592,13 +366,6 @@ function getWidgetProps(element: UnifiedElement) {
                 ...processedProps,
                 title: processedProps.title || 'Título de la tarjeta',
                 content: processedProps.content || 'Contenido de la tarjeta'
-            };
-
-        case 'Image':
-            return {
-                ...processedProps,
-                src: processedProps.src || '/images/placeholder.png',
-                alt: processedProps.alt || 'Imagen'
             };
 
         case 'AppBar':
@@ -617,365 +384,57 @@ function getWidgetProps(element: UnifiedElement) {
 onMounted(() => {
     console.log('🔄 UnifiedWidgetRenderer mounted for element:', props.element.id);
 
-    // Agregar event listeners globales para el canvas
-    setupCanvasEventListeners();
+    if (elementRef.value && props.isEditable) {
+        // Configurar el canvas provider para el servicio
+        const canvasProvider = {
+            getCanvasContainer: () => elementRef.value?.closest('.canvas-content') as HTMLElement,
+            getCanvasBounds: () => elementRef.value?.closest('.canvas-content')?.getBoundingClientRect() || null
+        };
+
+        // Crear instancia del servicio de interacciones
+        interactionService = new UnifiedInteractionService({
+            isEditable: props.isEditable,
+            canvasProvider,
+            onElementUpdate: (element) => {
+                emit('update:element', element);
+            },
+            onElementSelect: (element) => {
+                emit('select', element);
+            }
+        });
+
+        // Inicializar interacciones para este elemento
+        interactionService.initializeElement(props.element, elementRef.value);
+    }
 });
 
 onUnmounted(() => {
     console.log('🔄 UnifiedWidgetRenderer unmounted for element:', props.element.id);
 
-    // Limpiar event listeners
-    cleanupCanvasEventListeners();
+    // Limpiar el servicio de interacciones
+    if (interactionService) {
+        interactionService.cleanup();
+        interactionService = null;
+    }
 });
-
-// Funciones para manejar eventos del canvas (como en el ejemplo)
-function setupCanvasEventListeners() {
-    const canvas = document.querySelector('.unified-canvas') ||
-                   document.querySelector('.canvas-container') ||
-                   document.querySelector('.phone-content-area');
-
-    if (!canvas) return;
-
-    // Click en canvas para deseleccionar widgets (como en el ejemplo)
-    canvas.addEventListener('click', handleCanvasClick as EventListener);
-
-    // Event listener para crear widgets desde el panel lateral
-    document.addEventListener('create-widget', handleCreateWidget as EventListener);
-}
-
-function cleanupCanvasEventListeners() {
-    const canvas = document.querySelector('.unified-canvas') ||
-                   document.querySelector('.canvas-container') ||
-                   document.querySelector('.phone-content-area');
-
-    if (!canvas) return;
-
-    canvas.removeEventListener('click', handleCanvasClick as EventListener);
-    document.removeEventListener('create-widget', handleCreateWidget as EventListener);
-}
-
-function handleCanvasClick(event: Event) {
-    const mouseEvent = event as MouseEvent;
-    // Solo deseleccionar si se hace clic directamente en el canvas
-    if (mouseEvent.target === mouseEvent.currentTarget) {
-        console.log('🎯 Canvas clicked - deselecting all widgets');
-
-        // Emitir evento para deseleccionar todos los elementos
-        emit('deselect-all');
-
-        // Ocultar panel de propiedades
-        hidePropertyPanel();
-    }
-}
-
-function handleCreateWidget(event: Event) {
-    const customEvent = event as CustomEvent;
-    const { widgetType, x, y } = customEvent.detail;
-    console.log('🆕 Creating widget:', widgetType, 'at position:', { x, y });
-
-    // Emitir evento para crear nuevo widget
-    emit('create-widget', {
-        type: widgetType,
-        position: { x, y },
-        framework: 'flutter' // Por defecto Flutter
-    });
-}
-
-// Funciones para manejar el panel de propiedades (como en el ejemplo)
-function updateWidgetProperty(property: string, value: any) {
-    console.log('🔧 Updating widget property:', property, value);
-
-    const updatedElement = {
-        ...props.element,
-        props: {
-            ...props.element.props,
-            [property]: value,
-        },
-    };
-
-    emit('update:element', updatedElement);
-    emit('property-change', property, value);
-}
-
-function showPropertyPanel() {
-    const propertyPanel = document.querySelector('.property-panel');
-    if (propertyPanel) {
-        propertyPanel.classList.remove('hidden');
-
-        // Actualizar contenido del panel con las propiedades del elemento
-        updatePropertyPanelContent();
-    }
-}
-
-function hidePropertyPanel() {
-    const propertyPanel = document.querySelector('.property-panel');
-    if (propertyPanel) {
-        propertyPanel.classList.add('hidden');
-        propertyPanel.innerHTML = '<p class="text-gray-500">Selecciona un widget para editar sus propiedades</p>';
-    }
-}
-
-function updatePropertyPanelContent() {
-    const propertyPanel = document.querySelector('.property-panel');
-    if (!propertyPanel || !props.element) return;
-
-    // Crear contenido del panel de propiedades basado en el tipo de widget
-    const content = generatePropertyPanelContent();
-    propertyPanel.innerHTML = content;
-
-    // Agregar event listeners a los inputs del panel
-    setupPropertyPanelListeners();
-}
-
-function generatePropertyPanelContent(): string {
-    const element = props.element;
-
-    let content = `
-        <div class="p-4">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">Propiedades de ${element.type}</h3>
-                <button class="delete-element-btn px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                        data-action="delete" title="Eliminar elemento">
-                    🗑️ Eliminar
-                </button>
-            </div>
-            <div class="space-y-4">
-    `;
-
-    // Información del elemento
-    content += `
-        <div class="bg-gray-50 p-3 rounded-md">
-            <p class="text-sm text-gray-600"><strong>ID:</strong> ${element.id}</p>
-            <p class="text-sm text-gray-600"><strong>Tipo:</strong> ${element.type}</p>
-            <p class="text-sm text-gray-600"><strong>Framework:</strong> ${element.framework}</p>
-        </div>
-    `;
-
-    // Propiedades de posición
-    content += `
-        <div>
-            <h4 class="font-medium text-gray-900 mb-2">Posición</h4>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">X</label>
-                    <input type="number"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           value="${element.position?.x || 0}"
-                           data-property="position.x">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Y</label>
-                    <input type="number"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           value="${element.position?.y || 0}"
-                           data-property="position.y">
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Propiedades comunes
-    content += `
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Texto</label>
-            <input type="text"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   value="${element.props?.text || element.props?.label || ''}"
-                   data-property="text">
-        </div>
-    `;
-
-    // Propiedades específicas según el tipo
-    if (element.type === 'ElevatedButton' || element.type === 'Button') {
-        content += `
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Color de fondo</label>
-                <input type="color"
-                       class="w-full h-10 border border-gray-300 rounded-md"
-                       value="${element.props?.backgroundColor || '#3b82f6'}"
-                       data-property="backgroundColor">
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Color de texto</label>
-                <input type="color"
-                       class="w-full h-10 border border-gray-300 rounded-md"
-                       value="${element.props?.textColor || '#ffffff'}"
-                       data-property="textColor">
-            </div>
-        `;
-    }
-
-    if (element.type === 'TextField' || element.type === 'TextFormField') {
-        content += `
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Placeholder</label>
-                <input type="text"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                       value="${element.props?.hint || element.props?.placeholder || ''}"
-                       data-property="hint">
-            </div>
-        `;
-    }
-
-    if (element.type === 'Card') {
-        content += `
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Elevación</label>
-                <input type="range"
-                       min="0" max="24"
-                       class="w-full"
-                       value="${element.props?.elevation || 1}"
-                       data-property="elevation">
-                <span class="text-sm text-gray-500">${element.props?.elevation || 1}</span>
-            </div>
-        `;
-    }
-
-    // Propiedades de tamaño
-    content += `
-        <div>
-            <h4 class="font-medium text-gray-900 mb-2">Tamaño</h4>
-            <div class="grid grid-cols-2 gap-2">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Ancho</label>
-                    <input type="number"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           value="${element.size?.width || 100}"
-                           data-property="size.width">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Alto</label>
-                    <input type="number"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           value="${element.size?.height || 50}"
-                           data-property="size.height">
-                </div>
-            </div>
-        </div>
-    `;
-
-    content += `
-            </div>
-        </div>
-    `;
-
-    return content;
-}
-
-function setupPropertyPanelListeners() {
-    const propertyPanel = document.querySelector('.property-panel');
-    if (!propertyPanel) return;
-
-    // Event listeners para inputs de texto y número
-    propertyPanel.querySelectorAll('input[type="text"], input[type="number"]').forEach(input => {
-        input.addEventListener('input', (event) => {
-            const target = event.target as HTMLInputElement;
-            const property = target.dataset.property;
-            let value: any = target.value;
-
-            if (property) {
-                // Convertir a número si es necesario
-                if (target.type === 'number') {
-                    value = parseFloat(value) || 0;
-                }
-
-                // Manejar propiedades anidadas
-                if (property.includes('.')) {
-                    updateNestedProperty(property, value);
-                } else {
-                    updateWidgetProperty(property, value);
-                }
-            }
-        });
-    });
-
-    // Event listeners para inputs de color
-    propertyPanel.querySelectorAll('input[type="color"]').forEach(input => {
-        input.addEventListener('change', (event) => {
-            const target = event.target as HTMLInputElement;
-            const property = target.dataset.property;
-            const value = target.value;
-
-            if (property) {
-                updateWidgetProperty(property, value);
-            }
-        });
-    });
-
-    // Event listeners para inputs de rango
-    propertyPanel.querySelectorAll('input[type="range"]').forEach(input => {
-        input.addEventListener('input', (event) => {
-            const target = event.target as HTMLInputElement;
-            const property = target.dataset.property;
-            const value = parseInt(target.value);
-
-            if (property) {
-                updateWidgetProperty(property, value);
-            }
-        });
-    });
-
-    // Event listener para el botón de eliminación
-    const deleteButton = propertyPanel.querySelector('.delete-element-btn');
-    if (deleteButton) {
-        deleteButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            console.log('🗑️ Delete button clicked from property panel');
-            handleDeleteElement();
-        });
-    }
-}
-
-// Nueva función para manejar propiedades anidadas
-function updateNestedProperty(property: string, value: any) {
-    console.log('🔧 Updating nested property:', property, value);
-
-    const [parentKey, childKey] = property.split('.');
-    const updatedElement = { ...props.element };
-
-    if (parentKey === 'position') {
-        updatedElement.position = {
-            x: childKey === 'x' ? value : (updatedElement.position?.x ?? 0),
-            y: childKey === 'y' ? value : (updatedElement.position?.y ?? 0)
-        };
-    } else if (parentKey === 'size') {
-        updatedElement.size = {
-            width: childKey === 'width' ? value : (updatedElement.size?.width ?? 100),
-            height: childKey === 'height' ? value : (updatedElement.size?.height ?? 100)
-        };
-    }
-
-    emit('update:element', updatedElement);
-    emit('property-change', property, value);
-}
 </script>
 
 <template>
     <div ref="elementRef" :style="elementStyle" class="unified-widget-element" :class="{
         'is-selected': isSelected,
-        'is-dragging': isDragging,
-        'is-resizing': isResizing,
+        'is-dragging': interactionService?.getState().isDragging,
+        'is-resizing': false, // No hay lógica de resize aquí, el servicio la maneja
         'selected-widget': isSelected,
         [`framework-${element.framework}`]: true,
         [`widget-${element.type}`]: true,
         'mobile-widget': true,
     }"
-    @click="handleElementClick"
-    @dblclick="handleElementDoubleClick"
-    @mousedown="handleMouseDown"
+
     :data-element-id="element.id"
-    :data-element-type="element.type">
+    :data-element-type="element.type"
+    @click.stop="handleElementClick">
 
-        <!-- Widget Header (estilo PizarraFlutter) - Always visible when selected -->
-        <div v-if="isSelected" class="widget-header">
-            <span class="widget-type">{{ getElementDisplayName(element.type) }}</span>
-            <button class="widget-remove-btn" @click.stop="handleDeleteElement" title="Eliminar">
-                ×
-            </button>
-        </div>
-
-        <!-- Widget content -->
+        <!-- Widget content - Componente real -->
         <div class="widget-content">
             <!-- Renderizar widget real basado en el tipo -->
             <component
@@ -1005,38 +464,80 @@ function updateNestedProperty(property: string, value: any) {
             </component>
         </div>
 
-        <!-- Resize handle (como en el ejemplo) -->
-        <div v-if="isSelected && isEditable" class="resize-handle" @mousedown="handleResizeStart($event, 'bottom-right')"></div>
+        <!-- Properties toggle button - Solo visible cuando está seleccionado -->
+        <button 
+            v-if="isSelected" 
+            class="properties-button" 
+            @click.stop="handleToggleProperties" 
+            title="Abrir/Cerrar propiedades">
+            <span class="material-icons">settings</span>
+        </button>
+
+        <!-- Move button - Solo visible cuando está seleccionado -->
+        <button 
+            v-if="isSelected" 
+            class="move-button" 
+            @mousedown.stop="handleMoveStart" 
+            title="Mover elemento">
+            <span class="material-icons">drag_indicator</span>
+        </button>
+
+        <!-- Delete button - Solo visible cuando está seleccionado -->
+        <button 
+            v-if="isSelected" 
+            class="delete-button" 
+            @click="() => { console.log('🔍 Click detected on delete button for element:', props.element.id); handleDeleteElement(); }"
+            style="position: absolute; top: -10px; right: -10px; width: 30px; height: 30px; background: red; color: white; border: none; border-radius: 50%; cursor: pointer; z-index: 1005; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold;"
+            title="Eliminar elemento">
+            ✕
+        </button>
+        
+        <!-- Debug info -->
+        <div v-if="isSelected" style="position: absolute; top: -30px; left: 0; background: red; color: white; padding: 2px; font-size: 10px; z-index: 1005;">
+            Selected: {{ isSelected }} | ID: {{ element.id }}
+        </div>
+
+        <!-- Resize handle - Solo visible cuando está seleccionado -->
+        <div v-if="isSelected && isEditable" class="resize-handle" data-direction="bottom-right"></div>
     </div>
 </template>
 
 <style scoped>
 /* Estilos base del elemento unificado */
 .unified-widget-element {
-    position: absolute;
+    position: relative;
     transition: all 0.3s ease;
     user-select: none;
     cursor: grab;
     isolation: isolate;
     overflow: visible;
     box-sizing: border-box;
-    border: 1px solid rgba(0, 0, 0, 0.05);
     pointer-events: auto;
     z-index: 1;
     /* Asegurar que el elemento sea interactivo */
     touch-action: none;
+    /* Padding para el borde de selección */
+    padding: 2px;
+    /* Layout vertical */
+    display: block;
+    margin-bottom: 10px;
 }
 
 .unified-widget-element:active {
     cursor: grabbing;
 }
 
+/* Cuando está arrastrando, cambiar a posición absoluta */
+.unified-widget-element.is-dragging {
+    position: absolute !important;
+    z-index: 1001;
+}
+
 /* Estilos de PizarraFlutter para selección visual */
 .mobile-widget {
     margin-bottom: 10px;
     border-radius: 8px;
-    background-color: white;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: transparent;
     overflow: visible;
     transition: all 0.3s ease;
     position: relative;
@@ -1046,74 +547,150 @@ function updateNestedProperty(property: string, value: any) {
 }
 
 :root.dark .mobile-widget {
-    background-color: #1f2937;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    background-color: transparent;
 }
 
 .selected-widget {
-    box-shadow: 0 0 0 2px #23ac4a, 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 0 2px #3b82f6, 0 4px 8px rgba(0, 0, 0, 0.1);
     transform: scale(1.01);
     /* Asegurar que el elemento seleccionado esté por encima */
     z-index: 1000 !important;
+    /* Borde azul que encapsula todo el componente */
+    border: 2px solid #3b82f6;
+    border-radius: 8px;
 }
 
 :root.dark .selected-widget {
-    box-shadow: 0 0 0 2px #23ac4a, 0 4px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 2px #3b82f6, 0 4px 8px rgba(0, 0, 0, 0.3);
+    border: 2px solid #3b82f6;
 }
 
-/* Widget header (estilo PizarraFlutter) */
-.widget-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background-color: #f8f8f8;
-    border-bottom: 1px solid #e0e0e0;
-    transition: background-color 0.2s, border-color 0.2s;
-    /* Asegurar que el header sea clickeable */
-    pointer-events: auto;
+/* Widget content - Componente real */
+.widget-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    /* Permitir que el componente se vea natural */
+    background: transparent;
+    border: none;
+    box-shadow: none;
 }
 
-:root.dark .widget-header {
-    background-color: #111827;
-    border-bottom: 1px solid #374151;
-}
-
-.widget-type {
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
-    transition: color 0.2s;
-}
-
-:root.dark .widget-type {
-    color: #e5e7eb;
-}
-
-.widget-remove-btn {
+/* Properties button - Estilo mejorado */
+.properties-button {
+    position: absolute;
+    top: -8px;
+    left: -8px;
     width: 24px;
     height: 24px;
-    border-radius: 12px;
-    background-color: #ff3b30;
+    border-radius: 50%;
+    background-color: #4f46e5;
     color: white;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 16px;
-    line-height: 1;
-    border: none;
+    border: 2px solid white;
     cursor: pointer;
-    transition: background-color 0.2s;
-    /* Asegurar que el botón sea clickeable */
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
     pointer-events: auto;
 }
 
-:root.dark .widget-remove-btn {
-    background-color: #ef4444;
+.properties-button:hover {
+    background-color: #3730a3;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.widget-remove-btn:hover {
+.properties-button .material-icons {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+:root.dark .properties-button {
+    border-color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Move button - Estilo mejorado */
+.move-button {
+    position: absolute;
+    top: -8px;
+    left: 20px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #10b981;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid white;
+    cursor: grab;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    pointer-events: auto;
+}
+
+.move-button:hover {
+    background-color: #059669;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: grabbing;
+}
+
+.move-button:active {
+    cursor: grabbing;
+    transform: scale(0.95);
+}
+
+.move-button .material-icons {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+:root.dark .move-button {
+    border-color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Delete button - Estilo mejorado */
+.delete-button {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    pointer-events: auto;
+}
+
+.delete-button:hover {
     background-color: #dc2626;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.delete-button .material-icons {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+:root.dark .delete-button {
+    border-color: #1f2937;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* Estados de selección */

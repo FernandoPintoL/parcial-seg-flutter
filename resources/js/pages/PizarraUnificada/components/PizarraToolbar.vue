@@ -5,7 +5,7 @@ import { ref } from 'vue';
 const showTooltips = ref(false);
 
 interface Emits {
-    toggleAIChat: [];
+    toggleAiChat: [];
     toggleImageUpload: [];
     toggleDiagramUpload: [];
     toggleCodeViewer: [];
@@ -30,7 +30,7 @@ const hideTooltip = () => {
 
         <!-- AI Chat Button -->
         <div class="relative group">
-            <button @click="$emit('toggleAIChat')"
+            <button @click="$emit('toggleAiChat')"
                 class="p-4 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm fab-button"
                 title="Chat con IA (Ctrl+Shift+A)">
                 <span class="material-icons text-xl">smart_toy</span>

@@ -1,11 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import PizarraUnificada from '@/pages/PizarraUnificada/PizarraUnificada.vue'
+import PizarraUnificadaCore from '@/pages/PizarraUnificada/components/PizarraUnificadaCore.vue'
 
 const routes = [
     {
         path: '/pizarra-unificada/:id',
         name: 'PizarraUnificada',
-        component: PizarraUnificada,
+        component: PizarraUnificadaCore,
         props: true
     }
 ]

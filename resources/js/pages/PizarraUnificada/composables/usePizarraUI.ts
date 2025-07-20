@@ -18,6 +18,7 @@ export function usePizarraUI() {
 
     // Apply dark mode to DOM
     const applyDarkMode = () => {
+        console.log('🌙 Applying dark mode:', isDarkMode.value);
         if (isDarkMode.value) {
             document.documentElement.classList.add('dark');
         } else {
@@ -65,6 +66,7 @@ export function usePizarraUI() {
     };
 
     const toggleAIChat = () => {
+        console.log('🤖 Toggling AI Chat:', showAIChat.value);
         showAIChat.value = !showAIChat.value;
         if (showAIChat.value) {
             showCollaborationChat.value = false;

@@ -10,6 +10,7 @@ export function useUIControls() {
 
     // Feature panel states
     const showAIChat = ref<boolean>(false);
+    const showAdvancedAIChat = ref<boolean>(false);
     const showCollaborationChat = ref<boolean>(false);
     const showImageUpload = ref<boolean>(false);
     const showDiagramUpload = ref<boolean>(false);
@@ -39,6 +40,7 @@ export function useUIControls() {
     };
 
     const toggleFullscreen = () => {
+        console.log('toggleFullscreen');
         isFullscreen.value = !isFullscreen.value;
         if (isFullscreen.value) {
             document.documentElement.requestFullscreen?.();
@@ -52,6 +54,15 @@ export function useUIControls() {
         showAIChat.value = !showAIChat.value;
         if (showAIChat.value) {
             showCollaborationChat.value = false;
+            showAdvancedAIChat.value = false;
+        }
+    };
+
+    const toggleAdvancedAIChat = () => {
+        showAdvancedAIChat.value = !showAdvancedAIChat.value;
+        if (showAdvancedAIChat.value) {
+            showAIChat.value = false;
+            showCollaborationChat.value = false;
         }
     };
 
@@ -59,6 +70,7 @@ export function useUIControls() {
         showCollaborationChat.value = !showCollaborationChat.value;
         if (showCollaborationChat.value) {
             showAIChat.value = false;
+            showAdvancedAIChat.value = false;
         }
     };
 
@@ -72,6 +84,10 @@ export function useUIControls() {
 
     const toggleCodeViewer = () => {
         showCodeViewer.value = !showCodeViewer.value;
+    };
+
+    const toggleScreenManager = () => {
+        showScreenManager.value = !showScreenManager.value;
     };
 
     // Dark mode toggle
@@ -99,6 +115,7 @@ export function useUIControls() {
 
         // Feature states
         showAIChat,
+        showAdvancedAIChat,
         showCollaborationChat,
         showImageUpload,
         showDiagramUpload,
@@ -112,9 +129,11 @@ export function useUIControls() {
         togglePropertiesPanel,
         togglePanelsCollapse,
         toggleFullscreen,
+        toggleScreenManager, // <-- Agregado aquí
 
         // Feature actions
         toggleAIChat,
+        toggleAdvancedAIChat,
         toggleCollaborationChat,
         toggleImageUpload,
         toggleDiagramUpload,

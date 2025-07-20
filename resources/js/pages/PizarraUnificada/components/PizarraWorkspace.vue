@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { UnifiedScreen, UnifiedElement } from '@/Data/PizarraUnificada';
 import UnifiedWidgetPalette from '../UnifiedWidgetPalette.vue';
 import UnifiedCanvas from '../UnifiedCanvas.vue';
@@ -17,8 +18,8 @@ interface Props {
 
 interface Emits {
     addWidget: [widgetType: string];
-    addElement: [element: UnifiedElement]; // Agregado para manejar elementos completos
-    selectElement: [element: UnifiedElement];
+    addElement: [element: UnifiedElement];
+    selectElement: [element: UnifiedElement | null];
     updateElement: [element: UnifiedElement];
     updateElementProperty: [propertyName: string, value: any];
     removeElement: [element: UnifiedElement];
@@ -26,221 +27,132 @@ interface Emits {
 }
 
 defineProps<Props>();
-defineEmits<Emits>();
+const emit = defineEmits<Emits>();
+function handleDeleteElement(element: any) {
+  emit('removeElement', element);
+  emit('selectElement', null);
+}
+
+// Sidebar state
+const tabs = ['Pizarras', 'Pantallas', 'Componentes'];
+const activeTab = ref('Pizarras');
+const sidebarAccordions = {
+  Pizarras: [
+    { title: 'Mis pizarras', items: ['Pizarra 1', 'Pizarra 2'] },
+    { title: 'Favoritas', items: ['Favorita 1'] }
+  ],
+  Pantallas: [
+    { title: 'Pantallas del proyecto', items: ['Pantalla Principal'] }
+  ],
+  Componentes: [
+    { title: 'Navegación', items: ['Cajón de Navegación', 'Barra'] },
+    { title: 'Entrada', items: ['TextField', 'Checkbox'] }
+  ]
+};
 </script>
 
 <template>
-    <div
-        class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900">
-        <div class="mx-auto p-4">
-            <!-- Main Workspace Container -->
-            <div
-                class="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 overflow-hidden">
-
-                <!-- Status Bar - Compact -->
-                <div
-                    class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b border-gray-200/50 dark:border-gray-700/50 px-4 py-2">
-                    <div class="flex justify-between items-center">
-                        <div class="flex items-center space-x-3">
-                            <div class="flex items-center space-x-2">
-                                <div
-                                    :class="['w-2 h-2 rounded-full', { 'animate-pulse': socketConnected, 'bg-green-400': socketConnected, 'bg-red-400': !socketConnected }]">
-                                </div>
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    {{ currentScreen?.name }}
-                                </span>
-                                <span
-                                    class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
-                                    {{ currentScreen?.elements?.length || 0 }} elem.
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center space-x-2">
-                            <!-- Screen Manager Button - Compact -->
-                            <button @click="$emit('toggleScreenManager')"
-                                class="px-3 py-1 rounded-md transition-all duration-200 border border-gray-200 dark:border-gray-600 backdrop-blur-sm flex items-center space-x-1 bg-white/50 text-gray-700 hover:bg-white/70">
-                                <span class="material-icons text-sm">layers</span>
-                                <span class="text-sm font-medium">Pantallas</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Main Workspace - Compact Layout -->
-                <div class="p-3">
-                    <div class="flex gap-3" :class="{ 'justify-center': isPanelsCollapsed }">
-
-                        <!-- Widget Palette - Compact Mode -->
-                        <div v-if="showWidgetPalette && !isPanelsCollapsed"
-                            class="w-64 transition-all duration-300 transform">
-                            <div
-                                class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50 h-full">
-                                <div class="px-3 py-2 border-b border-gray-200/50 dark:border-gray-700/50">
-                                    <div class="flex items-center space-x-2">
-                                        <span class="material-icons text-blue-500 text-lg">widgets</span>
-                                        <h3 class="font-medium text-sm text-gray-800 dark:text-gray-200">Componentes
-                                        </h3>
-                                    </div>
-                                </div>
-                                <div class="p-2">
-                                    <UnifiedWidgetPalette :available-widgets="availableWidgets"
-                                        :selected-framework="selectedFramework" @add-widget="$emit('addWidget', $event)"
-                                        @drag-start="(widgetType) => console.log('Drag start:', widgetType)"
-                                        @drag-end="() => console.log('Drag end')" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Canvas Area - Maximized for Whiteboard Focus -->
-                        <div class="flex-1 transition-all duration-300">
-                            <div
-                                class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50 min-h-[85vh]">
-                                <div class="px-3 py-2 border-b border-gray-200/50 dark:border-gray-700/50">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-2">
-                                            <span class="material-icons text-green-500 text-lg">design_services</span>
-                                            <h3 class="font-medium text-sm text-gray-800 dark:text-gray-200">Pizarra
-                                            </h3>
-                                        </div>
-                                        <div class="flex items-center space-x-2">
-                                            <div
-                                                class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">
-                                                {{ selectedFramework }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="p-1">
-                                    <UnifiedCanvas :current-screen="currentScreen" :available-widgets="availableWidgets"
-                                        :selected-framework="selectedFramework"
-                                        @select-element="(element) => { console.log('🎯 Canvas select-element:', element.id); $emit('selectElement', element); }"
-                                        @remove-element="(element) => { console.log('🗑️ Canvas remove-element:', element.id); $emit('removeElement', element); }"
-                                        @update-element="(element) => { console.log('📝 Canvas update-element:', element.id); $emit('updateElement', element); }"
-                                        @add-element="(element) => { console.log('➕ Canvas add-element:', element.type, element.framework); $emit('addElement', element); }"
-                                        @drop="(widgetType) => $emit('addWidget', widgetType)" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Properties Panel - Compact Mode -->
-                        <div v-if="showPropertiesPanel && !isPanelsCollapsed"
-                            class="w-64 transition-all duration-300 transform">
-                            <div
-                                class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50 h-full">
-                                <div class="px-3 py-2 border-b border-gray-200/50 dark:border-gray-700/50">
-                                    <div class="flex items-center space-x-2">
-                                        <span class="material-icons text-purple-500 text-lg">tune</span>
-                                        <h3 class="font-medium text-sm text-gray-800 dark:text-gray-200">Propiedades
-                                        </h3>
-                                    </div>
-                                </div>
-                                <div class="p-2">
-                                    <UnifiedPropertiesPanel :selected-element="selectedElement"
-                                        :available-widgets="availableWidgets" :framework="selectedFramework"
-                                        @update-element="(element) => $emit('updateElement', element)"
-                                        @update-property="$emit('updateElementProperty', $event.propertyName, $event.value)"
-                                        @update-color-property="$emit('updateElementProperty', $event.propertyName, $event.value)" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  <div class="workspace-layout flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900">
+    <!-- Sidebar -->
+    <aside class="sidebar bg-white/95 dark:bg-gray-900/90 border-r border-gray-200 dark:border-gray-700 min-w-[240px] max-w-xs flex flex-col h-full shadow-xl">
+      <!-- Tabs -->
+      <div class="flex border-b">
+        <button
+          v-for="tab in tabs"
+          :key="tab"
+          @click="activeTab = tab"
+          :class="['flex-1 py-2 text-center font-semibold transition', activeTab === tab ? 'bg-gradient-to-r from-blue-200 via-purple-200 to-indigo-200 text-blue-900 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200']"
+        >
+          {{ tab }}
+        </button>
+      </div>
+      <!-- Accordions -->
+      <div class="flex-1 overflow-y-auto p-3">
+        <div
+          v-for="section in sidebarAccordions[activeTab as keyof typeof sidebarAccordions]"
+          :key="section.title"
+          class="mb-3"
+        >
+          <details class="group" open>
+            <summary class="font-bold cursor-pointer flex items-center gap-2 py-1 px-2 rounded group-open:bg-blue-50 dark:group-open:bg-blue-900/30">
+              <span class="material-icons text-blue-500 dark:text-blue-300">folder</span>
+              {{ section.title }}
+            </summary>
+            <ul class="pl-6 pt-2">
+              <li v-for="item in section.items" :key="item" class="py-1 px-2 rounded hover:bg-blue-100 dark:hover:bg-blue-800 cursor-pointer">
+                {{ item }}
+              </li>
+            </ul>
+          </details>
         </div>
-    </div>
+      </div>
+    </aside>
+
+    <!-- Canvas centrado -->
+    <main class="flex-1 flex justify-center items-center relative overflow-auto">
+      <div class="canvas-container bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 my-8 mx-auto max-w-3xl min-h-[600px] flex items-center justify-center">
+        <UnifiedCanvas
+          :current-screen="currentScreen"
+          :available-widgets="availableWidgets"
+          :selected-framework="selectedFramework"
+          @select-element="(element) => emit('selectElement', element)"
+          @remove-element="handleDeleteElement"
+          @update-element="(element) => emit('updateElement', element)"
+          @add-element="(element) => emit('addElement', element)"
+        />
+      </div>
+    </main>
+
+    <!-- Panel de propiedades a la derecha -->
+    <aside v-if="showPropertiesPanel && !isPanelsCollapsed" class="properties-panel bg-white/95 dark:bg-gray-900/90 border-l border-gray-200 dark:border-gray-700 w-[340px] max-w-xs flex flex-col h-full shadow-xl">
+      <UnifiedPropertiesPanel
+        :selected-element="selectedElement"
+        :available-widgets="availableWidgets"
+        :framework="selectedFramework"
+        @update-element="(element) => emit('updateElement', element)"
+        @update-property="(propertyName, value) => emit('updateElementProperty', propertyName, value)"
+        @delete-element="handleDeleteElement"
+        @duplicate-element="emit('addElement', $event)"
+      />
+    </aside>
+  </div>
 </template>
 
 <style scoped>
-/* Workspace specific styles */
-.workspace-container {
-    min-height: calc(100vh - 200px);
+.workspace-layout {
+  min-height: 100vh;
 }
-
-.panel-transition {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.sidebar {
+  min-width: 240px;
+  max-width: 320px;
+  border-right: 1px solid #e5e7eb;
+  background: #fff;
+  box-shadow: 2px 0 8px rgba(59, 130, 246, 0.05);
+  z-index: 10;
 }
-
-.panel-card {
-    backdrop-filter: blur(12px);
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+.properties-panel {
+  width: 340px;
+  max-width: 100vw;
+  min-width: 240px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 100vh;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: -2px 0 8px rgba(59, 130, 246, 0.08);
 }
-
-.dark .panel-card {
-    background: rgba(17, 24, 39, 0.8);
-    border: 1px solid rgba(75, 85, 99, 0.3);
-}
-
-.status-indicator {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.element-counter {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 51, 234, 0.1));
-    border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.dark .element-counter {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(147, 51, 234, 0.2));
-    border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-/* Smooth animations for panel visibility */
-.panel-enter-active,
-.panel-leave-active {
-    transition: all 0.3s ease-in-out;
-}
-
-.panel-enter-from {
-    opacity: 0;
-    transform: translateX(-20px);
-}
-
-.panel-leave-to {
-    opacity: 0;
-    transform: translateX(20px);
-}
-
-/* Enhanced scrollbars */
-.custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.5);
-    border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.8);
-}
-
-/* Button hover effects */
-.screen-manager-btn {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(4px);
-    transition: all 0.2s ease-in-out;
-}
-
-.screen-manager-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.dark .screen-manager-btn:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+.canvas-container {
+  min-width: 350px;
+  min-height: 600px;
+  max-width: 900px;
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.08);
+  border-radius: 24px;
+  border: 1.5px solid #e0e7ef;
+  background: linear-gradient(135deg, #f8fafc 80%, #e0e7ef 100%);
+  position: relative;
 }
 </style>

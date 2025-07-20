@@ -14,11 +14,6 @@ const mainNavItems: NavItem[] = [
         href: '/dashboard',
         icon: LayoutGrid,
     },
-    {
-        title: 'Pizarras',
-        href: '/pizarra-unificada',
-        icon: SquareDashedBottomCode,
-    },
 ];
 
 const footerNavItems: NavItem[] = [

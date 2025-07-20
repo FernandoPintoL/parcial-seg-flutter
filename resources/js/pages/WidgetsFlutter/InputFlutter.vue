@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useInput } from '@/composables/useInput';
 
 const props = defineProps<{
   decoration?: string;
@@ -11,15 +12,15 @@ const props = defineProps<{
   label?: string; // Add direct label prop
 }>();
 
-const inputValue = ref(props.value || '');
-
-function handleInput(event: Event) {
-  const target = event.target as HTMLInputElement;
-  inputValue.value = target.value;
-  if (props.onChanged) {
-    props.onChanged(target.value);
+// Usar el composable reutilizable
+const { value: inputValue, handleInput } = useInput({
+  initialValue: props.value || '',
+  onInput: (value: string) => {
+    if (props.onChanged) {
+      props.onChanged(value);
+    }
   }
-}
+});
 
 // Use direct label prop if provided, otherwise extract from decoration
 const label = computed(() => {

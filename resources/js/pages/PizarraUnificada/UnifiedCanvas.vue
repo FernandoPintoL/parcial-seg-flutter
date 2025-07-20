@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { UnifiedElement, UnifiedScreen } from '@/Data/PizarraUnificada';
 import { UnifiedWidgetService } from '@/services/UnifiedWidgetService';
+import { unifiedDragDropService } from '@/services/UnifiedDragDropService';
 import UnifiedWidgetRenderer from './UnifiedWidgetRenderer.vue';
 
 const props = defineProps<{
@@ -17,7 +18,8 @@ const emit = defineEmits([
     'update-element',
     'drag-enter',
     'drag-leave',
-    'drop'
+    'drop',
+    'open-properties-panel'
 ]);
 
 // Track the element being dragged over
@@ -64,6 +66,73 @@ function getFrameworkHeaderIcon(framework: string): string {
 function selectElement(element: UnifiedElement) {
     selectedElementId.value = element.id ?? null;
     emit('select-element', element);
+    
+    // Removido: setTimeout innecesario que causaba actualizaciones constantes
+}
+
+// Handle element deselection
+function deselectElement() {
+    console.log('🔄 Deselecting element:', selectedElementId.value);
+    selectedElementId.value = null;
+    emit('select-element', null);
+}
+
+// Handle click outside canvas
+function handleClickOutside(event: MouseEvent) {
+    const canvasElement = event.currentTarget as HTMLElement;
+    const clickedElement = event.target as HTMLElement;
+    
+    // Verificar si algún elemento está siendo arrastrado
+    const isAnyElementDragging = document.querySelector('.unified-widget-element.is-dragging');
+    if (isAnyElementDragging) {
+        console.log('🚫 Click outside ignored - element is being dragged');
+        return;
+    }
+    
+    // Si el click fue fuera del canvas o en el canvas pero no en un elemento
+    if (!canvasElement.contains(clickedElement) || 
+        clickedElement.classList.contains('canvas-content') ||
+        clickedElement.classList.contains('unified-canvas')) {
+        
+        // Solo deseleccionar si hay un elemento seleccionado
+        if (selectedElementId.value) {
+            console.log('🖱️ Click outside detected, deselecting element');
+            deselectElement();
+        }
+    }
+}
+
+// Handle keyboard events
+function handleKeyDown(event: KeyboardEvent) {
+    // Deseleccionar con Escape
+    if (event.key === 'Escape' && selectedElementId.value) {
+        console.log('⌨️ Escape key pressed, deselecting element');
+        deselectElement();
+        event.preventDefault();
+    }
+}
+
+// Handle canvas click for deselection
+function handleCanvasClick(event: MouseEvent) {
+    const clickedElement = event.target as HTMLElement;
+    
+    // Verificar si algún elemento está siendo arrastrado
+    const isAnyElementDragging = document.querySelector('.unified-widget-element.is-dragging');
+    if (isAnyElementDragging) {
+        console.log('🚫 Canvas click ignored - element is being dragged');
+        return;
+    }
+    
+    // Si el click fue directamente en el canvas (no en un elemento)
+    if (clickedElement.classList.contains('canvas-content') ||
+        clickedElement.classList.contains('unified-canvas') ||
+        clickedElement.classList.contains('unified-frame')) {
+        
+        if (selectedElementId.value) {
+            console.log('🎯 Canvas click detected, deselecting element');
+            deselectElement();
+        }
+    }
 }
 
 // Handle element update
@@ -94,10 +163,7 @@ function deleteElement(element: UnifiedElement) {
         emit('remove-element', element);
         console.log('📤 remove-element event emitted from UnifiedCanvas');
 
-        // Force update UI to reflect the deletion
-        setTimeout(() => {
-            console.log('🔄 Forced UI update after element deletion');
-        }, 50);
+        // Removido: setTimeout innecesario
     } catch (error) {
         console.error('❌ Error in deleteElement function:', error);
     }
@@ -117,30 +183,14 @@ function duplicateElement(element: UnifiedElement) {
 }
 
 function handleDrop(event: DragEvent, targetElementId: string | null = null) {
-    event.preventDefault();
-    dragOverElementId.value = null;
-
-    // Get the widget type from the dataTransfer
-    const widgetType = event.dataTransfer?.getData('widget-type');
-    console.log('🎯 UnifiedCanvas handleDrop called with:', { widgetType, targetElementId, selectedFramework: props.selectedFramework });
-
-    if (!widgetType) {
-        console.warn('⚠️ No widget type found in drag data');
+    const dropResult = unifiedDragDropService.handleDrop(event);
+    
+    if (!dropResult) {
+        console.warn('⚠️ No drop result from service');
         return;
     }
 
-    // Get a canvas container to calculate its width
-    const canvasContainer = document.querySelector('.canvas-content') as HTMLElement;
-    const canvasWidth = canvasContainer ? canvasContainer.clientWidth : 400;
-
-    // Calculate drop position
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    const position = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
-    };
-
-    console.log('📍 Drop position calculated:', position, 'Canvas width:', canvasWidth);
+    console.log('🎯 UnifiedCanvas handleDrop result:', dropResult);
 
     // Create a new element using the service with canvas width
     try {
@@ -148,14 +198,14 @@ function handleDrop(event: DragEvent, targetElementId: string | null = null) {
         console.log('🎯 Target framework for drop:', targetFramework);
 
         const newElement = UnifiedWidgetService.createElement(
-            widgetType,
+            dropResult.widgetType,
             targetFramework,
-            position,
-            canvasWidth // Pass canvas width for full-width widgets
+            dropResult.position,
+            dropResult.canvasWidth
         );
 
         console.log('✨ Element created from drop:', newElement);
-        emit('add-element', newElement, targetElementId);
+        emit('add-element', newElement, dropResult.targetElementId);
         console.log('📤 add-element event emitted');
     } catch (error) {
         console.error('❌ Error creating element from drop:', error);
@@ -178,24 +228,15 @@ function handleWidgetEvent(eventData: any) {
             console.log('📋 Duplicating element via widget event:', element.id);
             duplicateElement(element);
         }
-    }
-}
-
-// Handle keyboard events for element deletion
-function handleKeyDown(event: KeyboardEvent) {
-    // Check if a Delete key was pressed
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-        // Only delete it if we have a selected element
-        if (selectedElementId.value) {
-            console.log('🎯 Delete key pressed with selected element:', selectedElementId.value);
-
-            // Find the selected element
-            const elementToDelete = props.currentScreen.elements.find(el => el.id === selectedElementId.value);
-            if (elementToDelete) {
-                console.log('🗑️ Deleting element via keyboard shortcut:', elementToDelete.id);
-                deleteElement(elementToDelete);
-            }
-        }
+    } else if (eventData.type === 'open-properties') {
+        // Manejar apertura del panel de propiedades
+        console.log('⚙️ Opening properties panel for element:', eventData.elementId);
+        
+        // Emitir evento para seleccionar el elemento y abrir propiedades
+        emit('select-element', eventData.element);
+        
+        // Emitir evento adicional para abrir el panel de propiedades
+        emit('open-properties-panel', eventData.element);
     }
 }
 
@@ -203,49 +244,44 @@ function handleKeyDown(event: KeyboardEvent) {
 onMounted(() => {
     console.log('🔄 Setting up keyboard event listeners');
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('click', handleCanvasClick);
 });
 
 // Clean up event listeners on unmounting
 onUnmounted(() => {
     console.log('🔄 Removing keyboard event listeners');
     document.removeEventListener('keydown', handleKeyDown);
+    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('click', handleCanvasClick);
 });
 </script>
 <template>
-    <div class="unified-canvas" @dragover.prevent @drop="handleDrop($event)">
-        <!-- Enhanced header with better visual design -->
-        <div class="canvas-header">
-            <div class="screen-info">
-                <div class="screen-title-group">
-                    <span class="material-icons screen-icon">{{ getFrameworkHeaderIcon(selectedFramework) }}</span>
-                    <h3 class="screen-name">{{ currentScreen.name }}</h3>
-                </div>
-                <div class="framework-badges">
-                    <span class="framework-badge" :class="`framework-${selectedFramework}`">
-                        <span class="framework-icon">{{ getFrameworkIcon(selectedFramework) }}</span>
-                        {{ selectedFramework.toUpperCase() }}
-                    </span>
-                </div>
-            </div>
-            <div class="canvas-controls">
-                <button class="control-btn" title="Zoom In">
-                    <span class="material-icons">zoom_in</span>
-                </button>
-                <button class="control-btn" title="Zoom Out">
-                    <span class="material-icons">zoom_out</span>
-                </button>
-                <button class="control-btn" title="Fit to Screen">
-                    <span class="material-icons">fit_screen</span>
-                </button>
-                <button class="control-btn" title="Toggle Device Frame" v-if="selectedFramework === 'flutter'">
-                    <span class="material-icons">phone_iphone</span>
-                </button>
-            </div>
-        </div>
-
+    <div class="unified-canvas" @dragover.prevent @drop="handleDrop($event)" @click="handleCanvasClick">
         <!-- Enhanced canvas with framework-specific design -->
         <div class="canvas-container" :class="`canvas-${selectedFramework}`">
             <div class="canvas-grid" :class="`grid-${selectedFramework}`"></div>
+
+            <!-- Deselection button - Solo visible cuando hay un elemento seleccionado -->
+            <button 
+                v-if="selectedElementId" 
+                class="deselect-button"
+                @click.stop="deselectElement"
+                title="Deseleccionar elemento (Escape)">
+                <span class="material-icons">close</span>
+                <span class="deselect-text">Deseleccionar</span>
+            </button>
+
+            <!-- Deselection hint - Aparece brevemente cuando se selecciona un elemento -->
+            <div 
+                v-if="selectedElementId" 
+                class="deselection-hint"
+                :class="{ 'hint-visible': selectedElementId }">
+                <div class="hint-content">
+                    <span class="material-icons">info</span>
+                    <span>Presiona <kbd>Escape</kbd> o haz click fuera para deseleccionar</span>
+                </div>
+            </div>
 
             <!-- Flutter Mobile Frame -->
             <div v-if="selectedFramework === 'flutter'" class="mobile-frame">
@@ -285,7 +321,7 @@ onUnmounted(() => {
 
                         <!-- Phone content area -->
                         <div class="phone-content-area">
-                            <div class="canvas-content framework-flutter">
+                            <div class="canvas-content framework-flutter" @click="handleCanvasClick">
                                 <!-- Flutter widgets content -->
                                 <template v-if="currentElements && currentElements.length > 0">
                                     <UnifiedWidgetRenderer
@@ -369,7 +405,7 @@ onUnmounted(() => {
                         </div>
                     </div>
                     <div class="browser-content">
-                        <div class="canvas-content framework-angular">
+                        <div class="canvas-content framework-angular" @click="handleCanvasClick">
                             <!-- Angular widgets content -->
                             <template v-if="currentElements && currentElements.length > 0">
                                 <UnifiedWidgetRenderer
@@ -411,7 +447,7 @@ onUnmounted(() => {
 
             <!-- Both frameworks view -->
             <div v-else class="unified-frame">
-                <div class="canvas-content framework-both">
+                <div class="canvas-content framework-both" @click="handleCanvasClick">
                     <template v-if="currentElements && currentElements.length > 0">
                         <UnifiedWidgetRenderer
                             v-for="element in currentElements"
@@ -639,6 +675,9 @@ onUnmounted(() => {
     min-height: 100%;
     padding: 20px;
     background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .canvas-element {
@@ -655,9 +694,11 @@ onUnmounted(() => {
 .canvas-flutter {
     background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    align-items: flex-start;
     padding: 20px;
+    width: 100%;
+    min-height: 100%;
 }
 
 .canvas-angular {
@@ -775,8 +816,8 @@ onUnmounted(() => {
 }
 
 .mobile-phone-device {
-    width: 375px;
-    height: 667px;
+    width: 320px;
+    height: 550px;
     background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
     border-radius: 36px;
     box-shadow:
@@ -785,7 +826,7 @@ onUnmounted(() => {
         0 20px 30px rgba(0, 0, 0, 0.3);
     position: relative;
     overflow: hidden;
-    margin: 20px auto;
+    margin: 10px auto;
     display: flex;
     flex-direction: column;
 }
@@ -800,11 +841,11 @@ onUnmounted(() => {
 
 .phone-notch {
     position: absolute;
-    top: 20px;
+    top: 15px;
     left: 50%;
     transform: translateX(-50%);
-    width: 150px;
-    height: 6px;
+    width: 120px;
+    height: 5px;
     background: #333;
     border-radius: 3px;
     z-index: 10;
@@ -950,8 +991,8 @@ onUnmounted(() => {
 
 /* Enhanced Empty State for Mobile */
 .mobile-empty {
-    max-width: 280px;
-    padding: 30px 20px;
+    max-width: 240px;
+    padding: 20px 15px;
 }
 
 .empty-suggestions {
@@ -1052,4 +1093,80 @@ onUnmounted(() => {
         padding: 15px 10px;
     }
 }
+
+/* Deselection Button Styles */
+.deselect-button {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #f44336; /* Red color for deselection */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 100; /* Ensure it's above other elements */
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.deselect-button:hover {
+    background-color: #d32f2f; /* Darker red on hover */
+    opacity: 1;
+}
+
+.dark .deselect-button {
+    background-color: #9a0007; /* Darker red for dark mode */
+}
+
+.dark .deselect-button:hover {
+    background-color: #780000; /* Even darker red for dark mode */
+}
+
+.deselect-text {
+    display: none; /* Hide text by default, show on hover */
+}
+
+.deselect-button:hover .deselect-text {
+    display: inline;
+}
+
+/* Deselection Hint Styles */
+.deselection-hint {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    z-index: 99; /* Ensure it's above other elements */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(5px);
+}
+
+.hint-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.deselection-hint .material-icons {
+    font-size: 20px;
+}
+
 </style>

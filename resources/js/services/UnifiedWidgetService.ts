@@ -1,5 +1,6 @@
 // services/UnifiedWidgetService.ts
 import type { UnifiedElement } from '@/Data/PizarraUnificada';
+import { WidgetUtils } from '@/utils/WidgetUtils';
 
 export class UnifiedWidgetService {
 
@@ -536,197 +537,9 @@ export class UnifiedWidgetService {
      * Crea un nuevo elemento unificado
      */
     static createElement(type: string, framework: 'flutter' | 'angular', position: { x: number, y: number }, canvasWidth?: number): UnifiedElement {
-        console.log('🏗️ UnifiedWidgetService.createElement called with:', { type, framework, position, canvasWidth });
-
-        const widgets = this.getAvailableWidgets(framework);
-        console.log('📋 Available widgets for framework:', framework, 'count:', widgets.length);
-
-        const widgetDefinition = widgets.find(w => w.type === type);
-        console.log('🔍 Widget definition search result:', widgetDefinition);
-
-        if (!widgetDefinition) {
-            console.error('❌ Widget type not found:', { type, framework, availableTypes: widgets.map(w => w.type) });
-            throw new Error(`Widget type "${type}" not found for framework "${framework}"`);
-        }
-
-        const defaultProps: Record<string, any> = {};
-        widgetDefinition.properties.forEach((prop: any) => {
-            defaultProps[prop.name] = prop.defaultValue;
-        });
-
-        console.log('⚙️ Default props generated:', defaultProps);
-
-        // Usar la posición exacta proporcionada sin variación aleatoria
-        const exactPosition = {
-            x: position.x,
-            y: position.y
-        };
-
-        // Definir tamaño por defecto basado en el tipo de widget y ancho del canvas
-        const defaultSize = this.getDefaultSize(type, framework, canvasWidth);
-
-        console.log('📏 Default size calculated:', defaultSize);
-
-        const newElement: UnifiedElement = {
-            id: `unified-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type,
-            framework,
-            properties: defaultProps, // Cambiado de 'props' a 'properties'
-            props: defaultProps, // Agregado para cumplir con UnifiedElement
-            position: exactPosition,
-            size: defaultSize,
-            children: [],
-            zIndex: 1,
-            opacity: 1,
-            transform: 'none',
-        };
-
-        console.log('✅ Element created successfully:', newElement);
-        return newElement;
-    }
-
-    /**
-     * Obtiene el tamaño por defecto para un tipo de widget
-     * Corrige los errores: define los métodos getDefaultWidth y getDefaultHeight como métodos estáticos auxiliares.
-     */
-    static getDefaultSize(type: string, framework: 'flutter' | 'angular', canvasWidth?: number): { width: number, height: number } {
-        // Para Flutter, usar ancho completo del móvil con márgenes
-        if (framework === 'flutter') {
-            const mobileWidth = 300; // Ancho del móvil
-            const mobileMargin = 20; // Margen izquierdo y derecho
-            const availableWidth = mobileWidth - (mobileMargin * 2); // 260px disponible
-
-            // Elementos de formulario ocupan todo el ancho disponible
-            const formElements = ['TextField', 'TextFormField', 'Button', 'ElevatedButton', 'TextButton', 'OutlinedButton', 'Container', 'Text', 'Label', 'Slider', 'DropdownButton', 'Select', 'ListTile'];
-
-            if (formElements.includes(type)) {
-                return {
-                    width: availableWidth,
-                    height: UnifiedWidgetService.getDefaultHeight(type)
-                };
-            }
-
-            // Elementos pequeños mantienen su tamaño
-            const smallElements = ['Icon', 'Switch', 'Radio', 'Checkbox'];
-            if (smallElements.includes(type)) {
-                return {
-                    width: UnifiedWidgetService.getDefaultWidth(type),
-                    height: UnifiedWidgetService.getDefaultHeight(type)
-                };
-            }
-
-            // Elementos de layout ocupan todo el ancho
-            const layoutElements = ['Row', 'Column', 'Padding'];
-            if (layoutElements.includes(type)) {
-                return {
-                    width: availableWidth,
-                    height: UnifiedWidgetService.getDefaultHeight(type)
-                };
-            }
-
-            // Elementos de pantalla completa
-            const fullScreenElements = ['AppBar', 'Scaffold'];
-            if (fullScreenElements.includes(type)) {
-                return {
-                    width: mobileWidth,
-                    height: UnifiedWidgetService.getDefaultHeight(type)
-                };
-            }
-
-            // Por defecto, usar ancho completo para elementos de formulario
-            return {
-                width: availableWidth,
-                height: UnifiedWidgetService.getDefaultHeight(type)
-            };
-        }
-
-        // Para Angular, mantener los tamaños originales
-        return {
-            width: UnifiedWidgetService.getDefaultWidth(type),
-            height: UnifiedWidgetService.getDefaultHeight(type)
-        };
-    }
-
-    /**
-     * Devuelve el ancho por defecto para un tipo de widget
-     */
-    static getDefaultWidth(type: string): number {
-        // Puedes personalizar los valores según el tipo
-        switch (type) {
-            case 'Button':
-            case 'ElevatedButton':
-            case 'TextButton':
-            case 'OutlinedButton':
-            case 'TextField':
-            case 'TextFormField':
-            case 'Container':
-            case 'Slider':
-            case 'DropdownButton':
-            case 'Select':
-            case 'ListTile':
-                return 260;
-            case 'Icon':
-            case 'Switch':
-            case 'Radio':
-            case 'Checkbox':
-                return 40;
-            case 'AppBar':
-            case 'Scaffold':
-                return 300;
-            case 'Row':
-            case 'Column':
-            case 'Padding':
-                return 260;
-            case 'Text':
-            case 'Label':
-                return 120;
-            default:
-                return 120;
-        }
-    }
-
-    /**
-     * Devuelve la altura por defecto para un tipo de widget
-     */
-    static getDefaultHeight(type: string): number {
-        // Puedes personalizar los valores según el tipo
-        switch (type) {
-            case 'Button':
-            case 'ElevatedButton':
-            case 'TextButton':
-            case 'OutlinedButton':
-                return 48;
-            case 'TextField':
-            case 'TextFormField':
-                return 48;
-            case 'Container':
-                return 80;
-            case 'Slider':
-                return 40;
-            case 'DropdownButton':
-            case 'Select':
-                return 48;
-            case 'ListTile':
-                return 56;
-            case 'Icon':
-            case 'Switch':
-            case 'Radio':
-            case 'Checkbox':
-                return 40;
-            case 'AppBar':
-                return 56;
-            case 'Scaffold':
-                return 600;
-            case 'Row':
-            case 'Column':
-            case 'Padding':
-                return 80;
-            case 'Text':
-            case 'Label':
-                return 32;
-            default:
-                return 48;
-        }
+        const availableWidgets = this.getAvailableWidgets(framework);
+        // Usa WidgetUtils para crear el widget
+        return WidgetUtils.createWidget(type, framework, availableWidgets, position);
     }
 
     /**
@@ -746,38 +559,16 @@ export class UnifiedWidgetService {
      * Valida las propiedades de un elemento
      */
     static validateElementProperties(element: UnifiedElement): boolean {
-        const widgets = this.getAvailableWidgets(element.framework);
-        const widgetDefinition = widgets.find(w => w.type === element.type);
-
-        if (!widgetDefinition) {
-            return false;
-        }
-
-        // Validar que todas las propiedades requeridas estén presentes
-        const requiredProps = widgetDefinition.properties.filter((prop: any) => prop.required);
-        for (const prop of requiredProps) {
-            if (!(prop.name in element.props)) {
-                return false;
-            }
-        }
-
-        return true;
+        const availableWidgets = this.getAvailableWidgets(element.framework);
+        return WidgetUtils.validateWidget(element, availableWidgets);
     }
 
     /**
      * Duplica un elemento unificado
+     * @deprecated Use WidgetUtils.duplicateWidget directly
      */
     static duplicateElement(element: UnifiedElement): UnifiedElement {
-        const duplicatedElement: UnifiedElement = {
-            ...element,
-            id: `unified-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            position: element.position ? {
-                x: element.position.x + 20,
-                y: element.position.y + 20
-            } : { x: 120, y: 120 },
-            children: element.children ? element.children.map(child => this.duplicateElement(child)) : []
-        };
-
-        return duplicatedElement;
+        console.warn('⚠️ UnifiedWidgetService.duplicateElement is deprecated. Use WidgetUtils.duplicateWidget directly.');
+        return WidgetUtils.duplicateWidget(element);
     }
 }

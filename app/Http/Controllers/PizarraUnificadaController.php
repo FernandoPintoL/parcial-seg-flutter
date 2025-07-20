@@ -127,7 +127,7 @@ class PizarraUnificadaController extends Controller
         // Obtener pantallas
         $screens = json_decode($pizarra_unificada->screens, true) ?? [];
 
-        return Inertia::render('PizarraUnificada/PizarraUnificada', [
+        return Inertia::render('PizarraUnificada/components/PizarraUnificadaCore', [
             'user' => $user,
             'pizarra' => [
                 'id' => $pizarra_unificada->id,
@@ -164,10 +164,20 @@ class PizarraUnificadaController extends Controller
         try {
             $this->authorize('update', $pizarra_unificada);
 
+            // validar que elements no sea null
+            if ($request->elements === null) {
+                $request->elements = [];
+            } else {
+                // validar que elements sea un array
+                if (!is_array($request->elements)) {
+                    $request->elements = [];
+                }
+            }
+
             $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'type' => 'sometimes|required|in:flutter,angular,both',
-                'elements' => 'sometimes|required|array',
+                //'elements' => 'sometimes|required|array', // acepta array vacío
                 'screens' => 'sometimes|required|array',
                 'description' => 'nullable|string|max:1000',
             ]);

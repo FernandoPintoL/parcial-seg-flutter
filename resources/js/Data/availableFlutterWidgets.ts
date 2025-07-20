@@ -3,7 +3,7 @@ import type { CategoriaWidget, FlutterWidgetDefinition } from '@/Data/Pizarra';
 export const categoriesWidget: CategoriaWidget[] = [
     { id: 3, category: 'input', label: 'Entrada de Datos (Formularios)' },
     { id: 2, category: 'layout', label: 'Layouts y Organización' },
-    { id: 6, category: 'navegation', label: 'Navegación y Rutas' },
+    { id: 6, category: 'navegations', label: 'Navegación y Rutas' },
     /*{ id: 1, category: 'widgets', label: 'Widgets Básicos' },
     { id: 4, category: 'plataforma', label: 'Especificos de Plataforma' },
     { id: 5, category: 'containers', label: 'Contenedores y Decoración' },
