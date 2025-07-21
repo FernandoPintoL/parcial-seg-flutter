@@ -4,7 +4,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import { ref } from 'vue';
 import type { PizarraUnificada } from '@/Data/PizarraUnificada';
+import InvitationModal from '@/components/InvitationModal.vue';
 // import type { User } from '@/types';
 
 // Props
@@ -22,6 +24,27 @@ const props = defineProps({
         default: () => [],
     },
 });
+
+// State for invitation modal
+const showInviteModal = ref(false);
+const selectedPizarra = ref<PizarraUnificada | null>(null);
+
+// Show invitation modal for a specific pizarra
+const showInvitationModal = (pizarra: PizarraUnificada) => {
+    selectedPizarra.value = pizarra;
+    showInviteModal.value = true;
+};
+
+// Handle invitation sent event
+const handleInvitationSent = (email: string) => {
+    Swal.fire({
+        icon: 'success',
+        title: 'Invitación enviada',
+        text: `Se ha enviado una invitación a ${email}`,
+        timer: 2000,
+        showConfirmButton: false
+    });
+};
 
 // Methods
 const createPizarra = () => {
@@ -319,6 +342,10 @@ const formatDate = (dateString: string | undefined) => {
                                         class="text-red-600 hover:text-red-800">
                                         Eliminar
                                     </button>
+                                    <button @click.stop="showInvitationModal(pizarra)"
+                                        class="text-green-600 hover:text-green-800">
+                                        Invitar
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -381,5 +408,14 @@ const formatDate = (dateString: string | undefined) => {
                 </div>
             </div>
         </div>
+
+        <!-- Invitation Modal -->
+        <InvitationModal
+            v-if="showInviteModal"
+            :show="showInviteModal"
+            :pizarra="selectedPizarra"
+            @close="showInviteModal = false"
+            @invitation-sent="handleInvitationSent"
+        />
     </AppLayout>
 </template>

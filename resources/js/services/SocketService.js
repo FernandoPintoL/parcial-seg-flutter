@@ -8,7 +8,7 @@ export class SocketService{
         this.socket = io(config.url, config.options);
         this.roomId = roomId;
         this.currentUser = currentUser;
-        this.socketConnected = true;
+        this.socketConnected = false; // Initialize to false, will be set to true on 'connect' event
         this.socketError = '';
     }
     connect() {

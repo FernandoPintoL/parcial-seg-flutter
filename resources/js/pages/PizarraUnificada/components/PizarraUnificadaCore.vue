@@ -1,30 +1,30 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
 import type { PizarraUnificada, User } from '@/Data/PizarraUnificada';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 // Core Components
-import PizarraHeader from '@/pages/PizarraUnificada/components/PizarraHeader.vue';
-import PizarraWorkspace from '@/pages/PizarraUnificada/components/PizarraWorkspace.vue';
-import PizarraToolbar from '@/pages/PizarraUnificada/components/PizarraToolbar.vue';
-import PizarraModals from '@/pages/PizarraUnificada/components/PizarraModals.vue';
-import ImageUploadModal from '@/pages/PizarraUnificada/components/ImageUploadModal.vue';
-import DiagramUploadModal from '@/pages/PizarraUnificada/components/DiagramUploadModal.vue';
-import CodeViewerModal from '@/pages/PizarraUnificada/components/CodeViewerModal.vue';
-import UnifiedAIChat from '@/pages/Chat/UnifiedAIChat.vue';
 import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
+import UnifiedAIChat from '@/pages/Chat/UnifiedAIChat.vue';
+import CodeViewerModal from '@/pages/PizarraUnificada/components/CodeViewerModal.vue';
+import CollaboratorManagementModal from '@/pages/PizarraUnificada/components/CollaboratorManagementModal.vue';
+import DiagramUploadModal from '@/pages/PizarraUnificada/components/DiagramUploadModal.vue';
+import ImageUploadModal from '@/pages/PizarraUnificada/components/ImageUploadModal.vue';
+import PizarraHeader from '@/pages/PizarraUnificada/components/PizarraHeader.vue';
+import PizarraModals from '@/pages/PizarraUnificada/components/PizarraModals.vue';
+import PizarraToolbar from '@/pages/PizarraUnificada/components/PizarraToolbar.vue';
 import UnifiedCanvas from '../UnifiedCanvas.vue';
 import UnifiedPropertiesPanel from '../UnifiedPropertiesPanel.vue';
 
 // Composables
-import { usePizarraState } from '@/pages/PizarraUnificada/composables/usePizarraState';
 import { useElementManagement } from '@/pages/PizarraUnificada/composables/useElementManagement';
-import { usePizarraServices } from '../composables/usePizarraServices';
-import { useProcessingServices } from '../composables/useProcessingServices';
-import { usePizarraStorage } from '../composables/usePizarraStorage';
 import { usePizarraCollaboration } from '@/pages/PizarraUnificada/composables/usePizarraCollaboration';
+import { usePizarraState } from '@/pages/PizarraUnificada/composables/usePizarraState';
 import { usePizarraUI } from '@/pages/PizarraUnificada/composables/usePizarraUI';
+import { usePizarraServices } from '../composables/usePizarraServices';
+import { usePizarraStorage } from '../composables/usePizarraStorage';
+import { useProcessingServices } from '../composables/useProcessingServices';
 
 // Props
 const props = defineProps<{
@@ -49,46 +49,49 @@ const pizarraState = usePizarraState({ pizarra: props.pizarra });
 // Element Management
 const elementManagement = useElementManagement({
     currentScreen: pizarraState.currentScreen.value,
-    selectedFramework: pizarraState.selectedFramework.value
+    selectedFramework: pizarraState.selectedFramework.value,
 });
 
 // Pizarra Services
 const pizarraServices = usePizarraServices({
     pizarra: props.pizarra,
-    defaultFramework: pizarraState.selectedFramework.value
+    defaultFramework: pizarraState.selectedFramework.value,
 });
 
 // Processing Services
 const processingServices = useProcessingServices({
-    defaultFramework: pizarraState.selectedFramework.value
+    defaultFramework: pizarraState.selectedFramework.value,
 });
 
 // Storage Services
 const storageServices = usePizarraStorage({
-    pizarra: props.pizarra
+    pizarra: props.pizarra,
 });
 
 // Collaboration Management
-const collaboration = usePizarraCollaboration({
-    user: props.user,
-    pizarra: props.pizarra,
-    creador: props.creador,
-    isCreador: props.isCreador,
-    colaboradores: props.colaboradores
-}, {
-    onElementAdded: (element) => {
-        console.log('Element added by collaborator:', element);
+const collaboration = usePizarraCollaboration(
+    {
+        user: props.user,
+        pizarra: props.pizarra,
+        creador: props.creador,
+        isCreador: props.isCreador,
+        colaboradores: props.colaboradores,
     },
-    onElementUpdated: (element) => {
-        console.log('Element updated by collaborator:', element);
+    {
+        onElementAdded: (element) => {
+            console.log('Element added by collaborator:', element);
+        },
+        onElementUpdated: (element) => {
+            console.log('Element updated by collaborator:', element);
+        },
+        onElementDeleted: (elementId) => {
+            console.log('Element deleted by collaborator:', elementId);
+        },
+        onFrameworkSwitched: (framework) => {
+            console.log('Framework switched by collaborator:', framework);
+        },
     },
-    onElementDeleted: (elementId) => {
-        console.log('Element deleted by collaborator:', elementId);
-    },
-    onFrameworkSwitched: (framework) => {
-        console.log('Framework switched by collaborator:', framework);
-    }
-});
+);
 
 // UI State Management
 const {
@@ -98,7 +101,7 @@ const {
     showScreenManager,
     isPanelsCollapsed,
     showAIChat,
-    showCollaborationChat,
+    showCollaborationChat: uiShowCollaborationChat,
     showImageUpload,
     showDiagramUpload,
     showCodeViewer,
@@ -111,18 +114,106 @@ const {
     togglePanelsCollapse,
     toggleFullscreen,
     toggleAIChat,
-    toggleCollaborationChat,
+    toggleCollaborationChat: uiToggleCollaborationChat,
     toggleImageUpload,
     toggleDiagramUpload,
     toggleCodeViewer,
-    applyDarkMode
+    applyDarkMode,
 } = usePizarraUI();
+
+// Collaborator Management State
+const showCollaboratorManagement = ref<boolean>(false);
+
+// Toggle collaborator management modal
+const toggleCollaboratorManagement = () => {
+    // If trying to open the modal
+    if (!showCollaboratorManagement.value) {
+        // Check if socket is connected
+        if (!collaboration.socketConnected.value || !collaboration.collaborationService) {
+            console.warn('Cannot open collaborator management: Socket not connected or collaboration service not available');
+            // Try to initialize collaboration if not already done
+            if (!collaboration.isCollaborating.value) {
+                console.log('Attempting to initialize collaboration...');
+                collaboration.initializeCollaboration();
+            }
+            // Show an alert to the user
+            alert('No se puede abrir la gestión de colaboradores. Verifique su conexión al servidor de sockets.');
+            return;
+        }
+    }
+
+    // Toggle the modal visibility
+    showCollaboratorManagement.value = !showCollaboratorManagement.value;
+};
+
+// Handle collaborator events
+const handleAddCollaborator = async (email: string) => {
+    try {
+        console.log('Adding collaborator with email:', email);
+        // In a real implementation, you would need to find the user ID from the email
+        // For now, we'll just use a placeholder
+
+        //const userEmail = email; // This is a simplification
+
+        const result = await collaboration.addCollaborator(email);
+
+        if (result.success) {
+            console.log('Collaborator added successfully:', result.message);
+            // You might want to refresh the collaborators list here
+        } else {
+            console.error('Failed to add collaborator:', result.error);
+            alert(`Error al agregar colaborador: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error adding collaborator:', error);
+        alert('Error al agregar colaborador. Por favor, inténtelo de nuevo.');
+    }
+};
+
+const handleRemoveCollaborator = async (userId: string) => {
+    try {
+        const result = await collaboration.removeCollaborator(userId);
+
+        if (result.success) {
+            console.log('Collaborator removed successfully:', result.message);
+            // You might want to refresh the collaborators list here
+        } else {
+            console.error('Failed to remove collaborator:', result.error);
+            alert(`Error al eliminar colaborador: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error removing collaborator:', error);
+        alert('Error al eliminar colaborador. Por favor, inténtelo de nuevo.');
+    }
+};
+
+// Custom implementation of toggleCollaborationChat that checks if socket is connected
+const toggleCollaborationChat = () => {
+    // If trying to open the chat
+    if (!uiShowCollaborationChat.value) {
+        // Check if socket is connected
+        if (!collaboration.socketConnected.value || !collaboration.collaborationService) {
+            console.warn('Cannot open chat: Socket not connected or collaboration service not available');
+            // Try to initialize collaboration if not already done
+            if (!collaboration.isCollaborating.value) {
+                console.log('Attempting to initialize collaboration...');
+                collaboration.initializeCollaboration();
+            }
+            // Show an alert to the user
+            alert('No se puede abrir el chat colaborativo. Verifique su conexión al servidor de sockets.');
+            return;
+        }
+    }
+
+    // Toggle the chat visibility
+    uiToggleCollaborationChat();
+};
 
 // Framework switching
 const switchFramework = (framework: 'flutter' | 'angular' | 'both') => {
     pizarraState.switchFramework(framework);
     elementManagement.updateAvailableWidgets();
-    
+
     // Save pizarra
     savePizarra();
 
@@ -135,15 +226,52 @@ const switchFramework = (framework: 'flutter' | 'angular' | 'both') => {
 // Save pizarra function
 const savePizarra = async () => {
     try {
+        // Update the current screen's elements in the screens array to ensure all changes are saved
+        if (pizarraState.currentScreen.value && pizarraState.currentScreenIndex.value >= 0) {
+            const currentIndex = pizarraState.currentScreenIndex.value;
+            if (pizarraState.screens.value[currentIndex]) {
+                // Ensure we're updating the correct screen by matching IDs
+                if (pizarraState.screens.value[currentIndex].id === pizarraState.currentScreen.value.id) {
+                    pizarraState.screens.value[currentIndex].elements = pizarraState.currentScreen.value.elements || [];
+                }
+            }
+        }
+
         await storageServices.savePizarra({
             name: pizarraState.projectName.value,
             type: pizarraState.projectType.value,
             screens: pizarraState.screens.value,
-            elements: pizarraState.currentScreen.value?.elements || []
+            // Removed redundant elements property to avoid confusion
         });
         console.log('✅ Pizarra guardada successfully');
     } catch (error) {
         console.error('❌ Error saving pizarra:', error);
+    }
+};
+
+// Handle code viewer toggle with code generation
+const handleCodeViewerToggle = async () => {
+    try {
+        console.log('🚀 Generating code for framework:', pizarraState.selectedFramework.value);
+
+        // Save pizarra first to ensure all changes are included
+        await savePizarra();
+
+        // Generate code based on the selected framework
+        const result = await pizarraServices.generateCode();
+
+        if (result.success) {
+            console.log('✅ Code generated successfully for:', pizarraState.selectedFramework.value);
+            // Show the code viewer modal
+            toggleCodeViewer();
+        } else {
+            console.error('❌ Error generating code:', result.error);
+            // Show error notification or handle the error
+            alert(`Error generating code: ${result.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('❌ Error in handleCodeViewerToggle:', error);
+        alert('Error generating code. Please try again.');
     }
 };
 
@@ -168,12 +296,12 @@ const addElement = (element: any) => {
 
 const selectElement = (element: any) => {
     elementManagement.selectElement(element);
-    
+
     // Solo abrir el panel de propiedades si hay un elemento seleccionado
     if (element) {
         togglePropertiesPanel();
     } else {
-        // Si element es null, cerrar el panel de propiedades
+        // Sí element és null, cerrar el panel de propiedades
         showPropertiesPanel.value = false;
     }
 };
@@ -182,7 +310,7 @@ const openPropertiesPanel = (element: any) => {
     // Seleccionar el elemento y abrir el panel de propiedades
     elementManagement.selectElement(element);
     togglePropertiesPanel();
-    
+
     console.log('⚙️ Properties panel opened for element:', element.id);
 };
 
@@ -200,10 +328,7 @@ const updateElement = (element: any) => {
 
 const updateElementProperty = (propertyName: string, value: any) => {
     if (elementManagement.selectedElement.value?.id) {
-        const success = elementManagement.updateElementProperties(
-            elementManagement.selectedElement.value.id,
-            { [propertyName]: value }
-        );
+        const success = elementManagement.updateElementProperties(elementManagement.selectedElement.value.id, { [propertyName]: value });
         if (success) {
             savePizarra();
         }
@@ -252,7 +377,7 @@ const setHomeScreen = (index: number) => {
 
 // Function to add AI widgets to canvas
 const addAIWidgetsToCanvas = (widgets: any[]) => {
-    widgets.forEach(widget => {
+    widgets.forEach((widget) => {
         const element = elementManagement.addWidget(widget.type);
         if (element) {
             // Emit to collaboration
@@ -270,7 +395,7 @@ onMounted(() => {
     pizarraState.initializeScreens();
     elementManagement.updateAvailableWidgets();
     applyDarkMode();
-    
+
     console.log('PizarraUnificadaCore mounted');
 });
 
@@ -285,235 +410,288 @@ const pantallas = computed(() => pizarraState.screens.value);
 const componentes = computed(() => elementManagement.availableWidgets.value);
 
 function handleDeleteElement(element: any) {
-  removeElement(element);
-  // No deseleccionar automáticamente para evitar conflictos con drag & drop
-  // elementManagement.deselectElement();
+    removeElement(element);
+    // No deseleccionar automáticamente para evitar conflictos con drag & drop
+    // elementManagement.deselectElement();
 }
 </script>
 
 <template>
-  <div>
-    <Head :title="pizarraState.projectName.value" />
-    <AppLayout :breadcrumbs="breadcrumbs">
-      <!-- Header -->
-      <template #header>
-        <PizarraHeader 
-          :project-name="pizarraState.projectName.value" 
-          :selected-framework="pizarraState.selectedFramework.value"
-          :show-widget-palette="showWidgetPalette" 
-          :show-properties-panel="showPropertiesPanel"
-          :is-panels-collapsed="isPanelsCollapsed" 
-          :is-dark-mode="isDarkMode"
-          @switch-framework="switchFramework" 
-          @toggle-widget-palette="toggleWidgetPalette"
-          @toggle-properties-panel="togglePropertiesPanel" 
-          @toggle-panels-collapse="togglePanelsCollapse"
-          @toggle-fullscreen="toggleFullscreen" 
-          @toggle-dark-mode="toggleDarkMode"
-          @save-pizarra="savePizarra" />
-      </template>
-
-      <!-- Layout con menú lateral fijo y canvas centrado -->
-      <div class="workspace-layout flex h-screen bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900 overflow-hidden">
-        <!-- Menú lateral fijo -->
-        <aside class="sidebar bg-white/95 dark:bg-gray-900/95 border-r border-indigo-200 dark:border-blue-900 w-[300px] flex flex-col h-full shadow-2xl rounded-tr-3xl rounded-br-3xl transition-all duration-300 z-20 flex-shrink-0">
-          <!-- Tabs -->
-          <div class="flex border-b border-indigo-100 dark:border-blue-900 flex-shrink-0">
-            <button
-              v-for="tab in tabs"
-              :key="tab"
-              @click="activeTab = tab"
-              :class="['flex-1 py-2 text-center font-bold tracking-wide transition-all duration-200',
-                activeTab === tab
-                  ? 'bg-gradient-to-r from-indigo-200 via-blue-200 to-purple-200 text-indigo-900 dark:text-white shadow-md scale-105'
-                  : 'hover:bg-indigo-50 dark:hover:bg-blue-900 text-gray-700 dark:text-gray-200']"
-            >
-              {{ tab }}
-            </button>
-          </div>
-          <!-- Contenido dinámico del menú -->
-          <div class="flex-1 overflow-y-auto p-4 transition-all duration-300">
-            <!-- Pantallas -->
-            <template v-if="activeTab === 'Pantallas'">
-              <div class="flex items-center justify-between mb-2">
-                <h3 class="text-indigo-700 dark:text-indigo-200 font-semibold">Pantallas</h3>
-                <button @click="addScreen('Nueva pantalla')" class="ml-2 px-2 py-1 rounded bg-indigo-500 text-white text-xs hover:bg-indigo-600 transition">+ Agregar</button>
-              </div>
-              <ul>
-                <li v-for="(pantalla, idx) in pantallas" :key="pantalla.id" class="py-2 px-3 rounded-lg flex items-center justify-between hover:bg-indigo-100 dark:hover:bg-blue-900 cursor-pointer mb-1"
-                  :class="{'bg-indigo-200 dark:bg-blue-800': pizarraState.currentScreen.value?.id === pantalla.id}">
-                  <span @click="selectScreen(idx)">{{ pantalla.name || 'Pantalla ' + (idx+1) }}</span>
-                  <button @click.stop="deleteScreen(idx)" class="ml-2 text-red-500 hover:text-red-700 text-xs">🗑️</button>
-                </li>
-              </ul>
-            </template>
-            <!-- Elementos (Componentes) -->
-            <template v-else-if="activeTab === 'Elementos'">
-              <h3 class="text-indigo-700 dark:text-indigo-200 font-semibold mb-2">Componentes disponibles</h3>
-              <ul>
-                <li v-for="comp in componentes" :key="comp.type" class="py-2 px-3 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900 cursor-pointer mb-1 flex items-center gap-2"
-                  @click="addWidget(comp.type)">
-                  <span class="material-icons text-indigo-400">widgets</span>
-                  {{ comp.label || comp.type }}
-                </li>
-              </ul>
-            </template>
-            <!-- Propiedades de Elementos -->
-            <template v-else-if="activeTab === 'Propiedades de Elementos'">
-              <template v-if="elementManagement.selectedElement.value">
-                <UnifiedPropertiesPanel
-                  :selected-element="elementManagement.selectedElement.value"
-                  :available-widgets="elementManagement.availableWidgets.value"
-                  :framework="pizarraState.selectedFramework.value"
-                  @update-element="updateElement"
-                  @update-property="updateElementProperty"
-                  @delete-element="handleDeleteElement"
-                  @duplicate-element="addElement"
+    <div>
+        <Head :title="pizarraState.projectName.value" />
+        <AppLayout :breadcrumbs="breadcrumbs">
+            <!-- Header -->
+            <template #header>
+                <PizarraHeader
+                    :project-name="pizarraState.projectName.value"
+                    :selected-framework="pizarraState.selectedFramework.value"
+                    :show-widget-palette="showWidgetPalette"
+                    :show-properties-panel="showPropertiesPanel"
+                    :is-panels-collapsed="isPanelsCollapsed"
+                    :is-dark-mode="isDarkMode"
+                    @switch-framework="switchFramework"
+                    @toggle-widget-palette="toggleWidgetPalette"
+                    @toggle-properties-panel="togglePropertiesPanel"
+                    @toggle-panels-collapse="togglePanelsCollapse"
+                    @toggle-fullscreen="toggleFullscreen"
+                    @toggle-dark-mode="toggleDarkMode"
+                    @save-pizarra="savePizarra"
                 />
-              </template>
-              <template v-else>
-                <div class="flex flex-1 flex-col items-center justify-center text-center text-indigo-400 dark:text-indigo-200 px-6">
-                  <span class="material-icons text-6xl mb-4">touch_app</span>
-                  <p class="text-lg font-semibold mb-2">Selecciona un elemento</p>
-                  <p class="text-sm">Haz click en un elemento del canvas para ver y editar sus propiedades aquí.</p>
-                </div>
-              </template>
             </template>
-          </div>
-        </aside>
 
-        <!-- Canvas centrado -->
-        <main class="flex-1 flex justify-center items-center relative overflow-hidden">
-          <div class="canvas-container bg-white/95 dark:bg-gray-800/95 rounded-3xl shadow-2xl border border-indigo-200 dark:border-blue-900 p-4 mx-4 my-4 w-full h-full max-w-5xl max-h-[calc(100vh-2rem)] flex items-center justify-center transition-all duration-300">
-            <UnifiedCanvas
-              :current-screen="pizarraState.currentScreen.value"
-              :available-widgets="elementManagement.availableWidgets.value"
-              :selected-framework="pizarraState.selectedFramework.value"
-              @select-element="selectElement"
-              @remove-element="handleDeleteElement"
-              @update-element="updateElement"
-              @add-element="addElement"
-              @open-properties-panel="openPropertiesPanel"
+            <!-- Layout con menú lateral fijo y canvas centrado -->
+            <div
+                class="workspace-layout flex h-screen overflow-hidden bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900"
+            >
+                <!-- Menú lateral fijo -->
+                <aside
+                    class="sidebar z-20 flex h-full w-[300px] flex-shrink-0 flex-col rounded-br-3xl rounded-tr-3xl border-r border-indigo-200 bg-white/95 shadow-2xl transition-all duration-300 dark:border-blue-900 dark:bg-gray-900/95"
+                >
+                    <!-- Tabs -->
+                    <div class="flex flex-shrink-0 border-b border-indigo-100 dark:border-blue-900">
+                        <button
+                            v-for="tab in tabs"
+                            :key="tab"
+                            @click="activeTab = tab"
+                            :class="[
+                                'flex-1 py-2 text-center font-bold tracking-wide transition-all duration-200',
+                                activeTab === tab
+                                    ? 'scale-105 bg-gradient-to-r from-indigo-200 via-blue-200 to-purple-200 text-indigo-900 shadow-md dark:text-white'
+                                    : 'text-gray-700 hover:bg-indigo-50 dark:text-gray-200 dark:hover:bg-blue-900',
+                            ]"
+                        >
+                            {{ tab }}
+                        </button>
+                    </div>
+                    <!-- Contenido dinámico del menú -->
+                    <div class="flex-1 overflow-y-auto p-4 transition-all duration-300">
+                        <!-- Pantallas -->
+                        <template v-if="activeTab === 'Pantallas'">
+                            <div class="mb-2 flex items-center justify-between">
+                                <h3 class="font-semibold text-indigo-700 dark:text-indigo-200">Pantallas</h3>
+                                <button
+                                    @click="addScreen('Nueva pantalla')"
+                                    class="ml-2 rounded bg-indigo-500 px-2 py-1 text-xs text-white transition hover:bg-indigo-600"
+                                >
+                                    + Agregar
+                                </button>
+                            </div>
+                            <ul>
+                                <li
+                                    v-for="(pantalla, idx) in pantallas"
+                                    :key="pantalla.id"
+                                    class="mb-1 flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 hover:bg-indigo-100 dark:hover:bg-blue-900"
+                                    :class="{ 'bg-indigo-200 dark:bg-blue-800': pizarraState.currentScreen.value?.id === pantalla.id }"
+                                >
+                                    <span @click="selectScreen(idx)">{{ pantalla.name || 'Pantalla ' + (idx + 1) }}</span>
+                                    <button @click.stop="deleteScreen(idx)" class="ml-2 text-xs text-red-500 hover:text-red-700">🗑️</button>
+                                </li>
+                            </ul>
+                        </template>
+                        <!-- Elementos (Componentes) -->
+                        <template v-else-if="activeTab === 'Elementos'">
+                            <h3 class="mb-2 font-semibold text-indigo-700 dark:text-indigo-200">Componentes disponibles</h3>
+                            <ul>
+                                <li
+                                    v-for="comp in componentes"
+                                    :key="comp.type"
+                                    class="mb-1 flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 hover:bg-purple-100 dark:hover:bg-purple-900"
+                                    @click="addWidget(comp.type)"
+                                >
+                                    <span class="material-icons text-indigo-400">widgets</span>
+                                    {{ comp.label || comp.type }}
+                                </li>
+                            </ul>
+                        </template>
+                        <!-- Propiedades de Elementos -->
+                        <template v-else-if="activeTab === 'Propiedades de Elementos'">
+                            <template v-if="elementManagement.selectedElement.value">
+                                <UnifiedPropertiesPanel
+                                    :selected-element="elementManagement.selectedElement.value"
+                                    :available-widgets="elementManagement.availableWidgets.value"
+                                    :framework="pizarraState.selectedFramework.value"
+                                    @update-element="updateElement"
+                                    @update-property="updateElementProperty"
+                                    @delete-element="handleDeleteElement"
+                                    @duplicate-element="addElement"
+                                />
+                            </template>
+                            <template v-else>
+                                <div class="flex flex-1 flex-col items-center justify-center px-6 text-center text-indigo-400 dark:text-indigo-200">
+                                    <span class="material-icons mb-4 text-6xl">touch_app</span>
+                                    <p class="mb-2 text-lg font-semibold">Selecciona un elemento</p>
+                                    <p class="text-sm">Haz click en un elemento del canvas para ver y editar sus propiedades aquí.</p>
+                                </div>
+                            </template>
+                        </template>
+                    </div>
+                </aside>
+
+                <!-- Canvas centrado -->
+                <main class="relative flex flex-1 items-center justify-center overflow-hidden">
+                    <div
+                        class="canvas-container mx-4 my-4 flex h-full max-h-[calc(100vh-2rem)] w-full max-w-5xl items-center justify-center rounded-3xl border border-indigo-200 bg-white/95 p-4 shadow-2xl transition-all duration-300 dark:border-blue-900 dark:bg-gray-800/95"
+                    >
+                        <UnifiedCanvas
+                            :current-screen="pizarraState.currentScreen.value"
+                            :available-widgets="elementManagement.availableWidgets.value"
+                            :selected-framework="pizarraState.selectedFramework.value"
+                            @select-element="selectElement"
+                            @remove-element="handleDeleteElement"
+                            @update-element="updateElement"
+                            @add-element="addElement"
+                            @open-properties-panel="openPropertiesPanel"
+                        />
+                    </div>
+                </main>
+            </div>
+
+            <!-- Floating Toolbar -->
+            <PizarraToolbar
+                @toggle-ai-chat="toggleAIChat"
+                @toggle-image-upload="toggleImageUpload"
+                @toggle-diagram-upload="toggleDiagramUpload"
+                @toggle-code-viewer="handleCodeViewerToggle"
+                @toggle-collaboration-chat="toggleCollaborationChat"
+                @toggle-collaborator-management="toggleCollaboratorManagement"
             />
-          </div>
-        </main>
-      </div>
 
-      <!-- Floating Toolbar -->
-      <PizarraToolbar 
-        @toggle-ai-chat="toggleAIChat"
-        @toggle-image-upload="toggleImageUpload"
-        @toggle-diagram-upload="toggleDiagramUpload"
-        @toggle-code-viewer="toggleCodeViewer"
-        @toggle-collaboration-chat="toggleCollaborationChat" />
+            <!-- Modals and Overlays -->
+            <PizarraModals
+                :show-screen-manager="showScreenManager"
+                :screens="pizarraState.screens.value"
+                :current-screen-index="pizarraState.currentScreenIndex.value"
+                @close-screen-manager="toggleScreenManager"
+                @add-screen="addScreen"
+                @delete-screen="deleteScreen"
+                @select-screen="selectScreen"
+                @set-home-screen="setHomeScreen"
+            />
 
-      <!-- Modals and Overlays -->
-      <PizarraModals 
-        :show-screen-manager="showScreenManager" 
-        :screens="pizarraState.screens.value"
-        :current-screen-index="pizarraState.currentScreenIndex.value" 
-        @close-screen-manager="toggleScreenManager"
-        @add-screen="addScreen" 
-        @delete-screen="deleteScreen" 
-        @select-screen="selectScreen"
-        @set-home-screen="setHomeScreen" />
+            <!-- AI Chat Modal -->
+            <UnifiedAIChat
+                v-if="showAIChat"
+                :framework="
+                    ['flutter', 'angular', 'both'].includes(pizarraState.selectedFramework.value)
+                        ? pizarraState.selectedFramework.value
+                        : 'vue'
+                "
+                :is-open="showAIChat"
+                :on-close="() => toggleAIChat()"
+                :on-widgets-generated="addAIWidgetsToCanvas"
+            />
+            <!-- Collaborative Chat Modal -->
+            <ChatColaborativo
+                v-if="uiShowCollaborationChat && collaboration.socketConnected.value && collaboration.collaborationService.value && collaboration.socketConfig"
+                :collaboration-service="collaboration.collaborationService.value"
+                :room-id="String(collaboration.roomId.value || '')"
+                :current-user="String(collaboration.currentUser.value || '')"
+                :show-chat="uiShowCollaborationChat"
+                :socket-url="collaboration.socketConfig?.value?.url || 'http://localhost:4000'"
+                @close="toggleCollaborationChat"
+                @send-message="collaboration.emitChatMessage"
+                @typing="collaboration.emitTyping"
+            />
+            <!-- Image Upload Modal -->
+            <ImageUploadModal
+                v-if="showImageUpload"
+                :show="showImageUpload"
+                :selected-image="processingServices.selectedImage.value"
+                :preview-image="processingServices.previewImage.value"
+                :is-processing="processingServices.isProcessingImage.value"
+                @upload="processingServices.handleImageUpload"
+                @clear="processingServices.clearSelectedImage"
+                @process="() => processingServices.processImage(addAIWidgetsToCanvas)"
+                @close="toggleImageUpload"
+            />
+            <!-- Diagram Upload Modal -->
+            <DiagramUploadModal
+                v-if="showDiagramUpload"
+                :show="showDiagramUpload"
+                :selected-file="processingServices.selectedDiagramFile.value"
+                :diagram-content="processingServices.diagramContent.value"
+                :diagram-type="processingServices.diagramType.value"
+                :is-processing="processingServices.isProcessingDiagram.value"
+                @upload="processingServices.handleDiagramFileUpload"
+                @clear="processingServices.clearDiagramData"
+                @process="() => processingServices.processDiagram(pizarraState.selectedFramework.value, addAIWidgetsToCanvas)"
+                @close="toggleDiagramUpload"
+            />
+            <!-- Code Viewer Modal -->
+            <CodeViewerModal
+                v-if="showCodeViewer"
+                :show="showCodeViewer"
+                :code="pizarraServices.generatedCode.value"
+                :framework="pizarraState.selectedFramework.value"
+                @close="() => showCodeViewer = false"
+                @download="() => pizarraServices.downloadCode(pizarraState.projectName.value, pizarraState.selectedFramework.value)"
+                @copy="pizarraServices.copyCode"
+            />
 
-      <!-- AI Chat Modal -->
-      <UnifiedAIChat
-        v-if="showAIChat"
-        :framework="pizarraState.selectedFramework.value as 'flutter' | 'angular' | 'vue' | 'react'"
-        :is-open="showAIChat"
-        :on-close="() => toggleAIChat()"
-        :on-widgets-generated="addAIWidgetsToCanvas" />
-      <!-- Collaborative Chat Modal -->
-      <ChatColaborativo
-        v-if="showCollaborationChat && collaboration.socketConnected.value && collaboration.collaborationService"
-        :collaboration-service="collaboration.collaborationService as any"
-        :room-id="collaboration.roomId.value"
-        :current-user="collaboration.currentUser.value"
-        :show-chat="showCollaborationChat"
-        @close="toggleCollaborationChat"
-        @send-message="collaboration.emitChatMessage"
-        @typing="collaboration.emitTyping" />
-      <!-- Image Upload Modal -->
-      <ImageUploadModal
-        v-if="showImageUpload"
-        :show="showImageUpload"
-        :selected-image="processingServices.selectedImage.value"
-        :preview-image="processingServices.previewImage.value"
-        :is-processing="processingServices.isProcessingImage.value"
-        @upload="processingServices.handleImageUpload"
-        @clear="processingServices.clearSelectedImage"
-        @process="() => processingServices.processImage(addAIWidgetsToCanvas)"
-        @close="toggleImageUpload" />
-      <!-- Diagram Upload Modal -->
-      <DiagramUploadModal
-        v-if="showDiagramUpload"
-        :show="showDiagramUpload"
-        :selected-file="processingServices.selectedDiagramFile.value"
-        :diagram-content="processingServices.diagramContent.value"
-        :diagram-type="processingServices.diagramType.value"
-        :is-processing="processingServices.isProcessingDiagram.value"
-        @upload="processingServices.handleDiagramFileUpload"
-        @clear="processingServices.clearDiagramData"
-        @process="() => processingServices.processDiagram(pizarraState.selectedFramework.value, addAIWidgetsToCanvas)"
-        @close="toggleDiagramUpload" />
-      <!-- Code Viewer Modal -->
-      <CodeViewerModal
-        v-if="showCodeViewer"
-        :show="showCodeViewer"
-        :code="pizarraServices.generatedCode.value"
-        :framework="pizarraState.selectedFramework.value"
-        @close="toggleCodeViewer"
-        @download="() => pizarraServices.downloadCode(pizarraState.projectName.value, pizarraState.selectedFramework.value)"
-        @copy="pizarraServices.copyCode" />
-    </AppLayout>
-  </div>
+            <!-- Collaborator Management Modal -->
+            <CollaboratorManagementModal
+                v-if="showCollaboratorManagement"
+                :show="showCollaboratorManagement"
+                :collaborators="props.colaboradores"
+                :current-user="props.user"
+                :is-creator="props.isCreador"
+                :room-id="String(collaboration.roomId.value || '')"
+                :pizarra-id="String(collaboration.pizarraId.value || '')"
+                @close="toggleCollaboratorManagement"
+                @remove-collaborator="handleRemoveCollaborator"
+                @add-collaborator="handleAddCollaborator"
+            />
+        </AppLayout>
+    </div>
 </template>
 
 <style scoped>
 .workspace-layout {
-  height: 100vh;
-  background: linear-gradient(135deg, #e0e7ff 0%, #f5f3ff 100%);
-  overflow: hidden;
-  display: flex;
+    height: 100vh;
+    background: linear-gradient(135deg, #e0e7ff 0%, #f5f3ff 100%);
+    overflow: hidden;
+    display: flex;
 }
+
 .sidebar {
-  width: 300px;
-  border-right: 1.5px solid #c7d2fe;
-  background: rgba(255,255,255,0.95);
-  box-shadow: 4px 0 24px 0 rgba(99,102,241,0.08);
-  z-index: 20;
-  border-top-right-radius: 2rem;
-  border-bottom-right-radius: 2rem;
-  transition: all 0.3s;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+    width: 300px;
+    border-right: 1.5px solid #c7d2fe;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 4px 0 24px 0 rgba(99, 102, 241, 0.08);
+    z-index: 20;
+    border-top-right-radius: 2rem;
+    border-bottom-right-radius: 2rem;
+    transition: all 0.3s;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
 }
+
 .canvas-container {
-  width: 100%;
-  height: 100%;
-  max-width: 1400px;
-  max-height: calc(100vh - 2rem);
-  box-shadow: 0 8px 32px rgba(99,102,241,0.10);
-  border-radius: 2rem;
-  border: 1.5px solid #c7d2fe;
-  background: linear-gradient(135deg, #f8fafc 80%, #e0e7ef 100%);
-  position: relative;
-  transition: all 0.3s;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 1400px;
+    max-height: calc(100vh - 2rem);
+    box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
+    border-radius: 2rem;
+    border: 1.5px solid #c7d2fe;
+    background: linear-gradient(135deg, #f8fafc 80%, #e0e7ef 100%);
+    position: relative;
+    transition: all 0.3s;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+
 ::-webkit-scrollbar {
-  width: 8px;
-  background: #e0e7ff;
+    width: 8px;
+    background: #e0e7ff;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #c7d2fe;
-  border-radius: 8px;
+    background: #c7d2fe;
+    border-radius: 8px;
 }
-</style> 
+</style>

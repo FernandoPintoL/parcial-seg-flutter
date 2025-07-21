@@ -164,16 +164,6 @@ class PizarraUnificadaController extends Controller
         try {
             $this->authorize('update', $pizarra_unificada);
 
-            // validar que elements no sea null
-            if ($request->elements === null) {
-                $request->elements = [];
-            } else {
-                // validar que elements sea un array
-                if (!is_array($request->elements)) {
-                    $request->elements = [];
-                }
-            }
-
             $request->validate([
                 'name' => 'sometimes|required|string|max:255',
                 'type' => 'sometimes|required|in:flutter,angular,both',
@@ -360,7 +350,7 @@ class PizarraUnificadaController extends Controller
             ], 404);
         }
 
-        $pizarra->collaborators()->detach($user->id);
+        $pizarra_unificada->collaborators()->detach($user->id);
 
         return response()->json([
             'success' => true,
@@ -420,7 +410,7 @@ class PizarraUnificadaController extends Controller
                 ->deleteFileAfterSend(true);
         } else {
             // Descargar archivo individual
-            $fileName = "{$pizarra->name}-{$framework}.txt";
+            $fileName = "{$pizarra_unificada->name}-{$framework}.txt";
 
             return response()->streamDownload(function () use ($code) {
                 echo $code;

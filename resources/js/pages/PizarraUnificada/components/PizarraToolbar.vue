@@ -10,6 +10,7 @@ interface Emits {
     toggleDiagramUpload: [];
     toggleCodeViewer: [];
     toggleCollaborationChat: [];
+    toggleCollaboratorManagement: [];
 }
 
 defineEmits<Emits>();
@@ -102,6 +103,22 @@ const hideTooltip = () => {
             <div v-if="showTooltips"
                 class="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap opacity-90 tooltip">
                 Chat Colaborativo
+                <div
+                    class="absolute left-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-l-4 border-l-gray-900 border-t-2 border-t-transparent border-b-2 border-b-transparent">
+                </div>
+            </div>
+        </div>
+
+        <!-- Collaborator Management Button -->
+        <div class="relative group">
+            <button @click="$emit('toggleCollaboratorManagement')"
+                class="p-4 bg-pink-500 hover:bg-pink-600 text-white rounded-full shadow-2xl transition-all duration-300 hover:scale-110 backdrop-blur-sm fab-button"
+                title="Gestión de Colaboradores">
+                <span class="material-icons text-xl">people</span>
+            </button>
+            <div v-if="showTooltips"
+                class="absolute right-full mr-3 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap opacity-90 tooltip">
+                Gestión de Colaboradores
                 <div
                     class="absolute left-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-l-4 border-l-gray-900 border-t-2 border-t-transparent border-b-2 border-b-transparent">
                 </div>

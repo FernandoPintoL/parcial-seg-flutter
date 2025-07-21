@@ -1,16 +1,26 @@
 // services/UnifiedCollaborationService.ts
 import { SocketService } from '@/services/SocketService';
-import type { PizarraUnificada, UnifiedElement, CollaborationData } from '@/Data/PizarraUnificada';
+import type { UnifiedElement, CollaborationData } from '@/Data/PizarraUnificada';
+
+export interface CollaboratorManagementResult {
+    success: boolean;
+    message?: string;
+    error?: string;
+}
 
 export class UnifiedCollaborationService {
     private socketService: SocketService;
     private roomId: string;
     private currentUser: string;
+    private currentUserId: string;
+    private pizarraId: string;
 
-    constructor(socketConfig: any, roomId: string, currentUser: string) {
+    constructor(socketConfig: any, roomId: string, currentUser: string, currentUserId: string, pizarraId: string) {
         this.socketService = new SocketService(socketConfig, roomId, currentUser);
         this.roomId = roomId;
         this.currentUser = currentUser;
+        this.currentUserId = currentUserId;
+        this.pizarraId = pizarraId;
     }
 
     /**
@@ -168,12 +178,17 @@ export class UnifiedCollaborationService {
      * Emite mensaje de chat
      */
     emitChatMessage(message: string): void {
-        this.socketService.socket.emit('chatMessage', {
+        console.log('usuario actual:', this.currentUser, 'id:', this.currentUserId, 'pizarraId:', this.pizarraId);
+        const chatMessage = {
             roomId: this.roomId,
             message: message,
-            userId: this.currentUser,
+            userId: this.currentUserId,
+            user: this.currentUser,
+            pizarraId: this.pizarraId,
             timestamp: new Date().toISOString()
-        });
+        };
+        console.log('Emitting chat message:', chatMessage);
+        this.socketService.socket.emit('chatMessage', chatMessage);
     }
 
     /**
@@ -264,5 +279,178 @@ export class UnifiedCollaborationService {
      */
     get socket() {
         return this.socketService.socket;
+    }
+
+    /**
+     * Agrega un colaborador a la pizarra
+     * @param email
+     * @param status Estado del colaborador (default: 'active')
+     * @returns Resultado de la operación
+     */
+    addCollaborator(email: string, status: string = 'pending'): Promise<CollaboratorManagementResult> {
+        return new Promise((resolve) => {
+            try {
+                this.socketService.socket.emit('manageCollaborator', {
+                    action: 'add',
+                    pizarraId: this.pizarraId,
+                    userEmail: email,
+                    status: status,
+                    roomId: this.roomId
+                });
+
+                // Escuchar la respuesta del servidor
+                const handleResponse = (data: any) => {
+                    if (data.pizarraId === this.pizarraId && data.action === 'add') {
+                        this.socketService.socket.off('collaboratorUpdate', handleResponse);
+                        resolve({
+                            success: true,
+                            message: `Colaborador ${email} agregado exitosamente`
+                        });
+                    }
+                };
+
+                // Escuchar errores
+                const handleError = (error: any) => {
+                    this.socketService.socket.off('error', handleError);
+                    resolve({
+                        success: false,
+                        error: error.message || 'Error al agregar colaborador'
+                    });
+                };
+
+                this.socketService.socket.on('collaboratorUpdate', handleResponse);
+                this.socketService.socket.on('error', handleError);
+                // Se elimina el timeout, la promesa solo se resuelve con respuesta del servidor
+            } catch (error) {
+                resolve({
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Error desconocido al agregar colaborador'
+                });
+            }
+        });
+    }
+
+    /**
+     * Elimina un colaborador de la pizarra
+     * @param userId ID del usuario a eliminar como colaborador
+     * @returns Resultado de la operación
+     */
+    removeCollaborator(userId: string): Promise<CollaboratorManagementResult> {
+        return new Promise((resolve) => {
+            try {
+                this.socketService.socket.emit('manageCollaborator', {
+                    action: 'remove',
+                    pizarraId: this.pizarraId,
+                    userId: userId,
+                    roomId: this.roomId
+                });
+
+                // Escuchar la respuesta del servidor
+                const handleResponse = (data: any) => {
+                    if (data.pizarraId === this.pizarraId && data.action === 'remove') {
+                        this.socketService.socket.off('collaboratorUpdate', handleResponse);
+                        resolve({
+                            success: true,
+                            message: `Colaborador ${userId} eliminado exitosamente`
+                        });
+                    }
+                };
+
+                // Escuchar errores
+                const handleError = (error: any) => {
+                    this.socketService.socket.off('error', handleError);
+                    resolve({
+                        success: false,
+                        error: error.message || 'Error al eliminar colaborador'
+                    });
+                };
+
+                this.socketService.socket.on('collaboratorUpdate', handleResponse);
+                this.socketService.socket.on('error', handleError);
+
+                // Timeout para evitar que la promesa quede pendiente indefinidamente
+                setTimeout(() => {
+                    this.socketService.socket.off('collaboratorUpdate', handleResponse);
+                    this.socketService.socket.off('error', handleError);
+                    resolve({
+                        success: false,
+                        error: 'Tiempo de espera agotado al eliminar colaborador'
+                    });
+                }, 5000);
+            } catch (error) {
+                resolve({
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Error desconocido al eliminar colaborador'
+                });
+            }
+        });
+    }
+
+    /**
+     * Actualiza el estado de un colaborador
+     * @param userId ID del usuario a actualizar
+     * @param status Nuevo estado del colaborador
+     * @returns Resultado de la operación
+     */
+    updateCollaboratorStatus(userId: string, status: string): Promise<CollaboratorManagementResult> {
+        return new Promise((resolve) => {
+            try {
+                this.socketService.socket.emit('manageCollaborator', {
+                    action: 'update',
+                    pizarraId: this.pizarraId,
+                    userId: userId,
+                    status: status,
+                    roomId: this.roomId
+                });
+
+                // Escuchar la respuesta del servidor
+                const handleResponse = (data: any) => {
+                    if (data.pizarraId === this.pizarraId && data.action === 'update') {
+                        this.socketService.socket.off('collaboratorUpdate', handleResponse);
+                        resolve({
+                            success: true,
+                            message: `Estado del colaborador ${userId} actualizado exitosamente`
+                        });
+                    }
+                };
+
+                // Escuchar errores
+                const handleError = (error: any) => {
+                    this.socketService.socket.off('error', handleError);
+                    resolve({
+                        success: false,
+                        error: error.message || 'Error al actualizar estado del colaborador'
+                    });
+                };
+
+                this.socketService.socket.on('collaboratorUpdate', handleResponse);
+                this.socketService.socket.on('error', handleError);
+
+                // Timeout para evitar que la promesa quede pendiente indefinidamente
+                setTimeout(() => {
+                    this.socketService.socket.off('collaboratorUpdate', handleResponse);
+                    this.socketService.socket.off('error', handleError);
+                    resolve({
+                        success: false,
+                        error: 'Tiempo de espera agotado al actualizar estado del colaborador'
+                    });
+                }, 5000);
+            } catch (error) {
+                resolve({
+                    success: false,
+                    error: error instanceof Error ? error.message : 'Error desconocido al actualizar estado del colaborador'
+                });
+            }
+        });
+    }
+
+    /**
+     * Genera un enlace de invitación para la pizarra
+     * @returns Enlace de invitación
+     */
+    generateInvitationLink(): string {
+        const baseUrl = window.location.origin;
+        const timestamp = new Date().getTime();
+        return `${baseUrl}/pizarra_unificada/join?roomId=${this.roomId}&pizarraId=${this.pizarraId}&t=${timestamp}`;
     }
 }

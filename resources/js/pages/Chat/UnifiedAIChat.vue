@@ -7,7 +7,7 @@ import { unifiedProcessingService } from '@/services/UnifiedProcessingService';
 import { JsonUtils } from '@/utils/JsonUtils';
 
 interface Props {
-    framework: 'flutter' | 'angular' | 'react' | 'vue';
+    framework: 'flutter' | 'angular' | 'react' | 'vue' | 'both';
     isOpen: boolean;
     onClose: () => void;
     onWidgetsGenerated: (widgets: any[]) => void;
@@ -244,7 +244,7 @@ const startRecording = async () => {
 
 const stopRecording = () => {
     if (!isRecording.value) return;
-    
+
     isRecording.value = false;
     if (recordingTimer.value) {
         clearInterval(recordingTimer.value);
@@ -695,4 +695,4 @@ onMounted(() => {
   padding: 0 1rem;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
-</style> 
+</style>

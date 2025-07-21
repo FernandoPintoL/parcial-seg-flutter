@@ -57,22 +57,36 @@ function toggleFloatingChat() {
 function onSubmit() {
     if (!chatMessage.value.trim()) return;
 
-    // Use collaboration service to send message
-    if (props.collaborationService) {
-        props.collaborationService.emitChatMessage(chatMessage.value);
-    } else {
+    try {
+        // Use collaboration service to send message
+        if (props.collaborationService && typeof props.collaborationService.emitChatMessage === 'function') {
+            props.collaborationService.emitChatMessage(chatMessage.value);
+        } else {
+            console.log('Using fallback for sending message');
+            emit('send-message', chatMessage.value);
+        }
+    } catch (error) {
+        console.error('Error sending chat message:', error);
+        // Fallback to emit event if method call fails
         emit('send-message', chatMessage.value);
     }
-    
+
     chatMessage.value = ''; // Limpiar el mensaje después de enviarlo
 }
 
 // Función para el evento de typing
 function onInput() {
-    // Use collaboration service to emit typing
-    if (props.collaborationService) {
-        props.collaborationService.emitTyping();
-    } else {
+    try {
+        // Use collaboration service to emit typing
+        if (props.collaborationService && typeof props.collaborationService.emitTyping === 'function') {
+            props.collaborationService.emitTyping();
+        } else {
+            console.log('Using fallback for typing indicator');
+            emit('typing');
+        }
+    } catch (error) {
+        console.error('Error emitting typing indicator:', error);
+        // Fallback to emit event if method call fails
         emit('typing');
     }
 }
@@ -86,34 +100,58 @@ watch(() => props.showChat, (newValue) => {
 });
 
 onMounted(() => {
-    loadChatMessages();
+    try {
+        // Load chat messages with error handling
+        loadChatMessages().catch(error => {
+            console.error('Error loading chat messages:', error);
+        });
 
-    // If chat is already open when component is mounted, scroll to bottom
-    if (props.showChat) {
-        setTimeout(scrollToBottom, 100);
-    }
+        // If chat is already open when component is mounted, scroll to bottom
+        if (props.showChat) {
+            setTimeout(scrollToBottom, 100);
+        }
 
-    // Solo agregar listeners si el servicio de colaboración existe y tiene socket
-    if (!props.collaborationService || !props.collaborationService.socket) {
-        console.warn('ChatColaborativo: No collaboration service or socket available');
-        return;
+        // Validate collaboration service and socket
+        if (!props.collaborationService) {
+            console.warn('ChatColaborativo: No collaboration service available');
+            return;
+        }
+
+        if (!props.collaborationService.socket) {
+            console.warn('ChatColaborativo: No socket available in collaboration service');
+            return;
+        }
+
+        // Safely set up socket event listeners
+        setupSocketEventListeners();
+    } catch (error) {
+        console.error('ChatColaborativo: Error in onMounted:', error);
     }
+});
+
+// Helper function to set up socket event listeners with proper error handling
+function setupSocketEventListeners() {
+    if (!props.collaborationService || !props.collaborationService.socket) return;
 
     try {
+        const socket = props.collaborationService.socket;
+
         // Escucha el evento de mensajes del servidor
-        props.collaborationService.socket.on('chatMessage', (message: Chats) => {
+        socket.on('chatMessage', (message: Chats) => {
             try {
-                chatMessages.value.push(message);
-                scrollToBottom();
+                if (message) {
+                    chatMessages.value.push(message);
+                    scrollToBottom();
+                }
             } catch (error) {
                 console.error('Error al procesar mensaje de chat:', error);
             }
         });
 
         // Escucha el evento de historial de chat
-        props.collaborationService.socket.on('chatHistory', (data: { messages: Chats[], roomId: string }) => {
+        socket.on('chatHistory', (data: { messages: Chats[], roomId: string }) => {
             try {
-                if (data && data.messages && data.roomId === props.roomId) {
+                if (data && Array.isArray(data.messages) && data.roomId === props.roomId) {
                     chatMessages.value = data.messages;
                     scrollToBottom();
                 }
@@ -123,7 +161,7 @@ onMounted(() => {
         });
 
         // Escucha el evento de usuarios escribiendo (escribiendo = typing in Spanish)
-        props.collaborationService.socket.on('escribiendo', (typingInfo: { user: string }) => {
+        socket.on('escribiendo', (typingInfo: { user: string }) => {
             try {
                 if (typingInfo && typingInfo.user) {
                     chatTyping.typing = `${typingInfo.user} está escribiendo...`;
@@ -137,11 +175,16 @@ onMounted(() => {
             }
         });
 
+        // Add error event listener
+        socket.on('error', (error: any) => {
+            console.error('Socket error:', error);
+        });
+
         console.log('ChatColaborativo: Event listeners set up successfully');
     } catch (error) {
         console.error('ChatColaborativo: Error setting up event listeners:', error);
     }
-});
+}
 </script>
 <template>
     <div v-if="showChat"

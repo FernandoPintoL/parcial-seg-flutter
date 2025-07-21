@@ -132,6 +132,7 @@ const widgetComponent = computed(() => {
     return widgetMap[props.element.type] || BasicElement;
 });
 
+/*
 const widgetProps = computed(() => {
     // Ensure properties exist, even if empty
     const elementProperties = props.element.properties || {};
@@ -171,6 +172,7 @@ const widgetProps = computed(() => {
         ...baseProps,
     };
 });
+*/
 
 // Event handlers
 function handlePropertyChange(property: string, value: any) {
@@ -189,16 +191,16 @@ function handlePropertyChange(property: string, value: any) {
 function handleDeleteElement() {
     console.log('🗑️ Delete element requested from UnifiedWidgetRenderer:', props.element.id);
     console.log('🗑️ Element details:', { id: props.element.id, type: props.element.type, framework: props.element.framework });
-    
+
     // Emitir el evento de eliminación
     emit('delete-element', props.element);
-    
+
     console.log('📤 delete-element event emitted from UnifiedWidgetRenderer');
 }
 
 function handleElementClick() {
     console.log('🖱️ Element clicked:', props.element.id);
-    
+
     // Verificar si no está siendo arrastrado
     if (!interactionService?.getState().isDragging) {
         console.log('✅ Emitting select event for element:', props.element.id);
@@ -208,30 +210,30 @@ function handleElementClick() {
     }
 }
 
-function handleDuplicateElement() {
+/*function handleDuplicateElement() {
     console.log('📋 Duplicate element requested:', props.element.id);
     emit('duplicate-element', props.element);
-}
+}*/
 
 function handleToggleProperties() {
     console.log('⚙️ Toggle properties requested for:', props.element.id);
-    
+
     // Emitir evento para abrir el panel de propiedades
     emit('widget-event', {
         type: 'open-properties',
         elementId: props.element.id,
         element: props.element
     });
-    
+
     // También emitir el evento de selección para asegurar que el elemento esté seleccionado
     emit('select', props.element);
 }
 
 function handleMoveStart(event: MouseEvent) {
-    console.log('🖱️ Move start on element:', props.element.type, props.element.id);
+    console.log('🖱️ mover start on element:', props.element.type, props.element.id);
     // El servicio de interacciones manejará esto automáticamente
 }
-
+/*
 // Función para obtener el nombre de visualización del elemento
 function getElementDisplayName(type: string): string {
     const nameMap: Record<string, string> = {
@@ -264,7 +266,7 @@ function getElementDisplayName(type: string): string {
         'h3': 'Título 3',
     };
     return nameMap[type] || type;
-}
+}*/
 
 // Función para obtener el componente real de Flutter
 function getRealWidgetComponent(type: string) {
@@ -465,33 +467,33 @@ onUnmounted(() => {
         </div>
 
         <!-- Properties toggle button - Solo visible cuando está seleccionado -->
-        <button 
-            v-if="isSelected" 
-            class="properties-button" 
-            @click.stop="handleToggleProperties" 
+        <button
+            v-if="isSelected"
+            class="properties-button"
+            @click.stop="handleToggleProperties"
             title="Abrir/Cerrar propiedades">
             <span class="material-icons">settings</span>
         </button>
 
         <!-- Move button - Solo visible cuando está seleccionado -->
-        <button 
-            v-if="isSelected" 
-            class="move-button" 
-            @mousedown.stop="handleMoveStart" 
+        <button
+            v-if="isSelected"
+            class="move-button"
+            @mousedown.stop="handleMoveStart"
             title="Mover elemento">
             <span class="material-icons">drag_indicator</span>
         </button>
 
         <!-- Delete button - Solo visible cuando está seleccionado -->
-        <button 
-            v-if="isSelected" 
-            class="delete-button" 
+        <button
+            v-if="isSelected"
+            class="delete-button"
             @click="() => { console.log('🔍 Click detected on delete button for element:', props.element.id); handleDeleteElement(); }"
             style="position: absolute; top: -10px; right: -10px; width: 30px; height: 30px; background: red; color: white; border: none; border-radius: 50%; cursor: pointer; z-index: 1005; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold;"
             title="Eliminar elemento">
             ✕
         </button>
-        
+
         <!-- Debug info -->
         <div v-if="isSelected" style="position: absolute; top: -30px; left: 0; background: red; color: white; padding: 2px; font-size: 10px; z-index: 1005;">
             Selected: {{ isSelected }} | ID: {{ element.id }}

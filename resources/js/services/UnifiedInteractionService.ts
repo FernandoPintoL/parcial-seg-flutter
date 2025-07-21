@@ -53,25 +53,56 @@ export class UnifiedInteractionService {
 
         if (!this.options.isEditable) return;
 
-        // Agregar event listeners solo para drag & drop
-        elementRef.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        // Removido: elementRef.addEventListener('click', this.handleClick.bind(this));
-        elementRef.addEventListener('dblclick', this.handleDoubleClick.bind(this));
+        // Agregar event listeners para drag & drop y selección
+        const boundMouseDown = this.handleMouseDown.bind(this);
+        const boundClick = this.handleClick.bind(this);
+        const boundDoubleClick = this.handleDoubleClick.bind(this);
+
+        elementRef.addEventListener('mousedown', boundMouseDown);
+        elementRef.addEventListener('click', boundClick);
+        elementRef.addEventListener('dblclick', boundDoubleClick);
+
+        // Almacenar referencias a los event handlers para poder removerlos correctamente
+        elementRef._boundMouseDown = boundMouseDown;
+        elementRef._boundClick = boundClick;
+        elementRef._boundDoubleClick = boundDoubleClick;
     }
+
+    // Referencias a los event handlers globales
+    private boundMouseMove: ((event: MouseEvent) => void) | null = null;
+    private boundMouseUp: ((event: MouseEvent) => void) | null = null;
 
     /**
      * Limpia las interacciones
      */
     cleanup(): void {
         if (this.elementRef) {
-            this.elementRef.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-            // Removido: this.elementRef.removeEventListener('click', this.handleClick.bind(this));
-            this.elementRef.removeEventListener('dblclick', this.handleDoubleClick.bind(this));
+            // Usar las referencias almacenadas para remover los event listeners correctamente
+            if (this.elementRef._boundMouseDown) {
+                this.elementRef.removeEventListener('mousedown', this.elementRef._boundMouseDown);
+            }
+            if (this.elementRef._boundClick) {
+                this.elementRef.removeEventListener('click', this.elementRef._boundClick);
+            }
+            if (this.elementRef._boundDoubleClick) {
+                this.elementRef.removeEventListener('dblclick', this.elementRef._boundDoubleClick);
+            }
+
+            // Limpiar referencias
+            delete this.elementRef._boundMouseDown;
+            delete this.elementRef._boundClick;
+            delete this.elementRef._boundDoubleClick;
         }
-        
+
         // Limpiar event listeners globales
-        document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+        if (this.boundMouseMove) {
+            document.removeEventListener('mousemove', this.boundMouseMove);
+            this.boundMouseMove = null;
+        }
+        if (this.boundMouseUp) {
+            document.removeEventListener('mouseup', this.boundMouseUp);
+            this.boundMouseUp = null;
+        }
     }
 
     /**
@@ -101,7 +132,7 @@ export class UnifiedInteractionService {
         const canvas = this.options.canvasProvider.getCanvasContainer();
         if (!canvas) return;
 
-        const canvasRect = canvas.getBoundingClientRect();
+        // Solo necesitamos el rectángulo del elemento para calcular el offset
         const elementRect = this.elementRef.getBoundingClientRect();
 
         this.state.dragOffset = {
@@ -117,9 +148,11 @@ export class UnifiedInteractionService {
         // Agregar clase visual
         this.elementRef.classList.add('is-dragging');
 
-        // Event listeners globales
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        // Event listeners globales con referencias almacenadas
+        this.boundMouseMove = this.handleMouseMove.bind(this);
+        this.boundMouseUp = this.handleMouseUp.bind(this);
+        document.addEventListener('mousemove', this.boundMouseMove);
+        document.addEventListener('mouseup', this.boundMouseUp);
     }
 
     /**
@@ -129,7 +162,7 @@ export class UnifiedInteractionService {
         if (!this.currentElement || !this.elementRef) return;
 
         const direction = (event.target as HTMLElement).dataset.direction || 'bottom-right';
-        
+
         this.state.isResizing = true;
         this.state.resizeDirection = direction;
         this.state.resizeStartSize = {
@@ -137,9 +170,11 @@ export class UnifiedInteractionService {
             height: this.currentElement.size?.height || 100,
         };
 
-        // Event listeners globales
-        document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        // Event listeners globales con referencias almacenadas
+        this.boundMouseMove = this.handleMouseMove.bind(this);
+        this.boundMouseUp = this.handleMouseUp.bind(this);
+        document.addEventListener('mousemove', this.boundMouseMove);
+        document.addEventListener('mouseup', this.boundMouseUp);
     }
 
     /**
@@ -260,9 +295,15 @@ export class UnifiedInteractionService {
             this.endResize();
         }
 
-        // Limpiar event listeners globales
-        document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-        document.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+        // Limpiar event listeners globales usando las referencias almacenadas
+        if (this.boundMouseMove) {
+            document.removeEventListener('mousemove', this.boundMouseMove);
+            this.boundMouseMove = null;
+        }
+        if (this.boundMouseUp) {
+            document.removeEventListener('mouseup', this.boundMouseUp);
+            this.boundMouseUp = null;
+        }
     }
 
     /**
@@ -370,4 +411,4 @@ export class UnifiedInteractionService {
     isEditable(): boolean {
         return this.options.isEditable;
     }
-} 
+}

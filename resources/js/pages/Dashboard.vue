@@ -3,6 +3,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import InvitationModal from '@/components/InvitationModal.vue';
+import Swal from 'sweetalert2';
 
 // Props interface
 interface Pizarra {
@@ -33,6 +35,27 @@ const selectedView = ref<'overview' | 'owned' | 'collaborating' | 'pending'>('ov
 const searchQuery = ref('');
 const sortBy = ref<'name' | 'date' | 'type'>('date');
 const isLoading = ref(false);
+
+// State for invitation modal
+const showInviteModal = ref(false);
+const selectedPizarra = ref<Pizarra | null>(null);
+
+// Show invitation modal for a specific pizarra
+const showInvitationModal = (pizarra: Pizarra) => {
+    selectedPizarra.value = pizarra;
+    showInviteModal.value = true;
+};
+
+// Handle invitation sent event
+const handleInvitationSent = (email: string) => {
+    Swal.fire({
+        icon: 'success',
+        title: 'Invitación enviada',
+        text: `Se ha enviado una invitación a ${email}`,
+        timer: 2000,
+        showConfirmButton: false
+    });
+};
 
 // Computed properties
 const filteredOwnedPizarras = computed(() => {
@@ -378,6 +401,11 @@ onMounted(() => {
                                         class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
                                         <span class="material-icons text-sm">delete</span>
                                     </button>
+                                    <button
+                                        @click.stop="showInvitationModal(pizarra)"
+                                        class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all">
+                                        <span class="material-icons text-sm">person_add</span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -449,6 +477,11 @@ onMounted(() => {
                                 <button
                                     class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
                                     <span class="material-icons text-sm">delete</span>
+                                </button>
+                                <button
+                                    @click.stop="showInvitationModal(pizarra)"
+                                    class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all">
+                                    <span class="material-icons text-sm">person_add</span>
                                 </button>
                             </div>
                         </div>
@@ -569,6 +602,15 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+
+        <!-- Invitation Modal -->
+        <InvitationModal
+            v-if="showInviteModal"
+            :show="showInviteModal"
+            :pizarra="selectedPizarra"
+            @close="showInviteModal = false"
+            @invitation-sent="handleInvitationSent"
+        />
     </AppLayout>
 </template>
 

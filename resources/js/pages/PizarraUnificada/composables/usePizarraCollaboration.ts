@@ -1,4 +1,4 @@
-import { ref, onUnmounted, computed } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import type { User, PizarraUnificada, UnifiedElement } from '@/Data/PizarraUnificada';
 import { UnifiedCollaborationService } from '@/services/UnifiedCollaborationService';
 import { getSocketConfig } from '@/lib/socketConfig';
@@ -36,9 +36,11 @@ export function usePizarraCollaboration(
     const socketConfig = ref(getSocketConfig(useLocalSocket.value));
     const roomId = ref<string | null>(props.pizarra?.room_id || null);
     const currentUser = ref(props.user?.name || 'Usuario');
+    const currentUserId = ref(props.user?.id || '');
+    const pizarraId = ref(props.pizarra?.id || '');
 
-    // Computed service
-    const service = computed(() => collaborationService.value);
+    // We don't need this computed property as we're using collaborationService directly
+    // const service = computed(() => collaborationService.value);
 
     // Initialize collaboration
     const initializeCollaboration = () => {
@@ -55,11 +57,13 @@ export function usePizarraCollaboration(
 
         try {
             console.log('Creating UnifiedCollaborationService with config:', socketConfig.value);
-            
+
             collaborationService.value = new UnifiedCollaborationService(
                 socketConfig.value,
                 roomId.value,
-                currentUser.value
+                currentUser.value,
+                currentUserId.value.toString(),
+                pizarraId.value.toString()
             );
 
             console.log('Collaboration service created:', collaborationService.value);
@@ -69,7 +73,9 @@ export function usePizarraCollaboration(
 
             // Connect to collaboration service
             collaborationService.value.connect();
-            socketConnected.value = true;
+
+            // Don't set socketConnected to true here
+            // It will be set by the 'connect' event handler
             isCollaborating.value = true;
 
             console.log('Collaboration service initialized successfully');
@@ -219,6 +225,35 @@ export function usePizarraCollaboration(
         cleanup();
     });
 
+    // Collaborator management methods
+    const addCollaborator = async (email: string, status: string = 'pending') => {
+        if (collaborationService.value && isCollaborating.value) {
+            return await collaborationService.value.addCollaborator(email, status);
+        }
+        return { success: false, error: 'Collaboration service not available' };
+    };
+
+    const removeCollaborator = async (userId: string) => {
+        if (collaborationService.value && isCollaborating.value) {
+            return await collaborationService.value.removeCollaborator(userId);
+        }
+        return { success: false, error: 'Collaboration service not available' };
+    };
+
+    const updateCollaboratorStatus = async (userId: string, status: string) => {
+        if (collaborationService.value && isCollaborating.value) {
+            return await collaborationService.value.updateCollaboratorStatus(userId, status);
+        }
+        return { success: false, error: 'Collaboration service not available' };
+    };
+
+    const generateInvitationLink = () => {
+        if (collaborationService.value && isCollaborating.value) {
+            return collaborationService.value.generateInvitationLink();
+        }
+        return '';
+    };
+
     return {
         // State
         collaborationService,
@@ -228,6 +263,9 @@ export function usePizarraCollaboration(
         currentUser,
         roomId,
         showChat,
+        socketConfig, // Expose socketConfig
+        currentUserId,
+        pizarraId,
 
         // Methods
         initializeCollaboration,
@@ -240,6 +278,12 @@ export function usePizarraCollaboration(
         toggleChat,
         reconnect,
         disconnect,
-        cleanup
+        cleanup,
+
+        // Collaborator management methods
+        addCollaborator,
+        removeCollaborator,
+        updateCollaboratorStatus,
+        generateInvitationLink
     };
 }
