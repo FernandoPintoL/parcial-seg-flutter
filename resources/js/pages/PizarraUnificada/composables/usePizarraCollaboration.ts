@@ -44,11 +44,11 @@ export function usePizarraCollaboration(
 
     // Initialize collaboration
     const initializeCollaboration = () => {
-        console.log('Initializing collaboration with:', {
+        /*console.log('Initializing collaboration with:', {
             roomId: roomId.value,
             currentUser: currentUser.value,
             pizarra: props.pizarra
-        });
+        });*/
 
         if (!roomId.value) {
             console.warn('No room ID provided for collaboration');
@@ -65,9 +65,6 @@ export function usePizarraCollaboration(
                 currentUserId.value.toString(),
                 pizarraId.value.toString()
             );
-
-            console.log('Collaboration service created:', collaborationService.value);
-
             // Setup event listeners
             setupEventListeners();
 
@@ -77,8 +74,6 @@ export function usePizarraCollaboration(
             // Don't set socketConnected to true here
             // It will be set by the 'connect' event handler
             isCollaborating.value = true;
-
-            console.log('Collaboration service initialized successfully');
         } catch (error) {
             console.error('Failed to initialize collaboration:', error);
             socketConnected.value = false;
@@ -92,22 +87,42 @@ export function usePizarraCollaboration(
 
         const service = collaborationService.value;
 
-        // Element events
-        service.socket.on('element-added', (data: { element: UnifiedElement; screenId: string; userId: string }) => {
+        // Element events - listen for both unified and flutter events for compatibility
+        // Unified element events
+        service.socket.on('unified-element-added', (data: { element: UnifiedElement; screenId: string; userId: string }) => {
             if (data.userId !== currentUser.value) {
                 callbacks.onElementAdded?.(data.element, data.screenId);
             }
         });
 
-        service.socket.on('element-updated', (data: { element: UnifiedElement; screenId: string; userId: string }) => {
+        service.socket.on('unified-element-updated', (data: { element: UnifiedElement; screenId: string; userId: string }) => {
             if (data.userId !== currentUser.value) {
                 callbacks.onElementUpdated?.(data.element, data.screenId);
             }
         });
 
-        service.socket.on('element-deleted', (data: { elementId: string; screenId: string; userId: string }) => {
+        service.socket.on('unified-element-deleted', (data: { elementId: string; screenId: string; userId: string }) => {
             if (data.userId !== currentUser.value) {
                 callbacks.onElementDeleted?.(data.elementId, data.screenId);
+            }
+        });
+
+        // Flutter widget events (for backward compatibility)
+        service.socket.on('flutter-widget-added', (data: { widget: UnifiedElement; screenId: string; userId: string }) => {
+            if (data.userId !== currentUser.value) {
+                callbacks.onElementAdded?.(data.widget, data.screenId);
+            }
+        });
+
+        service.socket.on('flutter-widget-updated', (data: { widget: UnifiedElement; screenId: string; userId: string }) => {
+            if (data.userId !== currentUser.value) {
+                callbacks.onElementUpdated?.(data.widget, data.screenId);
+            }
+        });
+
+        service.socket.on('flutter-widget-removed', (data: { widgetIndex: string; screenId: string; userId: string }) => {
+            if (data.userId !== currentUser.value) {
+                callbacks.onElementDeleted?.(data.widgetIndex, data.screenId);
             }
         });
 
@@ -134,7 +149,7 @@ export function usePizarraCollaboration(
         // Connection events
         service.socket.on('connect', () => {
             socketConnected.value = true;
-            console.log('Connected to collaboration service');
+            console.log('Conectado al servicio de colaboración');
         });
 
         service.socket.on('disconnect', () => {
@@ -220,7 +235,7 @@ export function usePizarraCollaboration(
         onlineCollaborators.value = [];
     };
 
-    // Auto cleanup on component unmount
+    // Auto cleanup on component unmounted
     onUnmounted(() => {
         cleanup();
     });

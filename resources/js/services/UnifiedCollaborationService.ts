@@ -1,6 +1,10 @@
 // services/UnifiedCollaborationService.ts
 import { SocketService } from '@/services/SocketService';
 import type { UnifiedElement, CollaborationData } from '@/Data/PizarraUnificada';
+import {data} from "autoprefixer";
+import {resolve} from "node:path";
+import {handleError} from "vue";
+import {timestamp} from "@vueuse/core";
 
 export interface CollaboratorManagementResult {
     success: boolean;
@@ -10,17 +14,34 @@ export interface CollaboratorManagementResult {
 
 export class UnifiedCollaborationService {
     private socketService: SocketService;
-    private roomId: string;
-    private currentUser: string;
-    private currentUserId: string;
-    private pizarraId: string;
+    private _roomId: string;
+    private _currentUser: string;
+    private _currentUserId: string;
+    private _pizarraId: string;
+
+
+    get roomId(): string {
+        return this._roomId;
+    }
+
+    get currentUser(): string {
+        return this._currentUser;
+    }
+
+    get currentUserId(): string {
+        return this._currentUserId;
+    }
+
+    get pizarraId(): string {
+        return this._pizarraId;
+    }
 
     constructor(socketConfig: any, roomId: string, currentUser: string, currentUserId: string, pizarraId: string) {
         this.socketService = new SocketService(socketConfig, roomId, currentUser);
-        this.roomId = roomId;
-        this.currentUser = currentUser;
-        this.currentUserId = currentUserId;
-        this.pizarraId = pizarraId;
+        this._roomId = roomId;
+        this._currentUser = currentUser;
+        this._currentUserId = currentUserId;
+        this._pizarraId = pizarraId;
     }
 
     /**
@@ -53,6 +74,9 @@ export class UnifiedCollaborationService {
         this.socketService.socket.on('user-stopped-editing', this.handleUserStoppedEditing.bind(this));
         this.socketService.socket.on('collaboration-data', this.handleCollaborationData.bind(this));
 
+        // Evento para indicador de escritura (typing)
+        this.socketService.socket.on('escribiendo', this.handleTyping.bind(this));
+
         // Eventos para frameworks
         this.socketService.socket.on('framework-switched', this.handleFrameworkSwitched.bind(this));
         this.socketService.socket.on('export-mode-changed', this.handleExportModeChanged.bind(this));
@@ -63,10 +87,10 @@ export class UnifiedCollaborationService {
      */
     emitElementAdded(element: UnifiedElement, screenId?: string): void {
         this.socketService.socket.emit('unified-element-added', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             element: element,
             screenId: screenId,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -76,10 +100,10 @@ export class UnifiedCollaborationService {
      */
     emitElementUpdated(element: UnifiedElement, screenId?: string): void {
         this.socketService.socket.emit('unified-element-updated', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             element: element,
             screenId: screenId,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -89,10 +113,10 @@ export class UnifiedCollaborationService {
      */
     emitElementDeleted(elementId: string, screenId?: string): void {
         this.socketService.socket.emit('unified-element-deleted', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             elementId: elementId,
             screenId: screenId,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -102,14 +126,14 @@ export class UnifiedCollaborationService {
      */
     emitElementSelected(element: UnifiedElement, screenId?: string): void {
         this.socketService.socket.emit('unified-element-selected', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             element: {
                 id: element.id,
                 type: element.type,
                 framework: element.framework
             },
             screenId: screenId,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -119,8 +143,8 @@ export class UnifiedCollaborationService {
      */
     emitUserStartedEditing(elementId: string, elementType: string): void {
         this.socketService.socket.emit('user-editing', {
-            roomId: this.roomId,
-            userId: this.currentUser,
+            roomId: this._roomId,
+            userId: this._currentUser,
             elementId: elementId,
             elementType: elementType,
             timestamp: new Date().toISOString()
@@ -132,8 +156,8 @@ export class UnifiedCollaborationService {
      */
     emitUserStoppedEditing(elementId: string): void {
         this.socketService.socket.emit('user-stopped-editing', {
-            roomId: this.roomId,
-            userId: this.currentUser,
+            roomId: this._roomId,
+            userId: this._currentUser,
             elementId: elementId,
             timestamp: new Date().toISOString()
         });
@@ -144,9 +168,9 @@ export class UnifiedCollaborationService {
      */
     emitFrameworkSwitched(framework: 'flutter' | 'angular' | 'both'): void {
         this.socketService.socket.emit('framework-switched', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             framework: framework,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -156,9 +180,9 @@ export class UnifiedCollaborationService {
      */
     emitExportModeChanged(mode: 'preview' | 'download' | 'copy'): void {
         this.socketService.socket.emit('export-mode-changed', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             mode: mode,
-            userId: this.currentUser,
+            userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
     }
@@ -168,7 +192,7 @@ export class UnifiedCollaborationService {
      */
     emitCollaborationData(data: CollaborationData): void {
         this.socketService.socket.emit('collaboration-data', {
-            roomId: this.roomId,
+            roomId: this._roomId,
             ...data,
             timestamp: new Date().toISOString()
         });
@@ -178,13 +202,13 @@ export class UnifiedCollaborationService {
      * Emite mensaje de chat
      */
     emitChatMessage(message: string): void {
-        console.log('usuario actual:', this.currentUser, 'id:', this.currentUserId, 'pizarraId:', this.pizarraId);
+        console.log('usuario actual:', this._currentUser, 'id:', this._currentUserId, 'pizarraId:', this._pizarraId);
         const chatMessage = {
-            roomId: this.roomId,
+            roomId: this._roomId,
             message: message,
-            userId: this.currentUserId,
-            user: this.currentUser,
-            pizarraId: this.pizarraId,
+            userId: this._currentUserId,
+            user: this._currentUser,
+            pizarraId: this._pizarraId,
             timestamp: new Date().toISOString()
         };
         console.log('Emitting chat message:', chatMessage);
@@ -195,43 +219,84 @@ export class UnifiedCollaborationService {
      * Emite evento de typing
      */
     emitTyping(): void {
-        this.socketService.socket.emit('escribiendo', {
-            roomId: this.roomId,
-            user: this.currentUser,
+        const data = {
+            roomId: this._roomId,
+            user: this._currentUser,
             timestamp: new Date().toISOString()
-        });
+        };
+        this.socketService.socket.emit('escribiendo', data);
     }
 
     /**
      * Manejador para elemento agregado
      */
     private handleElementAdded(data: any): void {
-        // Implementar lógica para manejar elemento agregado por otro usuario
         console.log('Element added by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('unified-element-added', {
+            detail: {
+                element: data.element,
+                screenId: data.screenId,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
     }
 
     /**
      * Manejador para elemento actualizado
      */
     private handleElementUpdated(data: any): void {
-        // Implementar lógica para manejar elemento actualizado por otro usuario
         console.log('Element updated by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('unified-element-updated', {
+            detail: {
+                element: data.element,
+                screenId: data.screenId,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
     }
 
     /**
      * Manejador para elemento eliminado
      */
     private handleElementDeleted(data: any): void {
-        // Implementar lógica para manejar elemento eliminado por otro usuario
         console.log('Element deleted by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('unified-element-deleted', {
+            detail: {
+                elementId: data.elementId,
+                screenId: data.screenId,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
     }
 
     /**
      * Manejador para elemento seleccionado
      */
     private handleElementSelected(data: any): void {
-        // Implementar lógica para manejar elemento seleccionado por otro usuario
         console.log('Element selected by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('unified-element-selected', {
+            detail: {
+                element: data.element,
+                screenId: data.screenId,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
     }
 
     /**
@@ -267,6 +332,23 @@ export class UnifiedCollaborationService {
     }
 
     /**
+     * Manejador para evento de escritura (typing)
+     */
+    private handleTyping(data: any): void {
+        console.log('User typing:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('user-typing', {
+            detail: {
+                user: data.user,
+                roomId: data._roomId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
      * Manejador para datos de colaboración
      */
     private handleCollaborationData(data: any): void {
@@ -292,15 +374,15 @@ export class UnifiedCollaborationService {
             try {
                 this.socketService.socket.emit('manageCollaborator', {
                     action: 'add',
-                    pizarraId: this.pizarraId,
+                    pizarraId: this._pizarraId,
                     userEmail: email,
                     status: status,
-                    roomId: this.roomId
+                    roomId: this._roomId
                 });
 
                 // Escuchar la respuesta del servidor
                 const handleResponse = (data: any) => {
-                    if (data.pizarraId === this.pizarraId && data.action === 'add') {
+                    if (data._pizarraId === this._pizarraId && data.action === 'add') {
                         this.socketService.socket.off('collaboratorUpdate', handleResponse);
                         resolve({
                             success: true,
@@ -340,14 +422,14 @@ export class UnifiedCollaborationService {
             try {
                 this.socketService.socket.emit('manageCollaborator', {
                     action: 'remove',
-                    pizarraId: this.pizarraId,
+                    pizarraId: this._pizarraId,
                     userId: userId,
-                    roomId: this.roomId
+                    roomId: this._roomId
                 });
 
                 // Escuchar la respuesta del servidor
                 const handleResponse = (data: any) => {
-                    if (data.pizarraId === this.pizarraId && data.action === 'remove') {
+                    if (data._pizarraId === this._pizarraId && data.action === 'remove') {
                         this.socketService.socket.off('collaboratorUpdate', handleResponse);
                         resolve({
                             success: true,
@@ -397,15 +479,15 @@ export class UnifiedCollaborationService {
             try {
                 this.socketService.socket.emit('manageCollaborator', {
                     action: 'update',
-                    pizarraId: this.pizarraId,
+                    pizarraId: this._pizarraId,
                     userId: userId,
                     status: status,
-                    roomId: this.roomId
+                    roomId: this._roomId
                 });
 
                 // Escuchar la respuesta del servidor
                 const handleResponse = (data: any) => {
-                    if (data.pizarraId === this.pizarraId && data.action === 'update') {
+                    if (data._pizarraId === this._pizarraId && data.action === 'update') {
                         this.socketService.socket.off('collaboratorUpdate', handleResponse);
                         resolve({
                             success: true,
@@ -451,6 +533,6 @@ export class UnifiedCollaborationService {
     generateInvitationLink(): string {
         const baseUrl = window.location.origin;
         const timestamp = new Date().getTime();
-        return `${baseUrl}/pizarra_unificada/join?roomId=${this.roomId}&pizarraId=${this.pizarraId}&t=${timestamp}`;
+        return `${baseUrl}/pizarra_unificada/join?roomId=${this._roomId}&pizarraId=${this._pizarraId}&t=${timestamp}`;
     }
 }

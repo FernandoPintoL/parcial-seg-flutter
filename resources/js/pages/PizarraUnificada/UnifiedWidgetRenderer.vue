@@ -229,7 +229,8 @@ function handleToggleProperties() {
     emit('select', props.element);
 }
 
-function handleMoveStart(event: MouseEvent) {
+function handleMoveStart() {
+
     console.log('🖱️ mover start on element:', props.element.type, props.element.id);
     // El servicio de interacciones manejará esto automáticamente
 }

@@ -108,22 +108,17 @@ class PizarraUnificadaController extends Controller
     {
         // return $pizarra_unificada;
         $user = Auth::user();
-
         // Verificar si el usuario tiene acceso a esta pizarra
         if (!$this->canAccessPizarra($pizarra_unificada, $user)) {
             return $this->handleAccessDenied($pizarra_unificada, $user);
         }
 
         // Cargar relaciones necesarias
-        $pizarra_unificada->load(['user', 'collaborators.user']);
-
+        $pizarra_unificada->load(['user', 'collaborators']);
         // Obtener colaboradores
         $colaboradores = $pizarra_unificada->collaborators()
             ->where('status', 'accepted')
-            ->with('user')
-            ->get()
-            ->pluck('user');
-
+            ->get();
         // Obtener pantallas
         $screens = json_decode($pizarra_unificada->screens, true) ?? [];
 

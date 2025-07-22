@@ -18,7 +18,7 @@ export function usePizarraUI() {
 
     // Apply dark mode to DOM
     const applyDarkMode = () => {
-        console.log('🌙 Applying dark mode:', isDarkMode.value);
+        // console.log('🌙 Applying dark mode:', isDarkMode.value);
         if (isDarkMode.value) {
             document.documentElement.classList.add('dark');
         } else {

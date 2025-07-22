@@ -13,11 +13,18 @@ export interface Pizarra {
     isDrawer? : boolean;
     users: Record<string, any>;
 }
-export interface Chats{
+export interface Message {
     id: number;
     pizarra_id: number;
-    user_id: number;
+    room_id: string;
+    user_id: number | null;
     user_name: string;
+    text: string;
+    timestamp: string;
+}
+
+// Keeping Chats for backward compatibility
+export interface Chats extends Message {
     message: string;
     isSystemMessage: boolean;
     created_at: string;

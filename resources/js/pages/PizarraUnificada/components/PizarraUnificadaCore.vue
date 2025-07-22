@@ -78,17 +78,108 @@ const collaboration = usePizarraCollaboration(
         colaboradores: props.colaboradores,
     },
     {
-        onElementAdded: (element) => {
-            console.log('Element added by collaborator:', element);
+        onElementAdded: (element, screenId) => {
+            console.log('Element added by collaborator:', element, 'to screen:', screenId);
+
+            // Only update if the element belongs to the current screen
+            if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
+                // Find the target screen and update it
+                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                if (screenIndex >= 0) {
+                    // Add the element to the screen
+                    if (!pizarraState.screens.value[screenIndex].elements) {
+                        pizarraState.screens.value[screenIndex].elements = [];
+                    }
+                    pizarraState.screens.value[screenIndex].elements.push(element);
+                }
+                return;
+            }
+
+            // Add the element to the current screen
+            if (!pizarraState.currentScreen.value.elements) {
+                pizarraState.currentScreen.value.elements = [];
+            }
+            pizarraState.currentScreen.value.elements.push(element);
+
+            // Save the changes
+            savePizarra();
         },
-        onElementUpdated: (element) => {
-            console.log('Element updated by collaborator:', element);
+        onElementUpdated: (element, screenId) => {
+            console.log('Element updated by collaborator:', element, 'in screen:', screenId);
+
+            // Only update if the element belongs to the current screen
+            if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
+                // Find the target screen and update it
+                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                if (screenIndex >= 0 && pizarraState.screens.value[screenIndex].elements) {
+                    // Find and update the element
+                    const elementIndex = pizarraState.screens.value[screenIndex].elements.findIndex(e => e.id === element.id);
+                    if (elementIndex >= 0) {
+                        pizarraState.screens.value[screenIndex].elements[elementIndex] = element;
+                    }
+                }
+                return;
+            }
+
+            // Update the element in the current screen
+            if (pizarraState.currentScreen.value.elements) {
+                const elementIndex = pizarraState.currentScreen.value.elements.findIndex(e => e.id === element.id);
+                if (elementIndex >= 0) {
+                    pizarraState.currentScreen.value.elements[elementIndex] = element;
+                }
+            }
+
+            // Save the changes
+            savePizarra();
         },
-        onElementDeleted: (elementId) => {
-            console.log('Element deleted by collaborator:', elementId);
+        onElementDeleted: (elementId, screenId) => {
+            console.log('Element deleted by collaborator:', elementId, 'from screen:', screenId);
+
+            // Only update if the element belongs to the current screen
+            if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
+                // Find the target screen and update it
+                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                if (screenIndex >= 0 && pizarraState.screens.value[screenIndex].elements) {
+                    // Remove the element
+                    pizarraState.screens.value[screenIndex].elements =
+                        pizarraState.screens.value[screenIndex].elements.filter(e => e.id !== elementId);
+                }
+                return;
+            }
+
+            // Remove the element from the current screen
+            if (pizarraState.currentScreen.value.elements) {
+                pizarraState.currentScreen.value.elements =
+                    pizarraState.currentScreen.value.elements.filter(e => e.id !== elementId);
+            }
+
+            // Deselect the element if it was selected
+            if (elementManagement.selectedElement.value?.id === elementId) {
+                elementManagement.deselectElement();
+            }
+
+            // Save the changes
+            savePizarra();
         },
         onFrameworkSwitched: (framework) => {
-            console.log('Framework switched by collaborator:', framework);
+            console.log('Framework switched by collaborator to:', framework);
+
+            // Update the framework if it's different
+            if (pizarraState.selectedFramework.value !== framework) {
+                pizarraState.switchFramework(framework);
+                elementManagement.updateAvailableWidgets();
+
+                // Save the changes
+                savePizarra();
+            }
+        },
+        onUserJoined: (user) => {
+            console.log('User joined:', user);
+            // You could show a notification or update the UI to indicate a new user joined
+        },
+        onUserLeft: (userId) => {
+            console.log('User left:', userId);
+            // You could show a notification or update the UI to indicate a user left
         },
     },
 );
@@ -395,8 +486,6 @@ onMounted(() => {
     pizarraState.initializeScreens();
     elementManagement.updateAvailableWidgets();
     applyDarkMode();
-
-    console.log('PizarraUnificadaCore mounted');
 });
 
 onUnmounted(() => {
