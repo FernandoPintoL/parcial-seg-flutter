@@ -15,6 +15,8 @@ export class UnifiedCollaborationService {
     private _currentUserId: string;
     private _pizarraId: string;
 
+    // Añadido para el manejo de selecciones remotas
+    private _remoteSelections: Record<string, string> = {}; // elementId -> userName
 
     get roomId(): string {
         return this._roomId;
@@ -32,6 +34,11 @@ export class UnifiedCollaborationService {
         return this._pizarraId;
     }
 
+    // Getter para acceder a las selecciones remotas
+    get remoteSelections(): Record<string, string> {
+        return this._remoteSelections;
+    }
+
     constructor(socketConfig: any, roomId: string, currentUser: string, currentUserId: string, pizarraId: string) {
         this.socketService = new SocketService(socketConfig, roomId, currentUser);
         this._roomId = roomId;
@@ -41,11 +48,80 @@ export class UnifiedCollaborationService {
     }
 
     /**
-     * Conecta al servicio de colaboración
+     * Conecta al servicio de colaboración y se une automáticamente a la sala
+     * @param {boolean} autoJoin - Si es true (por defecto), se unirá automáticamente a la sala
      */
-    connect(): void {
-        this.socketService.connect();
+    connect(autoJoin = true): Promise<void> {
+        // Iniciar conexión con auto-unión y el ID de pizarra
+        this.socketService.connect(autoJoin, parseInt(this._pizarraId));
         this.setupEventHandlers();
+
+        // Devolver una promesa que se resuelve cuando se une a la sala (si autoJoin es true)
+        if (autoJoin) {
+            return this.joinRoom();
+        }
+
+        return Promise.resolve();
+    }
+
+    /**
+     * Se une a la sala de colaboración
+     * @returns {Promise<void>} Promesa que se resuelve cuando se une a la sala
+     */
+    joinRoom(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            // Si ya está conectado, utilizar el método joinRoom del SocketService
+            if (this.socketService.socketConnected) {
+                this._joinRoomWhenConnected(resolve, reject);
+            } else {
+                console.log('No hay conexión con el servidor de sockets. Esperando conexión...');
+
+                // Establecer un tiempo máximo de espera para la conexión
+                const connectionTimeout = setTimeout(() => {
+                    reject('Timeout esperando la conexión del socket');
+                }, 10000); // 10 segundos de espera máxima
+
+                // Esperar a que el socket se conecte
+                const connectHandler = () => {
+                    console.log('Socket conectado, intentando unirse a la sala');
+                    clearTimeout(connectionTimeout);
+                    this._joinRoomWhenConnected(resolve, reject);
+                };
+
+                // Escuchar el evento 'connect' una sola vez
+                this.socketService.on('connect', connectHandler);
+
+                // También manejar errores de conexión
+                const errorHandler = (error: any) => {
+                    clearTimeout(connectionTimeout);
+                    this.socketService.socket.removeListener('connect', connectHandler);
+                    reject(`Error al conectar con el servidor: ${error.message || error}`);
+                };
+
+                this.socketService.on('connect_error', errorHandler);
+            }
+        });
+    }
+
+    /**
+     * Método auxiliar para unirse a la sala una vez que la conexión está establecida
+     * @private
+     */
+    private _joinRoomWhenConnected(resolve: Function, reject: Function): void {
+        if (!this._pizarraId) {
+            reject('No se ha especificado un ID de pizarra');
+            return;
+        }
+
+        this.socketService.joinRoom(parseInt(this._pizarraId), this._currentUser)
+            .then(() => {
+                console.log(`UnifiedCollaborationService: Unido a la sala ${this._roomId} para pizarra ${this._pizarraId}`);
+                resolve();
+            })
+            .catch(error => {
+                console.error('UnifiedCollaborationService: Error al unirse a la sala:', error);
+                reject(error);
+            });
     }
 
     /**
@@ -53,6 +129,8 @@ export class UnifiedCollaborationService {
      */
     disconnect(): void {
         this.socketService.disconnect();
+        // Limpiar las selecciones remotas al desconectar
+        this._remoteSelections = {};
     }
 
     /**
@@ -76,6 +154,13 @@ export class UnifiedCollaborationService {
         // Eventos para frameworks
         this.socketService.socket.on('framework-switched', this.handleFrameworkSwitched.bind(this));
         this.socketService.socket.on('export-mode-changed', this.handleExportModeChanged.bind(this));
+
+        // Eventos para selección remota
+        this.socketService.socket.on('remote-selection', this.handleRemoteSelection.bind(this));
+        this.socketService.socket.on('remote-deselection', this.handleRemoteDeselection.bind(this));
+
+        // Manejo de usuarios desconectados para limpiar sus selecciones
+        this.socketService.socket.on('user-left', this.handleUserLeft.bind(this));
     }
 
     /**
@@ -121,6 +206,9 @@ export class UnifiedCollaborationService {
      * Emite evento cuando se selecciona un elemento
      */
     emitElementSelected(element: UnifiedElement, screenId?: string): void {
+        if (!element.id) return;
+
+        // Emite evento de selección tradicional
         this.socketService.socket.emit('unified-element-selected', {
             roomId: this._roomId,
             element: {
@@ -132,6 +220,36 @@ export class UnifiedCollaborationService {
             userId: this._currentUser,
             timestamp: new Date().toISOString()
         });
+
+        // Emite evento de selección remota para actualizar remoteSelectedBy
+        this.socketService.socket.emit('remote-selection', {
+            roomId: this._roomId,
+            elementId: element.id,
+            userName: this._currentUser,
+            userId: this._currentUserId,
+            timestamp: new Date().toISOString()
+        });
+
+        // Actualiza el registro local
+        this._remoteSelections[element.id] = this._currentUser;
+    }
+
+    /**
+     * Emite evento cuando se deselecciona un elemento
+     */
+    emitElementDeselected(elementId: string): void {
+        if (!elementId) return;
+
+        // Emite evento de deselección
+        this.socketService.socket.emit('remote-deselection', {
+            roomId: this._roomId,
+            elementId: elementId,
+            userId: this._currentUserId,
+            timestamp: new Date().toISOString()
+        });
+
+        // Elimina del registro local
+        delete this._remoteSelections[elementId];
     }
 
     /**
@@ -283,6 +401,11 @@ export class UnifiedCollaborationService {
     private handleElementSelected(data: any): void {
         console.log('Element selected by another user:', data);
 
+        // Si el usuario es diferente al actual, registrar como selección remota
+        if (data.userId !== this._currentUser) {
+            this._remoteSelections[data.element.id] = data.userId;
+        }
+
         // Dispatch a custom event that components can listen for
         const event = new CustomEvent('unified-element-selected', {
             detail: {
@@ -296,48 +419,98 @@ export class UnifiedCollaborationService {
     }
 
     /**
+     * Manejador para selección remota
+     */
+    private handleRemoteSelection(data: any): void {
+        // Solo registrar si no es el usuario actual
+        if (data.userId !== this._currentUserId) {
+            console.log('Remote selection received:', data);
+            this._remoteSelections[data.elementId] = data.userName;
+
+            // Disparar evento personalizado para notificar a los componentes
+            const event = new CustomEvent('remote-selection-changed', {
+                detail: {
+                    elementId: data.elementId,
+                    userName: data.userName,
+                    userId: data.userId
+                }
+            });
+            document.dispatchEvent(event);
+        }
+    }
+
+    /**
+     * Manejador para deselección remota
+     */
+    private handleRemoteDeselection(data: any): void {
+        console.log('Remote deselection received:', data);
+        delete this._remoteSelections[data.elementId];
+
+        // Disparar evento personalizado para notificar a los componentes
+        const event = new CustomEvent('remote-selection-changed', {
+            detail: {
+                elementId: data.elementId,
+                userName: null,
+                userId: data.userId
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Manejador para usuario desconectado
+     */
+    private handleUserLeft(userId: string): void {
+        console.log('User left:', userId);
+
+        // Eliminar todas las selecciones de este usuario
+        Object.entries(this._remoteSelections).forEach(([elementId, userName]) => {
+            // Si el usuario asociado con esta selección es el que se desconectó
+            if (userName === userId) {
+                delete this._remoteSelections[elementId];
+
+                // Disparar evento de cambio de selección
+                const event = new CustomEvent('remote-selection-changed', {
+                    detail: {
+                        elementId,
+                        userName: null,
+                        userId
+                    }
+                });
+                document.dispatchEvent(event);
+            }
+        });
+    }
+
+    /**
      * Manejador para usuario editando
      */
     private handleUserEditing(data: any): void {
-        // Implementar lógica para mostrar que otro usuario está editando
-        console.log('User started editing:', data);
-    }
-
-    /**
-     * Manejador para usuario dejó de editar
-     */
-    private handleUserStoppedEditing(data: any): void {
-        // Implementar lógica para ocultar indicador de edición
-        console.log('User stopped editing:', data);
-    }
-
-    /**
-     * Manejador para cambio de framework
-     */
-    private handleFrameworkSwitched(data: any): void {
-        // Implementar lógica para cambio de framework
-        console.log('Framework switched:', data);
-    }
-
-    /**
-     * Manejador para cambio de modo de exportación
-     */
-    private handleExportModeChanged(data: any): void {
-        // Implementar lógica para cambio de modo de exportación
-        console.log('Export mode changed:', data);
-    }
-
-    /**
-     * Manejador para evento de escritura (typing)
-     */
-    private handleTyping(data: any): void {
-        console.log('User typing:', data);
+        console.log('User editing:', data);
 
         // Dispatch a custom event that components can listen for
-        const event = new CustomEvent('user-typing', {
+        const event = new CustomEvent('user-editing', {
             detail: {
-                user: data.user,
-                roomId: data._roomId,
+                userId: data.userId,
+                elementId: data.elementId,
+                elementType: data.elementType,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Manejador para usuario que terminó de editar
+     */
+    private handleUserStoppedEditing(data: any): void {
+        console.log('User stopped editing:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('user-stopped-editing', {
+            detail: {
+                userId: data.userId,
+                elementId: data.elementId,
                 timestamp: data.timestamp
             }
         });
@@ -348,8 +521,107 @@ export class UnifiedCollaborationService {
      * Manejador para datos de colaboración
      */
     private handleCollaborationData(data: any): void {
-        // Implementar lógica para datos de colaboración
         console.log('Collaboration data received:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('collaboration-data', {
+            detail: data
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Manejador para indicador de escritura (typing)
+     */
+    private handleTyping(data: any): void {
+        console.log('Typing indicator received:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('user-typing', {
+            detail: {
+                user: data.user,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Manejador para cambio de framework
+     */
+    private handleFrameworkSwitched(data: any): void {
+        console.log('Framework switched by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('framework-switched', {
+            detail: {
+                framework: data.framework,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Manejador para cambio de modo de exportación
+     */
+    private handleExportModeChanged(data: any): void {
+        console.log('Export mode changed by another user:', data);
+
+        // Dispatch a custom event that components can listen for
+        const event = new CustomEvent('export-mode-changed', {
+            detail: {
+                mode: data.mode,
+                userId: data.userId,
+                timestamp: data.timestamp
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
+     * Aplica las selecciones remotas a una lista de elementos
+     * @param elements Lista de elementos
+     * @returns Lista de elementos con propiedad remoteSelectedBy actualizada
+     */
+    applyRemoteSelections(elements: UnifiedElement[]): UnifiedElement[] {
+        return elements.map(element => {
+            if (element.id) {
+                // Verificar si este elemento está seleccionado remotamente
+                const remoteUser = this.getElementRemoteSelection(element.id);
+
+                // Crear una copia con la propiedad remoteSelectedBy actualizada
+                const updatedElement = {
+                    ...element,
+                    remoteSelectedBy: remoteUser
+                };
+
+                // Procesar recursivamente los elementos hijos si existen
+                if (updatedElement.children && updatedElement.children.length > 0) {
+                    updatedElement.children = this.applyRemoteSelections(updatedElement.children);
+                }
+
+                return updatedElement;
+            }
+            return element;
+        });
+    }
+
+    /**
+     * Comprueba si un elemento está seleccionado por otro usuario
+     * @param elementId ID del elemento
+     * @returns Nombre del usuario que tiene seleccionado el elemento, o undefined si no está seleccionado
+     */
+    getElementRemoteSelection(elementId: string): string | undefined {
+        const userName = this._remoteSelections[elementId];
+
+        // No devolver el nombre del usuario actual
+        if (userName === this._currentUser) {
+            return undefined;
+        }
+
+        return userName;
     }
 
     /**

@@ -16,7 +16,7 @@ interface CollaborationCallbacks {
     onElementUpdated?: (element: UnifiedElement, screenId: string) => void;
     onElementDeleted?: (elementId: string, screenId: string) => void;
     onElementSelected?: (element: UnifiedElement, screenId: string, userId: string) => void;
-    onFrameworkSwitched?: (framework: string) => void;
+    onFrameworkSwitched?: (framework: 'flutter' | 'angular' | 'both') => void;
     onUserJoined?: (user: User) => void;
     onUserLeft?: (userId: string) => void;
 }
@@ -31,6 +31,7 @@ export function usePizarraCollaboration(
     const onlineCollaborators = ref<User[]>([]);
     const isCollaborating = ref<boolean>(false);
     const showChat = ref<boolean>(false);
+    const remoteSelections = ref<Record<string, string>>({});  // Map de elementId -> userName
 
     // Socket configuration
     const useLocalSocket = ref(import.meta.env.VITE_USE_LOCAL_SOCKET === 'true');
@@ -173,6 +174,17 @@ export function usePizarraCollaboration(
         service.socket.on('error', (error: any) => {
             console.error('Collaboration service error:', error);
             socketConnected.value = false;
+        });
+
+        // Remote selection events
+        service.socket.on('remote-selection', (data: { elementId: string; userName: string | null; userId: string }) => {
+            if (data.userId !== currentUserId.value) {
+                if (data.userName) {
+                    remoteSelections.value[data.elementId] = data.userName;
+                } else {
+                    delete remoteSelections.value[data.elementId];
+                }
+            }
         });
     };
 
@@ -320,6 +332,9 @@ export function usePizarraCollaboration(
         addCollaborator,
         removeCollaborator,
         updateCollaboratorStatus,
-        generateInvitationLink
+        generateInvitationLink,
+
+        // Remote selections
+        remoteSelections
     };
 }

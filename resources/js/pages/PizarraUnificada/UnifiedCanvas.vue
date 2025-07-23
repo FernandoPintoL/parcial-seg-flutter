@@ -19,8 +19,23 @@ const emit = defineEmits([
     'drag-enter',
     'drag-leave',
     'drop',
-    'open-properties-panel'
+    'open-properties-panel',
+    'unified-element-updated',
+    'property-change'
 ]);
+
+// Agregar selector de diseño: 'unified', 'web', 'mobile'
+const selectedDesign = ref<'unified' | 'web' | 'mobile'>(
+    props.selectedFramework === 'angular' ? 'web' :
+    props.selectedFramework === 'flutter' ? 'mobile' :
+    'unified'
+);
+
+// Tiempo actual para el diseño móvil
+const currentTime = ref(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+// Actualizar el tiempo cada minuto
+let timeInterval: number | null = null;
 
 // Track the element being dragged over
 // const dragOverElementId = ref<string | null>(null);
@@ -34,36 +49,14 @@ const currentElements = computed(() => {
     return props.currentScreen.elements || [];
 });
 
-// Get framework icon
-/*function getFrameworkIcon(framework: string): string {
-    switch (framework) {
-        case 'flutter':
-            return '🎯';
-        case 'angular':
-            return '🅰️';
-        case 'both':
-            return '🔀';
-        default:
-            return '📦';
-    }
-}*/
-
-// Get framework header icon
-/*function getFrameworkHeaderIcon(framework: string): string {
-    switch (framework) {
-        case 'flutter':
-            return 'phone_iphone';
-        case 'angular':
-            return 'web';
-        case 'both':
-            return 'dashboard';
-        default:
-            return 'dashboard';
-    }
-}*/
+// Cambiar entre diseños (unified, web, mobile)
+function changeDesign(design: 'unified' | 'web' | 'mobile') {
+    selectedDesign.value = design;
+}
 
 // Handle element selection
 function selectElement(element: UnifiedElement) {
+    console.log('🔄 Selecting element with ID:', element.id, 'via double click');
     selectedElementId.value = element.id ?? null;
     emit('select-element', element);
 
@@ -237,7 +230,31 @@ function handleWidgetEvent(eventData: any) {
         emit('select-element', eventData.element);
 
         // Emitir evento adicional para abrir el panel de propiedades
+        // Este es el evento clave que estaba faltando para propagarse correctamente
         emit('open-properties-panel', eventData.element);
+
+        console.log('📤 open-properties-panel event emitted for element:', eventData.elementId);
+    } else if (eventData.type === 'remote-selection') {
+        // Manejar evento de selección remota
+        console.log('🔄 Remote selection event for element:', eventData.elementId);
+
+        // Propagar el evento de selección para que sea visible para otros usuarios
+        // Esto debería estar conectado al servicio de colaboración
+        emit('select-element', eventData.element);
+    } else if (eventData.type === 'remote-update') {
+        // Manejar evento de actualización de propiedades en tiempo real
+        console.log('🔄 Remote property update for element:', eventData.elementId);
+
+        // Propagar la actualización del elemento para que sea visible para otros usuarios
+        emit('update-element', eventData.element);
+
+        // Emitir un evento específico para notificar al servicio de colaboración
+        // que se ha actualizado un elemento y debe sincronizarse con otros usuarios
+        emit('unified-element-updated', {
+            element: eventData.element,
+            property: eventData.property,
+            value: eventData.value
+        });
     }
 }
 
@@ -247,6 +264,11 @@ onMounted(() => {
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('click', handleCanvasClick);
+
+    // Actualizar el tiempo cada minuto para el diseño móvil
+    timeInterval = window.setInterval(() => {
+        currentTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }, 60000);
 });
 
 // Clean up event listeners on unmounting
@@ -255,201 +277,84 @@ onUnmounted(() => {
     document.removeEventListener('keydown', handleKeyDown);
     document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('click', handleCanvasClick);
+
+    // Limpiar el intervalo de tiempo
+    if (timeInterval !== null) {
+        window.clearInterval(timeInterval);
+    }
 });
 </script>
 <template>
-    <div class="unified-canvas" @dragover.prevent @drop="handleDrop($event)" @click="handleCanvasClick">
-        <!-- Enhanced canvas with framework-specific design -->
-        <div class="canvas-container" :class="`canvas-${selectedFramework}`">
-            <div class="canvas-grid" :class="`grid-${selectedFramework}`"></div>
-
-            <!-- Deselection button - Solo visible cuando hay un elemento seleccionado -->
+    <div class="unified-canvas" @click="handleCanvasClick">
+        <!-- Botones para cambiar entre diseños -->
+        <div class="design-selector">
             <button
-                v-if="selectedElementId"
-                class="deselect-button"
-                @click.stop="deselectElement"
-                title="Deseleccionar elemento (Escape)">
-                <span class="material-icons">close</span>
-                <span class="deselect-text">Deseleccionar</span>
+                @click="changeDesign('unified')"
+                :class="{'active': selectedDesign === 'unified'}"
+                title="Diseño unificado">
+                <span class="material-icons">dashboard</span>
+                <span class="button-text">Unificado</span>
             </button>
+            <button
+                @click="changeDesign('web')"
+                :class="{'active': selectedDesign === 'web'}"
+                title="Diseño web (Angular)">
+                <span class="material-icons">web</span>
+                <span class="button-text">Web</span>
+            </button>
+            <button
+                @click="changeDesign('mobile')"
+                :class="{'active': selectedDesign === 'mobile'}"
+                title="Diseño móvil (Flutter)">
+                <span class="material-icons">smartphone</span>
+                <span class="button-text">Móvil</span>
+            </button>
+        </div>
 
-            <!-- Deselection hint - Aparece brevemente cuando se selecciona un elemento -->
-<!--            <div
-                v-if="selectedElementId"
-                class="deselection-hint"
-                :class="{ 'hint-visible': selectedElementId }">
-                <div class="hint-content">
-                    <span class="material-icons">info</span>
-                    <span>Presiona <kbd>Escape</kbd> o haz click fuera para deseleccionar</span>
-                </div>
-            </div>-->
-
-            <!-- Flutter Mobile Frame -->
-            <div v-if="selectedFramework === 'flutter'" class="mobile-frame">
-                <div class="mobile-phone-device">
-                    <!-- Home indicator top (notch area) -->
-                    <div class="phone-notch"></div>
-
-                    <div class="mobile-screen-container">
-                        <!-- Enhanced Phone Status Bar based on your implementation -->
-                        <div class="phone-status-bar">
-                            <div class="status-bar-content">
-                                <div class="status-left">
-                                    <span class="time">9:41</span>
-                                </div>
-                                <div class="status-right">
-                                    <!-- Signal strength bars -->
-                                    <svg class="status-icon signal-icon" viewBox="0 0 20 20" fill="currentColor">
-                                        <path
-                                            d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                                    </svg>
-                                    <!-- WiFi icon -->
-                                    <svg class="status-icon wifi-icon" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd"
-                                            d="M17.778 8.222c-4.296-4.296-11.26-4.296-15.556 0A1 1 0 01.808 6.808c5.076-5.077 13.308-5.077 18.384 0a1 1 0 01-1.414 1.414zM14.95 11.05a7 7 0 00-9.9 0 1 1 0 01-1.414-1.414 9 9 0 0112.728 0 1 1 0 01-1.414 1.414zM12.12 13.88a3 3 0 00-4.242 0 1 1 0 01-1.415-1.415 5 5 0 017.072 0 1 1 0 01-1.415 1.415zM9 16a1 1 0 100-2 1 1 0 000 2z"
-                                            clip-rule="evenodd" />
-                                    </svg>
-                                    <!-- Battery icon -->
-                                    <svg class="status-icon battery-icon" viewBox="0 0 24 20" fill="currentColor">
-                                        <path d="M3 7a2 2 0 012-2h11a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                                        <path d="M21 9v2a1 1 0 01-1 1h-1V8h1a1 1 0 011 1z" />
-                                        <rect x="4" y="8" width="10" height="4" rx="1" fill="white" />
-                                    </svg>
-                                    <span class="battery-percentage">100%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Phone content area -->
-                        <div class="phone-content-area">
-                            <div class="canvas-content framework-flutter" @click="handleCanvasClick">
-                                <!-- Flutter widgets content -->
-                                <template v-if="currentElements && currentElements.length > 0">
-                                    <UnifiedWidgetRenderer
-                                        v-for="element in currentElements"
-                                        :key="element.id"
-                                        :element="element"
-                                        :is-selected="selectedElementId === element.id"
-                                        :is-editable="true"
-                                        @select="selectElement"
-                                        @update:element="updateElement"
-                                        @delete-element="deleteElement"
-                                        @duplicate-element="duplicateElement"
-                                        @widget-event="handleWidgetEvent"
-                                    />
-                                </template>
-                                <!-- Enhanced Flutter empty state -->
-                                <div v-else class="empty-canvas flutter-empty">
-                                    <div class="empty-content mobile-empty">
-                                        <div class="empty-icon-container">
-                                            <span class="material-icons empty-icon">phone_iphone</span>
-                                            <div class="empty-icon-glow flutter-glow"></div>
-                                        </div>
-                                        <h3 class="empty-title">App Flutter</h3>
-                                        <p class="empty-description">
-                                            Arrastra widgets para crear tu aplicación móvil
-                                        </p>
-                                        <div class="empty-framework-info">
-                                            <span class="framework-label">
-                                                Framework:
-                                                <span class="framework-highlight flutter-highlight">Flutter</span>
-                                            </span>
-                                        </div>
-                                        <div class="empty-suggestions">
-                                            <div class="suggestion-item">
-                                                <span class="material-icons">app_shortcut</span>
-                                                <span>Comienza con un Scaffold</span>
-                                            </div>
-                                            <div class="suggestion-item">
-                                                <span class="material-icons">text_fields</span>
-                                                <span>Agrega widgets de texto</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Phone navigation bar (home indicator) -->
-                        <div class="phone-nav-bar">
-                            <div class="home-indicator"></div>
-                        </div>
-                    </div>
-
-                    <!-- Phone side buttons -->
-                    <div class="phone-buttons">
-                        <div class="power-button"></div>
-                        <div class="volume-buttons">
-                            <div class="volume-up"></div>
-                            <div class="volume-down"></div>
-                        </div>
-                    </div>
-                </div>
+        <div class="canvas-content">
+            <!-- Diseño unificado (default) -->
+            <div v-if="selectedDesign === 'unified'"
+                class="unified-frame"
+                :style="{
+                    width: `${props.currentScreen.size?.width || 375}px`,
+                    height: `${props.currentScreen.size?.height || 812}px`,
+                    backgroundColor: props.currentScreen.backgroundColor || '#ffffff'
+                }">
+                <UnifiedWidgetRenderer
+                    v-for="element in currentElements"
+                    :key="element.id"
+                    :element="element"
+                    :is-selected="selectedElementId === element.id"
+                    :is-editable="true"
+                    @select="selectElement"
+                    @update:element="updateElement"
+                    @delete-element="deleteElement"
+                    @duplicate-element="duplicateElement"
+                    @widget-event="handleWidgetEvent"
+                    @property-change="(property, value) => emit('property-change', element, property, value)"
+                />
             </div>
 
-            <!-- Angular Web Frame -->
-            <div v-else-if="selectedFramework === 'angular'" class="web-frame">
+            <!-- Diseño web (Angular) -->
+            <div v-if="selectedDesign === 'web'" class="web-frame">
                 <div class="browser-window">
                     <div class="browser-header">
                         <div class="browser-controls">
-                            <span class="control-dot close"></span>
-                            <span class="control-dot minimize"></span>
-                            <span class="control-dot maximize"></span>
+                            <div class="control-dot close"></div>
+                            <div class="control-dot minimize"></div>
+                            <div class="control-dot maximize"></div>
                         </div>
                         <div class="browser-url">
                             <span class="material-icons">lock</span>
-                            <span class="url-text">localhost:4200</span>
+                            <span>myapp.com/{{ props.currentScreen.name || 'home' }}</span>
                         </div>
                         <div class="browser-actions">
                             <span class="material-icons">refresh</span>
+                            <span class="material-icons">bookmark</span>
                             <span class="material-icons">more_vert</span>
                         </div>
                     </div>
                     <div class="browser-content">
-                        <div class="canvas-content framework-angular" @click="handleCanvasClick">
-                            <!-- Angular widgets content -->
-                            <template v-if="currentElements && currentElements.length > 0">
-                                <UnifiedWidgetRenderer
-                                    v-for="element in currentElements"
-                                    :key="element.id"
-                                    :element="element"
-                                    :is-selected="selectedElementId === element.id"
-                                    :is-editable="true"
-                                    @select="selectElement"
-                                    @update:element="updateElement"
-                                    @delete-element="deleteElement"
-                                    @duplicate-element="duplicateElement"
-                                    @widget-event="handleWidgetEvent"
-                                />
-                            </template>
-                            <!-- Angular empty state -->
-                            <div v-else class="empty-canvas angular-empty">
-                                <div class="empty-content">
-                                    <div class="empty-icon-container">
-                                        <span class="material-icons empty-icon">web</span>
-                                        <div class="empty-icon-glow angular-glow"></div>
-                                    </div>
-                                    <h3 class="empty-title">App Angular</h3>
-                                    <p class="empty-description">
-                                        Arrastra componentes para crear tu aplicación web
-                                    </p>
-                                    <div class="empty-framework-info">
-                                        <span class="framework-label">
-                                            Framework:
-                                            <span class="framework-highlight angular-highlight">Angular</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Both frameworks view -->
-            <div v-else class="unified-frame">
-                <div class="canvas-content framework-both" @click="handleCanvasClick">
-                    <template v-if="currentElements && currentElements.length > 0">
                         <UnifiedWidgetRenderer
                             v-for="element in currentElements"
                             :key="element.id"
@@ -461,25 +366,58 @@ onUnmounted(() => {
                             @delete-element="deleteElement"
                             @duplicate-element="duplicateElement"
                             @widget-event="handleWidgetEvent"
+                            @property-change="(property, value) => emit('property-change', element, property, value)"
                         />
-                    </template>
-                    <!-- Both frameworks empty state -->
-                    <div v-else class="empty-canvas both-empty">
-                        <div class="empty-content">
-                            <div class="empty-icon-container">
-                                <span class="material-icons empty-icon">dashboard</span>
-                                <div class="empty-icon-glow both-glow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diseño móvil (Flutter) -->
+            <div v-if="selectedDesign === 'mobile'" class="mobile-frame">
+                <div class="mobile-phone-device">
+                    <div class="phone-notch"></div>
+                    <div class="mobile-screen-container">
+                        <div class="phone-status-bar">
+                            <div class="status-bar-content">
+                                <div class="status-left">
+                                    <div class="time">{{ currentTime }}</div>
+                                </div>
+                                <div class="status-right">
+                                    <svg class="status-icon" viewBox="0 0 24 24">
+                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    </svg>
+                                    <svg class="status-icon" viewBox="0 0 24 24">
+                                        <path d="M17 5.33C17 4.6 16.4 4 15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33V13h10V5.33z"/>
+                                        <path d="M7 13v7.67C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V13H7z"/>
+                                    </svg>
+                                    <span class="battery-percentage">89%</span>
+                                </div>
                             </div>
-                            <h3 class="empty-title">Canvas Universal</h3>
-                            <p class="empty-description">
-                                Arrastra widgets para crear tu interfaz
-                            </p>
-                            <div class="empty-framework-info">
-                                <span class="framework-label">
-                                    Framework:
-                                    <span class="framework-highlight both-highlight">Universal</span>
-                                </span>
-                            </div>
+                        </div>
+                        <div class="phone-content-area">
+                            <UnifiedWidgetRenderer
+                                v-for="element in currentElements"
+                                :key="element.id"
+                                :element="element"
+                                :is-selected="selectedElementId === element.id"
+                                :is-editable="true"
+                                @select="selectElement"
+                                @update:element="updateElement"
+                                @delete-element="deleteElement"
+                                @duplicate-element="duplicateElement"
+                                @widget-event="handleWidgetEvent"
+                                @property-change="(property, value) => emit('property-change', element, property, value)"
+                            />
+                        </div>
+                        <div class="phone-nav-bar">
+                            <div class="home-indicator"></div>
+                        </div>
+                    </div>
+                    <div class="phone-buttons">
+                        <div class="power-button"></div>
+                        <div class="volume-buttons">
+                            <div class="volume-up"></div>
+                            <div class="volume-down"></div>
                         </div>
                     </div>
                 </div>
@@ -1030,4 +968,56 @@ onUnmounted(() => {
     font-size: 20px;
 }
 
+.design-selector {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 10px;
+    z-index: 101;
+}
+
+.design-selector button {
+    background: rgba(255, 255, 255, 0.8);
+    border: none;
+    border-radius: 4px;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.design-selector button:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateY(-2px);
+}
+
+.design-selector button.active {
+    background: rgba(33, 150, 243, 0.2);
+    backdrop-filter: blur(5px);
+}
+
+.design-selector .material-icons {
+    font-size: 18px;
+    color: #2196F3;
+}
+
+.button-text {
+    font-size: 14px;
+    color: #333;
+}
+
+.dark .design-selector button {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark .design-selector button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.dark .design-selector button.active {
+    background: rgba(255, 255, 255, 0.3);
+}
 </style>

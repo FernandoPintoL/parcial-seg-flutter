@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import type { UnifiedElement } from '@/Data/PizarraUnificada';
 import { UnifiedInteractionService } from '@/services/UnifiedInteractionService';
 
@@ -29,18 +29,43 @@ const emit = defineEmits([
     'update:element',
     'select',
     'widget-event',
-    'property-change',
     'delete-element',
     'duplicate-element',
-    'deselect-all',
-    'create-widget'
+    'property-change'
 ]);
 
-// Reactive references
+// Referencias
 const elementRef = ref<HTMLElement | null>(null);
 
-// Interaction service instance
-let interactionService: UnifiedInteractionService | null = null;
+// Variable para el servicio de interacción
+let interactionService: any = null;
+
+// Función para manejar doble clic en elemento
+function handleDoubleClick() {
+    console.log('🖱️ Double click detected on element:', props.element.id);
+    // Solo seleccionar si el elemento no está siendo arrastrado
+    const isDragging = elementRef.value?.classList.contains('is-dragging');
+    if (!isDragging && props.element) {
+        // Emitir evento de selección para propagar a otros usuarios
+        emit('select', props.element);
+
+        // También notificar explícitamente que este elemento ha sido seleccionado
+        // para la funcionalidad colaborativa
+        emit('widget-event', {
+            type: 'remote-selection',
+            elementId: props.element.id,
+            element: props.element,
+            selected: true
+        });
+
+        // Abrir automáticamente el panel de propiedades al hacer doble clic
+        emit('widget-event', {
+            type: 'open-properties',
+            elementId: props.element.id,
+            element: props.element
+        });
+    }
+}
 
 // Computed properties
 const elementStyle = computed(() => {
@@ -198,8 +223,22 @@ function handlePropertyChange(property: string, value: any) {
             [property]: value,
         },
     };
+
+    // Actualizar el elemento localmente
     emit('update:element', updatedElement);
+
+    // Emitir evento de cambio de propiedad para el panel de propiedades
     emit('property-change', property, value);
+
+    // Emitir evento para notificar a los demás usuarios sobre el cambio
+    // Este evento notificará al sistema de colaboración en tiempo real
+    emit('widget-event', {
+        type: 'remote-update',
+        elementId: props.element.id,
+        element: updatedElement,
+        property: property,
+        value: value
+    });
 }
 
 function handleDeleteElement() {
@@ -215,12 +254,12 @@ function handleDeleteElement() {
 function handleElementClick() {
     console.log('🖱️ Element clicked:', props.element.id);
 
-    // Verificar si no está siendo arrastrado
-    if (!interactionService?.getState().isDragging) {
-        console.log('✅ Emitting select event for element:', props.element.id);
-        emit('select', props.element);
-    } else {
+    // No seleccionar con un solo clic, solo verificar si está siendo arrastrado
+    if (interactionService?.getState().isDragging) {
         console.log('🚫 Click ignored - element is being dragged');
+    } else {
+        console.log('🔄 Click detected but not selecting - use double click to select');
+        // No emit('select', props.element); - Removido para usar doble clic
     }
 }
 
@@ -412,14 +451,14 @@ function getWidgetProps(element: UnifiedElement) {
 }
 
 // Función helper para convertir strings a funciones
-function convertStringToFunction(functionStr: string): Function {
+function convertStringToFunction(functionStr: string): (...args: any[]) => any {
     if (!functionStr) return () => {};
 
     try {
         // Handle common function string patterns
         if (functionStr.includes('=>')) {
             // Arrow function syntax already exists
-            return new Function('return ' + functionStr)();
+            return new Function('return ' + functionStr)() as (...args: any[]) => any;
         } else if (functionStr.match(/\([^)]*\)\s*\{/)) {
             // Classic function declaration: (param) { body }
             const params = functionStr.substring(
@@ -433,7 +472,7 @@ function convertStringToFunction(functionStr: string): Function {
             ).trim();
 
             // Create a proper arrow function
-            return new Function(...params.split(','), `${body}`);
+            return new Function(...params.split(','), `${body}`) as (...args: any[]) => any;
         } else {
             // Default fallback - create an empty function
             return () => {};
@@ -481,6 +520,15 @@ onUnmounted(() => {
         interactionService = null;
     }
 });
+
+// Watch for remote selection changes
+watch(() => props.element.remoteSelectedBy, (newVal) => {
+    if (newVal) {
+        // Element is remotely selected, handle accordingly
+        console.log('🔄 Element remotely selected by:', newVal);
+        // Aquí puedes agregar lógica adicional si es necesario
+    }
+});
 </script>
 
 <template>
@@ -497,7 +545,8 @@ onUnmounted(() => {
 
     :data-element-id="element.id"
     :data-element-type="element.type"
-    @click.stop="handleElementClick">
+    @click.stop="handleElementClick"
+    @dblclick.stop="handleDoubleClick">
 
         <!-- Widget content - Componente real -->
         <div class="widget-content">

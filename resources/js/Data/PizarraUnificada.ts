@@ -44,6 +44,7 @@ export interface UnifiedElement {
     transform?: string;
     opacity?: number;
     textContent?: string;
+    remoteSelectedBy?: string; // Nombre del usuario que tiene seleccionado este elemento
     created_at?: string;
     updated_at?: string;
 }

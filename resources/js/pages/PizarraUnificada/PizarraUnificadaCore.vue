@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PizarraUnificada, User } from '@/Data/PizarraUnificada';
+import type { PizarraUnificada, User, UnifiedElement } from '@/Data/PizarraUnificada';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -162,7 +162,7 @@ const collaboration = usePizarraCollaboration(
             // Save the changes
             savePizarra();
         },
-        onFrameworkSwitched: (framework) => {
+        onFrameworkSwitched: (framework: 'flutter' | 'angular' | 'both') => {
             console.log('Framework switched by collaborator to:', framework);
 
             // Update the framework if it's different
@@ -194,7 +194,7 @@ const collaboration = usePizarraCollaboration(
                     // Create a timeout to remove the indicator after a few seconds
                     setTimeout(() => {
                         if (foundElement.remoteSelectedBy === userId) {
-                            foundElement.remoteSelectedBy = null;
+                            foundElement.remoteSelectedBy = undefined;
                         }
                     }, 5000);
 
@@ -586,6 +586,37 @@ const getFrameworkInstructions = (framework: string): string => {
     }
     return '';
 };
+
+// Apply remote selections to elements before rendering
+const applyRemoteSelections = (elements: UnifiedElement[]): UnifiedElement[] => {
+    return elements.map((element) => {
+        // Verificar que element.id existe y es una clave válida en remoteSelections
+        if (element.id && typeof element.id === 'string' && Object.prototype.hasOwnProperty.call(collaboration.remoteSelections, element.id)) {
+            // Si este elemento está seleccionado remotamente, agregar la propiedad remoteSelectedBy
+            const remoteUser = collaboration.remoteSelections[element.id as keyof typeof collaboration.remoteSelections];
+            return {
+                ...element,
+                remoteSelectedBy: typeof remoteUser === 'string' ? remoteUser : String(remoteUser),
+            } as UnifiedElement;
+        }
+        // Recursivamente procesar los elementos hijos
+        if (element.children && element.children.length > 0) {
+            return {
+                ...element,
+                children: applyRemoteSelections(element.children),
+            };
+        }
+        return element;
+    });
+};
+
+// Elementos con selecciones remotas aplicadas
+const elementsWithRemoteSelections = computed(() => {
+    if (!pizarraState.currentScreen.value?.elements) {
+        return [];
+    }
+    return applyRemoteSelections([...pizarraState.currentScreen.value.elements]);
+});
 
 // Element management functions
 const addWidget = (widgetType: string) => {

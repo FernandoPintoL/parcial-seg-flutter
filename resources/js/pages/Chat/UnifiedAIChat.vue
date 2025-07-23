@@ -361,21 +361,31 @@ const setAIProvider = async (provider: 'azure' | 'openai' | 'backend') => {
 
 // Función para procesar widgets de un mensaje
 const processWidgetsFromMessage = (message: any, originalPrompt: string) => {
-    if (!message) return;
+    if (!message) {
+        console.error("processWidgetsFromMessage: No se recibió mensaje");
+        return;
+    }
+
+    console.log("Procesando mensaje para insertar widgets:", message);
 
     // Si ya hay widgets procesados en el mensaje, los añadimos directamente
     if (message.widgets && message.widgets.length > 0) {
+        console.log("Widgets ya procesados encontrados en el mensaje:", message.widgets);
         props.onWidgetsGenerated([...message.widgets]);
         return;
     }
 
     // Si no hay widgets procesados, intentamos extraerlos del texto
+    console.log("Intentando extraer JSON del texto:", message.text);
     const jsonData = extractJsonBlock(message.text);
     if (jsonData) {
+        console.log("JSON extraído:", jsonData);
         // Verificamos si el JSON tiene un campo de widgets
         if (jsonData.widgets && Array.isArray(jsonData.widgets)) {
+            console.log("Array de widgets encontrado en JSON");
             // Determinamos el framework solicitado
             const requestedFramework = jsonData.framework || detectFramework(originalPrompt);
+            console.log("Framework detectado:", requestedFramework);
 
             // Añadimos información adicional a cada widget
             const processedWidgets = jsonData.widgets.map((widget: any, index: number) => ({
@@ -389,19 +399,34 @@ const processWidgetsFromMessage = (message: any, originalPrompt: string) => {
                 }
             }));
 
+            console.log("Widgets procesados:", processedWidgets);
+
             // Guardamos los widgets procesados en el mensaje para referencia futura
             message.widgets = processedWidgets;
 
-            // Enviamos los widgets al canvas
-            props.onWidgetsGenerated(processedWidgets);
+            try {
+                // Enviamos los widgets al canvas
+                console.log("Llamando a onWidgetsGenerated con widgets:", processedWidgets);
+                props.onWidgetsGenerated(processedWidgets);
 
-            // Informamos al usuario
-            new AlertService().success(`${processedWidgets.length} widgets añadidos a la pizarra`);
+                // Informamos al usuario
+                new AlertService().success(`${processedWidgets.length} widgets añadidos a la pizarra`);
+            } catch (error) {
+                console.error("Error al enviar widgets a la pizarra:", error);
+                new AlertService().error("Error al añadir widgets a la pizarra. Consulta la consola para más detalles.");
+            }
         } else {
-            console.warn("JSON detectado pero no contiene un array de widgets válido");
+            console.warn("JSON detectado pero no contiene un array de widgets válido:", jsonData);
+            new AlertService().warning("La respuesta no contiene widgets válidos para insertar en la pizarra");
         }
     } else {
         console.log("No se encontró un bloque JSON válido en la respuesta");
+        // Intentar reconocer si la respuesta contiene código que podría convertirse en widgets
+        if (message.text.includes('```') &&
+            (message.text.includes('<') || message.text.includes('Widget') || message.text.includes('Component'))) {
+            console.log("Se detectó código en la respuesta, pero no está en formato JSON para widgets");
+            new AlertService().info("Se detectó código en la respuesta, pero no está en formato JSON válido para widgets");
+        }
     }
 };
 </script>
