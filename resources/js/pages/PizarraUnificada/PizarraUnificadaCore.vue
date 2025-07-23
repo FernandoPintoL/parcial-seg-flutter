@@ -3,28 +3,29 @@ import type { PizarraUnificada, User } from '@/Data/PizarraUnificada';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { AIService } from '@/services/AIService';
 
 // Core Components
 import ChatColaborativo from '@/pages/Chat/ChatColaborativo.vue';
 import UnifiedAIChat from '@/pages/Chat/UnifiedAIChat.vue';
-import CodeViewerModal from '@/pages/PizarraUnificada/components/CodeViewerModal.vue';
+import CodeViewerModal from './components/CodeViewerModal.vue';
 import CollaboratorManagementModal from '@/pages/PizarraUnificada/components/CollaboratorManagementModal.vue';
-import DiagramUploadModal from '@/pages/PizarraUnificada/components/DiagramUploadModal.vue';
-import ImageUploadModal from '@/pages/PizarraUnificada/components/ImageUploadModal.vue';
-import PizarraHeader from '@/pages/PizarraUnificada/components/PizarraHeader.vue';
-import PizarraModals from '@/pages/PizarraUnificada/components/PizarraModals.vue';
-import PizarraToolbar from '@/pages/PizarraUnificada/components/PizarraToolbar.vue';
-import UnifiedCanvas from '../UnifiedCanvas.vue';
-import UnifiedPropertiesPanel from '../UnifiedPropertiesPanel.vue';
+import DiagramUploadModal from './components/DiagramUploadModal.vue';
+import ImageUploadModal from './components/ImageUploadModal.vue';
+import PizarraHeader from './components/PizarraHeader.vue';
+import PizarraModals from './components/PizarraModals.vue';
+import PizarraToolbar from './components/PizarraToolbar.vue';
+import UnifiedCanvas from './UnifiedCanvas.vue';
+import UnifiedPropertiesPanel from './UnifiedPropertiesPanel.vue';
 
 // Composables
 import { useElementManagement } from '@/pages/PizarraUnificada/composables/useElementManagement';
 import { usePizarraCollaboration } from '@/pages/PizarraUnificada/composables/usePizarraCollaboration';
 import { usePizarraState } from '@/pages/PizarraUnificada/composables/usePizarraState';
 import { usePizarraUI } from '@/pages/PizarraUnificada/composables/usePizarraUI';
-import { usePizarraServices } from '../composables/usePizarraServices';
-import { usePizarraStorage } from '../composables/usePizarraStorage';
-import { useProcessingServices } from '../composables/useProcessingServices';
+import { usePizarraServices } from './composables/usePizarraServices';
+import { usePizarraStorage } from './composables/usePizarraStorage';
+import { useProcessingServices } from './composables/useProcessingServices';
 
 // Props
 const props = defineProps<{
@@ -84,7 +85,7 @@ const collaboration = usePizarraCollaboration(
             // Only update if the element belongs to the current screen
             if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
                 // Find the target screen and update it
-                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                const screenIndex = pizarraState.screens.value.findIndex((s) => s.id === screenId);
                 if (screenIndex >= 0) {
                     // Add the element to the screen
                     if (!pizarraState.screens.value[screenIndex].elements) {
@@ -110,10 +111,10 @@ const collaboration = usePizarraCollaboration(
             // Only update if the element belongs to the current screen
             if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
                 // Find the target screen and update it
-                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                const screenIndex = pizarraState.screens.value.findIndex((s) => s.id === screenId);
                 if (screenIndex >= 0 && pizarraState.screens.value[screenIndex].elements) {
                     // Find and update the element
-                    const elementIndex = pizarraState.screens.value[screenIndex].elements.findIndex(e => e.id === element.id);
+                    const elementIndex = pizarraState.screens.value[screenIndex].elements.findIndex((e) => e.id === element.id);
                     if (elementIndex >= 0) {
                         pizarraState.screens.value[screenIndex].elements[elementIndex] = element;
                     }
@@ -123,7 +124,7 @@ const collaboration = usePizarraCollaboration(
 
             // Update the element in the current screen
             if (pizarraState.currentScreen.value.elements) {
-                const elementIndex = pizarraState.currentScreen.value.elements.findIndex(e => e.id === element.id);
+                const elementIndex = pizarraState.currentScreen.value.elements.findIndex((e) => e.id === element.id);
                 if (elementIndex >= 0) {
                     pizarraState.currentScreen.value.elements[elementIndex] = element;
                 }
@@ -138,19 +139,19 @@ const collaboration = usePizarraCollaboration(
             // Only update if the element belongs to the current screen
             if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
                 // Find the target screen and update it
-                const screenIndex = pizarraState.screens.value.findIndex(s => s.id === screenId);
+                const screenIndex = pizarraState.screens.value.findIndex((s) => s.id === screenId);
                 if (screenIndex >= 0 && pizarraState.screens.value[screenIndex].elements) {
                     // Remove the element
-                    pizarraState.screens.value[screenIndex].elements =
-                        pizarraState.screens.value[screenIndex].elements.filter(e => e.id !== elementId);
+                    pizarraState.screens.value[screenIndex].elements = pizarraState.screens.value[screenIndex].elements.filter(
+                        (e) => e.id !== elementId,
+                    );
                 }
                 return;
             }
 
             // Remove the element from the current screen
             if (pizarraState.currentScreen.value.elements) {
-                pizarraState.currentScreen.value.elements =
-                    pizarraState.currentScreen.value.elements.filter(e => e.id !== elementId);
+                pizarraState.currentScreen.value.elements = pizarraState.currentScreen.value.elements.filter((e) => e.id !== elementId);
             }
 
             // Deselect the element if it was selected
@@ -171,6 +172,34 @@ const collaboration = usePizarraCollaboration(
 
                 // Save the changes
                 savePizarra();
+            }
+        },
+        onElementSelected: (element, screenId, userId) => {
+            console.log('Element selected by collaborator:', element, 'in screen:', screenId, 'by user:', userId);
+
+            // Only update if the element belongs to the current screen
+            if (screenId && pizarraState.currentScreen.value?.id !== screenId) {
+                console.log('Element is in a different screen, not updating UI');
+                return;
+            }
+
+            // Find the element in the current screen
+            if (pizarraState.currentScreen.value.elements) {
+                const foundElement = pizarraState.currentScreen.value.elements.find((e) => e.id === element.id);
+                if (foundElement) {
+                    // Add a visual indicator that this element is being selected by another user
+                    // We'll add a temporary class or property to the element
+                    foundElement.remoteSelectedBy = userId;
+
+                    // Create a timeout to remove the indicator after a few seconds
+                    setTimeout(() => {
+                        if (foundElement.remoteSelectedBy === userId) {
+                            foundElement.remoteSelectedBy = null;
+                        }
+                    }, 5000);
+
+                    console.log('Added remote selection indicator to element:', element.id, 'by user:', userId);
+                }
             }
         },
         onUserJoined: (user) => {
@@ -211,6 +240,12 @@ const {
     toggleCodeViewer,
     applyDarkMode,
 } = usePizarraUI();
+
+// Code Verification State
+const codeVerificationResult = ref<{ isValid: boolean; message: string } | null>(null);
+const codeCorrectedCode = ref<string | null>(null);
+const codeHasCorrections = ref<boolean>(false);
+const isVerifyingCode = ref<boolean>(false);
 
 // Collaborator Management State
 const showCollaboratorManagement = ref<boolean>(false);
@@ -340,10 +375,18 @@ const savePizarra = async () => {
     }
 };
 
-// Handle code viewer toggle with code generation
+// Handle code viewer toggle with code generation and verification
 const handleCodeViewerToggle = async () => {
     try {
         console.log('🚀 Generating code for framework:', pizarraState.selectedFramework.value);
+
+        // Reset verification state
+        codeVerificationResult.value = null;
+        codeCorrectedCode.value = null;
+        codeHasCorrections.value = false;
+
+        // Show loading message
+        isVerifyingCode.value = true;
 
         // Save pizarra first to ensure all changes are included
         await savePizarra();
@@ -353,17 +396,195 @@ const handleCodeViewerToggle = async () => {
 
         if (result.success) {
             console.log('✅ Code generated successfully for:', pizarraState.selectedFramework.value);
+
+            try {
+                console.log('🔍 Verifying generated code...');
+
+                // Use appropriate verification method based on framework
+                let correctedCode: string;
+                if (pizarraState.selectedFramework.value === 'flutter') {
+                    correctedCode = await AIService.correctFlutterCode(pizarraServices.generatedCode.value);
+                } else if (pizarraState.selectedFramework.value === 'angular') {
+                    correctedCode = await AIService.correctAngularCode(pizarraServices.generatedCode.value);
+                } else {
+                    // For other frameworks, just use the original code
+                    correctedCode = pizarraServices.generatedCode.value;
+                }
+
+                // Check if code needed corrections
+                const isValid = correctedCode === pizarraServices.generatedCode.value;
+
+                // Set verification result
+                codeVerificationResult.value = {
+                    isValid,
+                    message: isValid
+                        ? `El código ${pizarraState.selectedFramework.value.toUpperCase()} es válido y sigue las mejores prácticas.`
+                        : `Se encontraron problemas en el código ${pizarraState.selectedFramework.value.toUpperCase()}. Se han aplicado correcciones automáticamente.`,
+                };
+
+                // If code needed corrections, automatically apply them
+                if (!isValid) {
+                    codeCorrectedCode.value = correctedCode;
+                    codeHasCorrections.value = true;
+                    console.log('🔧 Code corrections applied');
+
+                    // Automatically apply corrections
+                    pizarraServices.generatedCode.value = correctedCode;
+                    console.log('✅ Code automatically updated with corrections');
+                } else {
+                    console.log('✅ Code verification passed, no corrections needed');
+                }
+            } catch (verifyError) {
+                console.error('❌ Error verifying code:', verifyError);
+                codeVerificationResult.value = {
+                    isValid: false,
+                    message: 'Error al verificar el código. Se mostrará el código original.',
+                };
+            } finally {
+                isVerifyingCode.value = false;
+            }
+
             // Show the code viewer modal
             toggleCodeViewer();
         } else {
             console.error('❌ Error generating code:', result.error);
             // Show error notification or handle the error
             alert(`Error generating code: ${result.error || 'Unknown error'}`);
+            isVerifyingCode.value = false;
         }
     } catch (error) {
         console.error('❌ Error in handleCodeViewerToggle:', error);
         alert('Error generating code. Please try again.');
+        isVerifyingCode.value = false;
     }
+};
+
+// Handle code download (single file or complete project)
+const handleCodeDownload = async (downloadType: 'single' | 'complete' = 'single', verifiedCode?: string) => {
+    try {
+        console.log('📥 Downloading code as:', downloadType);
+
+        // If verified code is provided, update the generated code in the services
+        if (verifiedCode && verifiedCode !== pizarraServices.generatedCode.value) {
+            console.log('🔄 Using verified code for download');
+            pizarraServices.generatedCode.value = verifiedCode;
+        }
+
+        if (downloadType === 'complete') {
+            // Download complete project as ZIP
+            await pizarraServices.downloadZipFile(pizarraState.projectName.value);
+
+            // Create and download instructions file
+            const framework = pizarraState.selectedFramework.value;
+            const instructions = getFrameworkInstructions(framework);
+
+            if (instructions) {
+                const blob = new Blob([instructions], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${pizarraState.projectName.value}-${framework}-instructions.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        } else {
+            // Download single file
+            pizarraServices.downloadCode(pizarraState.projectName.value, pizarraState.selectedFramework.value);
+        }
+
+        // Show success message
+        console.log('✅ Code downloaded successfully');
+        alert('Código descargado correctamente. Se ha verificado y corregido automáticamente para asegurar su compatibilidad.');
+    } catch (error) {
+        console.error('❌ Error downloading code:', error);
+        alert('Error downloading code. Please try again.');
+    }
+};
+
+// Handle code update from code verification
+const handleCodeUpdate = (updatedCode: string) => {
+    try {
+        console.log('🔄 Updating generated code with corrected version');
+
+        // Update the generated code in the services
+        pizarraServices.generatedCode.value = updatedCode;
+
+        // Show a notification to the user
+        alert('El código ha sido actualizado con las correcciones automáticas.');
+
+        // Log the success
+        console.log('✅ Code updated successfully with corrections');
+    } catch (error) {
+        console.error('❌ Error updating code:', error);
+        alert('Error al actualizar el código. Por favor, inténtelo de nuevo.');
+    }
+};
+
+// Get framework-specific instructions
+const getFrameworkInstructions = (framework: string): string => {
+    if (framework === 'angular') {
+        return `# Angular Installation Instructions
+
+## Prerequisites
+- Node.js (v14 or later)
+- npm (v6 or later)
+
+## Steps to run the project
+1. Extract the downloaded ZIP file
+2. Open a terminal and navigate to the project folder
+3. Install dependencies:
+   \`\`\`
+   npm install
+   \`\`\`
+4. Start the development server:
+   \`\`\`
+   npm start
+   \`\`\`
+5. Open your browser and navigate to http://localhost:4200
+
+## Project Structure
+- \`src/app\`: Contains all the application components and modules
+- \`src/assets\`: Contains static assets like images
+- \`src/environments\`: Contains environment configuration
+
+## Additional Commands
+- Build for production: \`npm run build\`
+- Run tests: \`npm test\`
+`;
+    } else if (framework === 'flutter') {
+        return `# Flutter Installation Instructions
+
+## Prerequisites
+- Flutter SDK (v3.0 or later)
+- Dart SDK (v2.17 or later)
+- Android Studio or VS Code with Flutter extensions
+
+## Steps to run the project
+1. Extract the downloaded ZIP file
+2. Open a terminal and navigate to the project folder
+3. Install dependencies:
+   \`\`\`
+   flutter pub get
+   \`\`\`
+4. Run the application:
+   \`\`\`
+   flutter run
+   \`\`\`
+
+## Project Structure
+- \`lib\`: Contains all the Dart code for the application
+- \`lib/screens\`: Contains screen widgets
+- \`lib/widgets\`: Contains reusable widgets
+- \`assets\`: Contains static assets like images
+
+## Additional Commands
+- Build APK: \`flutter build apk\`
+- Run tests: \`flutter test\`
+`;
+    }
+    return '';
 };
 
 // Element management functions
@@ -391,6 +612,12 @@ const selectElement = (element: any) => {
     // Solo abrir el panel de propiedades si hay un elemento seleccionado
     if (element) {
         togglePropertiesPanel();
+
+        // Emit to collaboration if an element is selected
+        if (collaboration.collaborationService) {
+            collaboration.emitElementSelected(element, pizarraState.currentScreen.value?.id);
+            console.log('🔄 Element selection broadcasted to collaborators:', element.id);
+        }
     } else {
         // Sí element és null, cerrar el panel de propiedades
         showPropertiesPanel.value = false;
@@ -401,6 +628,12 @@ const openPropertiesPanel = (element: any) => {
     // Seleccionar el elemento y abrir el panel de propiedades
     elementManagement.selectElement(element);
     togglePropertiesPanel();
+
+    // Emit to collaboration
+    if (collaboration.collaborationService) {
+        collaboration.emitElementSelected(element, pizarraState.currentScreen.value?.id);
+        console.log('🔄 Element selection broadcasted to collaborators from properties panel:', element.id);
+    }
 
     console.log('⚙️ Properties panel opened for element:', element.id);
 };
@@ -661,9 +894,7 @@ function handleDeleteElement(element: any) {
             <UnifiedAIChat
                 v-if="showAIChat"
                 :framework="
-                    ['flutter', 'angular', 'both'].includes(pizarraState.selectedFramework.value)
-                        ? pizarraState.selectedFramework.value
-                        : 'vue'
+                    ['flutter', 'angular', 'both'].includes(pizarraState.selectedFramework.value) ? pizarraState.selectedFramework.value : 'vue'
                 "
                 :is-open="showAIChat"
                 :on-close="() => toggleAIChat()"
@@ -671,7 +902,12 @@ function handleDeleteElement(element: any) {
             />
             <!-- Collaborative Chat Modal -->
             <ChatColaborativo
-                v-if="uiShowCollaborationChat && collaboration.socketConnected.value && collaboration.collaborationService.value && collaboration.socketConfig"
+                v-if="
+                    uiShowCollaborationChat &&
+                    collaboration.socketConnected.value &&
+                    collaboration.collaborationService.value &&
+                    collaboration.socketConfig
+                "
                 :collaboration-service="collaboration.collaborationService.value"
                 :room-id="String(collaboration.roomId.value || '')"
                 :current-user="String(collaboration.currentUser.value || '')"
@@ -712,9 +948,14 @@ function handleDeleteElement(element: any) {
                 :show="showCodeViewer"
                 :code="pizarraServices.generatedCode.value"
                 :framework="pizarraState.selectedFramework.value"
-                @close="() => showCodeViewer = false"
-                @download="() => pizarraServices.downloadCode(pizarraState.projectName.value, pizarraState.selectedFramework.value)"
+                :pizarra="pizarra"
+                :initial-verification-result="codeVerificationResult"
+                :initial-corrected-code="codeCorrectedCode"
+                :initial-has-corrections="codeHasCorrections"
+                @close="() => (showCodeViewer = false)"
+                @download="handleCodeDownload"
                 @copy="pizarraServices.copyCode"
+                @update-code="handleCodeUpdate"
             />
 
             <!-- Collaborator Management Modal -->

@@ -15,6 +15,7 @@ interface CollaborationCallbacks {
     onElementAdded?: (element: UnifiedElement, screenId: string) => void;
     onElementUpdated?: (element: UnifiedElement, screenId: string) => void;
     onElementDeleted?: (elementId: string, screenId: string) => void;
+    onElementSelected?: (element: UnifiedElement, screenId: string, userId: string) => void;
     onFrameworkSwitched?: (framework: string) => void;
     onUserJoined?: (user: User) => void;
     onUserLeft?: (userId: string) => void;
@@ -107,6 +108,12 @@ export function usePizarraCollaboration(
             }
         });
 
+        service.socket.on('unified-element-selected', (data: { element: UnifiedElement; screenId: string; userId: string }) => {
+            if (data.userId !== currentUser.value) {
+                callbacks.onElementSelected?.(data.element, data.screenId, data.userId);
+            }
+        });
+
         // Flutter widget events (for backward compatibility)
         service.socket.on('flutter-widget-added', (data: { widget: UnifiedElement; screenId: string; userId: string }) => {
             if (data.userId !== currentUser.value) {
@@ -123,6 +130,12 @@ export function usePizarraCollaboration(
         service.socket.on('flutter-widget-removed', (data: { widgetIndex: string; screenId: string; userId: string }) => {
             if (data.userId !== currentUser.value) {
                 callbacks.onElementDeleted?.(data.widgetIndex, data.screenId);
+            }
+        });
+
+        service.socket.on('flutter-widget-selected', (data: { widget: UnifiedElement; screenId: string; userId: string }) => {
+            if (data.userId !== currentUser.value) {
+                callbacks.onElementSelected?.(data.widget, data.screenId, data.userId);
             }
         });
 
@@ -181,6 +194,13 @@ export function usePizarraCollaboration(
     const emitElementDeleted = (elementId: string, screenId: string) => {
         if (collaborationService.value && isCollaborating.value) {
             collaborationService.value.emitElementDeleted(elementId, screenId);
+        }
+    };
+
+    // Emit element selection to collaborators
+    const emitElementSelected = (element: UnifiedElement, screenId: string) => {
+        if (collaborationService.value && isCollaborating.value) {
+            collaborationService.value.emitElementSelected(element, screenId);
         }
     };
 
@@ -287,6 +307,7 @@ export function usePizarraCollaboration(
         emitElementAdded,
         emitElementUpdated,
         emitElementDeleted,
+        emitElementSelected,
         emitFrameworkSwitched,
         emitChatMessage,
         emitTyping,

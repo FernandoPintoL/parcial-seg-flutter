@@ -57,6 +57,23 @@ export class UnifiedWidgetService {
                     { name: 'centerTitle', type: 'boolean', defaultValue: false },
                 ]
             },
+            // Nuevo widget: AppBarFlutter
+            {
+                type: 'AppBarFlutter',
+                name: 'App Bar Flutter',
+                icon: 'app_bar',
+                category: 'navegation',
+                framework: 'flutter',
+                component: 'AppBarFlutter',
+                properties: [
+                    { name: 'title', type: 'string', defaultValue: 'AppBar Title' },
+                    { name: 'backgroundColor', type: 'color', defaultValue: '#2196F3' },
+                    { name: 'textColor', type: 'color', defaultValue: '#FFFFFF' },
+                    { name: 'elevation', type: 'number', defaultValue: 4 },
+                    { name: 'centerTitle', type: 'boolean', defaultValue: false },
+                    { name: 'automaticallyImplyLeading', type: 'boolean', defaultValue: true },
+                ]
+            },
             {
                 type: 'Scaffold',
                 name: 'Andamio',
@@ -72,6 +89,21 @@ export class UnifiedWidgetService {
                     { name: 'bottomNavigationBar', type: 'boolean', defaultValue: false },
                     { name: 'floatingActionButton', type: 'boolean', defaultValue: false },
                     { name: 'drawer', type: 'boolean', defaultValue: false },
+                ]
+            },
+            // Nuevo widget: Select
+            {
+                type: 'Select',
+                name: 'Selección',
+                icon: 'menu_open',
+                category: 'input',
+                framework: 'flutter',
+                component: 'SelectFlutter',
+                properties: [
+                    { name: 'label', type: 'string', defaultValue: 'Select an option' },
+                    { name: 'value', type: 'string', defaultValue: '' },
+                    { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
+                    { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
                 ]
             },
             // Widgets de entrada
@@ -212,6 +244,54 @@ export class UnifiedWidgetService {
                     { name: 'inactiveColor', type: 'color', defaultValue: '#E0E0E0' },
                 ]
             },
+            // Nuevo widget: SwitchListTile
+            {
+                type: 'SwitchListTile',
+                name: 'Switch con Título',
+                icon: 'toggle_on',
+                category: 'input',
+                framework: 'flutter',
+                component: 'SwitchListTileFlutter',
+                properties: [
+                    { name: 'title', type: 'string', defaultValue: 'Switch List Tile' },
+                    { name: 'subtitle', type: 'string', defaultValue: '' },
+                    { name: 'value', type: 'boolean', defaultValue: false },
+                    { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+                    { name: 'activeColor', type: 'color', defaultValue: '#2196F3' },
+                    { name: 'inactiveColor', type: 'color', defaultValue: '#bdbdbd' },
+                    { name: 'thumbColor', type: 'color', defaultValue: '#FFFFFF' },
+                    { name: 'disabled', type: 'boolean', defaultValue: false },
+                ]
+            },
+            // Nuevo widget: DropdownButton
+            {
+                type: 'DropdownButton',
+                name: 'Menú Desplegable',
+                icon: 'arrow_drop_down',
+                category: 'input',
+                framework: 'flutter',
+                component: 'DropdownButtonFlutter',
+                properties: [
+                    { name: 'value', type: 'string', defaultValue: 'Option 1' },
+                    { name: 'items', type: 'array', defaultValue: ['Option 1', 'Option 2', 'Option 3'] },
+                    { name: 'onChanged', type: 'string', defaultValue: '(value) {}' },
+                ]
+            },
+            // Nuevo widget: TableList
+            {
+                type: 'TableList',
+                name: 'Lista Tabular',
+                icon: 'table_rows',
+                category: 'input',
+                framework: 'flutter',
+                component: 'TableListFlutter',
+                properties: [
+                    { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
+                    { name: 'rows', type: 'number', defaultValue: 3 },
+                    { name: 'border', type: 'boolean', defaultValue: true },
+                    { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' },
+                ]
+            },
             // Widgets de layout
             {
                 type: 'Container',
@@ -277,6 +357,96 @@ export class UnifiedWidgetService {
                     { name: 'borderRadius', type: 'number', defaultValue: 0 },
                 ]
             },
+            // Nuevo widget: Center
+            {
+                type: 'Center',
+                name: 'Centrar',
+                icon: 'center_focus_strong',
+                category: 'layout',
+                framework: 'flutter',
+                component: 'CenterFlutter',
+                properties: [
+                    { name: 'widthFactor', type: 'number', defaultValue: null },
+                    { name: 'heightFactor', type: 'number', defaultValue: null },
+                ]
+            },
+            // Nuevo widget: SizedBox
+            {
+                type: 'SizedBox',
+                name: 'Caja Dimensionada',
+                icon: 'aspect_ratio',
+                category: 'layout',
+                framework: 'flutter',
+                component: 'SizedBoxFlutter',
+                properties: [
+                    { name: 'width', type: 'number', defaultValue: 100 },
+                    { name: 'height', type: 'number', defaultValue: 100 },
+                ]
+            },
+            // Nuevo widget: ScrollChildren
+            {
+                type: 'ScrollChildren',
+                name: 'Scroll con Hijos',
+                icon: 'swap_vert',
+                category: 'layout',
+                framework: 'flutter',
+                component: 'ScrollChildrenFlutter',
+                properties: [
+                    { name: 'scrollDirection', type: 'select', options: ['Axis.vertical', 'Axis.horizontal'], defaultValue: 'Axis.vertical' },
+                    { name: 'padding', type: 'string', defaultValue: 'EdgeInsets.all(8.0)' },
+                    { name: 'physics', type: 'select', options: ['ClampingScrollPhysics()', 'BouncingScrollPhysics()', 'AlwaysScrollableScrollPhysics()'], defaultValue: 'ClampingScrollPhysics()' },
+                ]
+            },
+            // Nuevo widget: SafeArea
+            {
+                type: 'SafeArea',
+                name: 'Área Segura',
+                icon: 'security',
+                category: 'layout',
+                framework: 'flutter',
+                component: 'SafeAreaFlutter',
+                properties: [
+                    { name: 'top', type: 'boolean', defaultValue: true },
+                    { name: 'bottom', type: 'boolean', defaultValue: true },
+                    { name: 'left', type: 'boolean', defaultValue: true },
+                    { name: 'right', type: 'boolean', defaultValue: true },
+                ]
+            },
+            // Nuevo widget: Form
+            {
+                type: 'Form',
+                name: 'Formulario',
+                icon: 'assignment',
+                category: 'layout',
+                framework: 'flutter',
+                component: 'FormFlutter',
+                properties: [
+                    { name: 'key', type: 'string', defaultValue: 'GlobalKey<FormState>()' },
+                    { name: 'autovalidateMode', type: 'select', options: ['AutovalidateMode.disabled', 'AutovalidateMode.always', 'AutovalidateMode.onUserInteraction'], defaultValue: 'AutovalidateMode.disabled' },
+                ]
+            },
+            // Nuevo widget: Table
+            {
+                type: 'Table',
+                name: 'Tabla',
+                icon: 'table_chart',
+                category: 'input',
+                framework: 'flutter',
+                component: 'TableFlutter',
+                properties: [
+                    { name: 'columns', type: 'array', defaultValue: ['Column 1', 'Column 2', 'Column 3'] },
+                    { name: 'rows', type: 'array', defaultValue: [
+                        ['Row 1, Col 1', 'Row 1, Col 2', 'Row 1, Col 3'],
+                        ['Row 2, Col 1', 'Row 2, Col 2', 'Row 2, Col 3'],
+                        ['Row 3, Col 1', 'Row 3, Col 2', 'Row 3, Col 3']
+                    ] },
+                    { name: 'border', type: 'boolean', defaultValue: true },
+                    { name: 'headerColor', type: 'color', defaultValue: '#E0E0E0' },
+                    { name: 'cellPadding', type: 'number', defaultValue: 8 },
+                    { name: 'borderColor', type: 'color', defaultValue: '#BDBDBD' },
+                    { name: 'textAlign', type: 'select', options: ['left', 'center', 'right'], defaultValue: 'center' },
+                ]
+            },
             // Widgets de visualización
             {
                 type: 'Text',
@@ -340,6 +510,61 @@ export class UnifiedWidgetService {
                     { name: 'width', type: 'number', defaultValue: 300 },
                     { name: 'showImage', type: 'boolean', defaultValue: false },
                     { name: 'showActions', type: 'boolean', defaultValue: true },
+                ]
+            },
+            // Nuevo widget: ListCard
+            {
+                type: 'ListCard',
+                name: 'Tarjeta de Lista',
+                icon: 'view_list',
+                category: 'display',
+                framework: 'flutter',
+                component: 'ListCardFlutter',
+                properties: [
+                    { name: 'title', type: 'string', defaultValue: 'List Card Title' },
+                    { name: 'subtitle', type: 'string', defaultValue: 'List Card Subtitle' },
+                    { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
+                    { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
+                    { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+                    { name: 'elevation', type: 'number', defaultValue: 2 },
+                    { name: 'borderRadius', type: 'number', defaultValue: 8 },
+                    { name: 'showImage', type: 'boolean', defaultValue: false },
+                    { name: 'imageUrl', type: 'string', defaultValue: '' },
+                    { name: 'imageHeight', type: 'number', defaultValue: 150 },
+                ]
+            },
+            // Nuevo widget: ListTitle (debería ser ListTile, pero mantenemos el nombre original)
+            {
+                type: 'ListTitle',
+                name: 'Título de Lista',
+                icon: 'format_list_bulleted',
+                category: 'display',
+                framework: 'flutter',
+                component: 'ListTitleFlutter',
+                properties: [
+                    { name: 'title', type: 'string', defaultValue: 'List Tile Title' },
+                    { name: 'subtitle', type: 'string', defaultValue: 'List Tile Subtitle' },
+                    { name: 'leading', type: 'string', defaultValue: 'Icon(Icons.star)' },
+                    { name: 'trailing', type: 'string', defaultValue: 'Icon(Icons.arrow_forward)' },
+                    { name: 'dense', type: 'boolean', defaultValue: false },
+                    { name: 'enabled', type: 'boolean', defaultValue: true },
+                ]
+            },
+            // Nuevo widget: CardText
+            {
+                type: 'CardText',
+                name: 'Tarjeta de Texto',
+                icon: 'description',
+                category: 'display',
+                framework: 'flutter',
+                component: 'CardTextFlutter',
+                properties: [
+                    { name: 'title', type: 'string', defaultValue: 'Card Title' },
+                    { name: 'subtitle', type: 'string', defaultValue: 'Card Subtitle' },
+                    { name: 'content', type: 'string', defaultValue: 'Card content goes here with more details about the item.' },
+                    { name: 'elevation', type: 'number', defaultValue: 2 },
+                    { name: 'color', type: 'color', defaultValue: '#FFFFFF' },
+                    { name: 'borderRadius', type: 'number', defaultValue: 8 },
                 ]
             },
             {

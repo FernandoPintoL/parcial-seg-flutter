@@ -1,10 +1,6 @@
 // services/UnifiedCollaborationService.ts
 import { SocketService } from '@/services/SocketService';
 import type { UnifiedElement, CollaborationData } from '@/Data/PizarraUnificada';
-import {data} from "autoprefixer";
-import {resolve} from "node:path";
-import {handleError} from "vue";
-import {timestamp} from "@vueuse/core";
 
 export interface CollaboratorManagementResult {
     success: boolean;

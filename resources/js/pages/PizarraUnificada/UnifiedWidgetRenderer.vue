@@ -90,12 +90,26 @@ const widgetComponent = computed(() => {
         'Slider': LayoutsFlutter,
         'Switch': LayoutsFlutter,
         'Radio': LayoutsFlutter,
-        'Select': LayoutsFlutter,
+        'Select': DropdownFlutter,
         'ListTile': LayoutsFlutter,
         'ScaffoldWidget': LayoutsFlutter,
         'TextWidget': LayoutsFlutter,
         'IconWidget': LayoutsFlutter,
         'ImageWidget': LayoutsFlutter,
+
+        // Nuevos widgets añadidos
+        'AppBarFlutter': AppBarFlutter,
+        'TableList': LayoutsFlutter,
+        'SwitchListTile': LayoutsFlutter,
+        'ScrollChildren': LayoutsFlutter,
+        'Form': LayoutsFlutter,
+        'Table': LayoutsFlutter,
+        'ListCard': CardFlutter,
+        'ListTitle': LayoutsFlutter,
+        'CardText': CardFlutter,
+        'CheckboxListTile': LayoutsFlutter,
+        'RadioListTile': LayoutsFlutter,
+        'Drawer': LayoutsFlutter,
 
         // Angular widgets
         'div': BasicElement,
@@ -298,6 +312,20 @@ function getWidgetProps(element: UnifiedElement) {
     // Procesar propiedades para componentes de Flutter
     const processedProps = { ...element.props };
 
+    // Convertir propiedades de tipo función (onChanged, onPressed, etc.) a funciones reales
+    for (const key in processedProps) {
+        if (typeof processedProps[key] === 'string' &&
+            (key === 'onChanged' || key === 'onPressed' || key.toLowerCase().includes('on'))) {
+            try {
+                processedProps[key] = convertStringToFunction(processedProps[key]);
+            } catch (error) {
+                console.warn(`Error converting ${key} to function:`, error);
+                // Proporcionar una función vacía como fallback
+                processedProps[key] = () => {};
+            }
+        }
+    }
+
     // Casos especiales para diferentes tipos de widgets
     switch (element.type) {
         case 'TextField':
@@ -383,6 +411,39 @@ function getWidgetProps(element: UnifiedElement) {
     }
 }
 
+// Función helper para convertir strings a funciones
+function convertStringToFunction(functionStr: string): Function {
+    if (!functionStr) return () => {};
+
+    try {
+        // Handle common function string patterns
+        if (functionStr.includes('=>')) {
+            // Arrow function syntax already exists
+            return new Function('return ' + functionStr)();
+        } else if (functionStr.match(/\([^)]*\)\s*\{/)) {
+            // Classic function declaration: (param) { body }
+            const params = functionStr.substring(
+                functionStr.indexOf('(') + 1,
+                functionStr.indexOf(')')
+            ).trim();
+
+            const body = functionStr.substring(
+                functionStr.indexOf('{') + 1,
+                functionStr.lastIndexOf('}')
+            ).trim();
+
+            // Create a proper arrow function
+            return new Function(...params.split(','), `${body}`);
+        } else {
+            // Default fallback - create an empty function
+            return () => {};
+        }
+    } catch (error) {
+        console.error('Error converting string to function:', error);
+        return () => {}; // Return empty function as fallback
+    }
+}
+
 // Lifecycle hooks
 onMounted(() => {
     console.log('🔄 UnifiedWidgetRenderer mounted for element:', props.element.id);
@@ -428,6 +489,7 @@ onUnmounted(() => {
         'is-dragging': interactionService?.getState().isDragging,
         'is-resizing': false, // No hay lógica de resize aquí, el servicio la maneja
         'selected-widget': isSelected,
+        'remote-selected': element.remoteSelectedBy,
         [`framework-${element.framework}`]: true,
         [`widget-${element.type}`]: true,
         'mobile-widget': true,
@@ -498,6 +560,12 @@ onUnmounted(() => {
         <!-- Debug info -->
         <div v-if="isSelected" style="position: absolute; top: -30px; left: 0; background: red; color: white; padding: 2px; font-size: 10px; z-index: 1005;">
             Selected: {{ isSelected }} | ID: {{ element.id }}
+        </div>
+
+        <!-- Remote selection indicator -->
+        <div v-if="element.remoteSelectedBy" class="remote-selection-indicator">
+            <span class="remote-user-badge">{{ element.remoteSelectedBy }}</span>
+            <span class="remote-selection-text">está seleccionando este elemento</span>
         </div>
 
         <!-- Resize handle - Solo visible cuando está seleccionado -->
@@ -931,5 +999,68 @@ onUnmounted(() => {
 
 .duplicate-btn:hover {
     background: linear-gradient(135deg, #059669, #047857);
+}
+
+/* Remote selection styles */
+.unified-widget-element.remote-selected {
+    box-shadow: 0 0 0 2px #f97316, 0 4px 8px rgba(249, 115, 22, 0.2);
+    outline: 2px dashed #f97316;
+    outline-offset: 2px;
+    animation: remote-selection-pulse 2s infinite;
+}
+
+@keyframes remote-selection-pulse {
+    0% {
+        box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.7), 0 4px 8px rgba(249, 115, 22, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.5), 0 4px 12px rgba(249, 115, 22, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.7), 0 4px 8px rgba(249, 115, 22, 0.2);
+    }
+}
+
+.remote-selection-indicator {
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #f97316;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1005;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    animation: fade-in 0.3s ease-in-out;
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.remote-user-badge {
+    background-color: white;
+    color: #f97316;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+.remote-selection-text {
+    font-size: 11px;
 }
 </style>

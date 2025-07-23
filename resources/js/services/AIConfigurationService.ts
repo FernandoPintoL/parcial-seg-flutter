@@ -42,6 +42,26 @@ export class AIConfigurationService {
     }
 
     /**
+     * Gets the OpenAI API configuration
+     */
+    getOpenAIConfig() {
+        const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+        const openaiModel = import.meta.env.VITE_OPENAI_MODEL || 'gpt-3.5-turbo';
+
+        return {
+            endpoint: 'https://api.openai.com/v1/chat/completions',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiApiKey}`
+            },
+            model: openaiModel,
+            systemPrompt: this.getSystemPrompt(),
+            maxTokens: 1500,
+            temperature: 0.7
+        };
+    }
+
+    /**
      * Gets allowed widget types for a framework
      */
     getAllowedWidgetTypes(framework: string): string[] {
@@ -59,6 +79,26 @@ export class AIConfigurationService {
             ];
         }
         return [];
+    }
+
+    /**
+     * Gets the API configuration for the specified provider
+     */
+    getProviderConfig(provider: 'azure' | 'openai') {
+        return provider === 'azure' ? this.getAzureConfig() : this.getOpenAIConfig();
+    }
+
+    /**
+     * Checks if a provider is properly configured
+     */
+    isProviderConfigured(provider: 'azure' | 'openai'): boolean {
+        if (provider === 'azure') {
+            const config = this.getAzureConfig();
+            return !!config.headers['api-key'] && !!config.endpoint;
+        } else {
+            const config = this.getOpenAIConfig();
+            return !!config.headers['Authorization']?.includes('Bearer ') && !!config.endpoint;
+        }
     }
 
     /**
@@ -117,4 +157,4 @@ INSTRUCCIONES:
 4. Incluye propiedades relevantes para cada tipo de widget
 5. Proporciona explicaciones claras y útiles`;
     }
-} 
+}

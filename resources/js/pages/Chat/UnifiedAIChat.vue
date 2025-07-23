@@ -1,10 +1,11 @@
 <!-- pages/Chat/UnifiedAIChat.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useAIChat } from '@/composables/useAIChat';
 import type { AIModel } from './types';
-import { unifiedProcessingService } from '@/services/UnifiedProcessingService';
 import { JsonUtils } from '@/utils/JsonUtils';
+import { AIService } from '@/services/AIService';
+import { AlertService } from '@/services/AlertService';
 
 interface Props {
     framework: 'flutter' | 'angular' | 'react' | 'vue' | 'both';
@@ -14,6 +15,13 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+
+// Estado para información del proveedor API
+const apiProvider = ref<'azure' | 'openai' | 'backend'>('azure');
+const apiVerificationMessage = ref<string>('');
+const isApiVerifying = ref<boolean>(false);
+const manualProviderSelection = ref<boolean>(false);
+const selectedProvider = ref<'azure' | 'openai' | 'backend'>('azure');
 
 // Mejorar el prompt del sistema para respuestas JSON válidas
 const systemPrompt = `
@@ -42,6 +50,9 @@ const showSettings = ref(false);
 const isRecording = ref(false);
 const recordingTime = ref(0);
 const recordingTimer = ref<number | null>(null);
+const mediaRecorderRef = ref<MediaRecorder | null>(null);
+const speechStatus = ref<'idle' | 'recording' | 'processing' | 'error'>('idle');
+const speechErrorMessage = ref<string | null>(null);
 
 // Variable local para el prompt del usuario
 const localPrompt = ref('');
@@ -166,6 +177,16 @@ const frameworkSuggestions = computed(() => {
             "Diseña un sistema de plugins",
             "Crea un componente de formulario dinámico",
             "Implementa lazy loading de componentes"
+        ],
+        both: [
+            "Crea un formulario de contacto responsive",
+            "Diseña una landing page moderna",
+            "Implementa un carrusel de imágenes",
+            "Crea un componente de navegación adaptativo",
+            "Diseña un sistema de alertas personalizable",
+            "Implementa un selector de temas claro/oscuro",
+            "Crea una galería de imágenes con filtros",
+            "Diseña un dashboard de analíticas"
         ]
     };
     return suggestions[props.framework] || [];
@@ -186,25 +207,25 @@ const sendMessage = async (prompt?: string) => {
     const messageToSend = prompt ?? localPrompt.value;
     const isForm = isFormRequest(messageToSend);
     await aiChat.sendMessage(messageToSend);
-    // Si la petición es de formulario y hay widgets generados, intenta extraer JSON y agregarlo a la pizarra
-    if (isForm && aiChat.state.messages.length > 0) {
+
+    // Procesar la respuesta si hay mensajes
+    if (aiChat.state.messages.length > 0) {
         const lastMessage = aiChat.state.messages[aiChat.state.messages.length - 1];
-        // 1. Intentar extraer bloque JSON
-        const widgetsJson = extractJsonBlock(lastMessage.text);
-        if (widgetsJson) {
-            // Detectar framework solicitado o usar el seleccionado en la UI
-            const fallbackFramework = (['angular', 'react', 'vue'].some(fw => aiChat.state.selectedModel.toLowerCase().includes(fw)))
-                ? (aiChat.state.selectedModel.toLowerCase().includes('angular') ? 'angular' : aiChat.state.selectedModel.toLowerCase().includes('react') ? 'react' : 'vue')
-                : 'flutter';
-            const detected = detectFramework(messageToSend, fallbackFramework);
-            // Solo pasar valores válidos a processAIWidgets
-            const framework: 'flutter' | 'angular' | 'both' = (detected === 'flutter' || detected === 'angular') ? detected : 'both';
-            const elements = unifiedProcessingService.processAIWidgets(Array.isArray(widgetsJson) ? widgetsJson : [widgetsJson], framework);
-            aiChat.addWidgetsToCanvas(elements);
-        } else if (lastMessage.widgets && lastMessage.widgets.length > 0) {
-            aiChat.addWidgetsToCanvas([...lastMessage.widgets]);
+
+        // Si es un mensaje de la IA (no del usuario), procesarlo para insertar widgets
+        if (lastMessage && !lastMessage.isUser) {
+            // Si es una solicitud de formulario o contiene widgets, procesarlos automáticamente
+            if (isForm ||
+                lastMessage.text.toLowerCase().includes('form') ||
+                lastMessage.text.toLowerCase().includes('widget') ||
+                (lastMessage.widgets && lastMessage.widgets.length > 0)) {
+
+                // Usar la función reutilizable para procesar widgets
+                processWidgetsFromMessage(lastMessage, messageToSend);
+            }
         }
     }
+
     localPrompt.value = '';
 };
 
@@ -216,29 +237,45 @@ const startRecording = async () => {
     if (isRecording.value) return;
 
     try {
+        // Reset status and errors
+        speechStatus.value = 'recording';
+        speechErrorMessage.value = null;
+
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
         const audioChunks: Blob[] = [];
 
-        mediaRecorder.ondataavailable = (event) => {
+        // Create and store MediaRecorder instance
+        mediaRecorderRef.value = new MediaRecorder(stream);
+
+        mediaRecorderRef.value.ondataavailable = (event) => {
             audioChunks.push(event.data);
         };
 
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            await aiChat.sendAudioPrompt(audioBlob);
-            stream.getTracks().forEach(track => track.stop());
+        mediaRecorderRef.value.onstop = async () => {
+            try {
+                speechStatus.value = 'processing';
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                await aiChat.sendAudioPrompt(audioBlob);
+                speechStatus.value = 'idle';
+            } catch (error: any) {
+                console.error('Error processing audio:', error);
+                speechStatus.value = 'error';
+                speechErrorMessage.value = error.message || 'Error al procesar el audio';
+            } finally {
+                stream.getTracks().forEach(track => track.stop());
+            }
         };
 
-        mediaRecorder.start();
+        mediaRecorderRef.value.start();
         isRecording.value = true;
         recordingTime.value = 0;
         recordingTimer.value = window.setInterval(() => {
             recordingTime.value++;
         }, 1000);
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error starting recording:', error);
-        alert('Error al iniciar la grabación de audio');
+        speechStatus.value = 'error';
+        speechErrorMessage.value = error.message || 'Error al iniciar la grabación de audio';
     }
 };
 
@@ -249,6 +286,11 @@ const stopRecording = () => {
     if (recordingTimer.value) {
         clearInterval(recordingTimer.value);
         recordingTimer.value = null;
+    }
+
+    // Stop the MediaRecorder to trigger the onstop event
+    if (mediaRecorderRef.value && mediaRecorderRef.value.state !== 'inactive') {
+        mediaRecorderRef.value.stop();
     }
 };
 
@@ -279,36 +321,89 @@ const saveSettings = () => {
         maxTokens: aiChat.state.maxTokens,
         systemPrompt: aiChat.state.systemPrompt
     });
+
+    // Aplicar el proveedor seleccionado si ha cambiado
+    if (apiProvider.value !== selectedProvider.value) {
+        setAIProvider(apiProvider.value);
+    }
+
     showSettings.value = false;
 };
 
-function insertMessageToCanvas(message: any) {
-    console.log('insertMessageToCanvas', message);
-    // 1. Intentar extraer bloque JSON
-    const widgetsJson = extractJsonBlock(message.text);
-    console.log('widgetsJson', widgetsJson);
-    if (widgetsJson) {
-        const fallbackFramework = (['angular', 'react', 'vue'].some(fw => aiChat.state.selectedModel.toLowerCase().includes(fw)))
-            ? (aiChat.state.selectedModel.toLowerCase().includes('angular') ? 'angular' : aiChat.state.selectedModel.toLowerCase().includes('react') ? 'react' : 'vue')
-            : 'flutter';
-        const detected = detectFramework(message.text, fallbackFramework);
-        const framework: 'flutter' | 'angular' | 'both' = (detected === 'flutter' || detected === 'angular') ? detected : 'both';
-        const elements = unifiedProcessingService.processAIWidgets(Array.isArray(widgetsJson) ? widgetsJson : [widgetsJson], framework);
-        aiChat.addWidgetsToCanvas(elements);
-    } else if (message.widgets && message.widgets.length > 0) {
-        aiChat.addWidgetsToCanvas([...message.widgets]);
+// Función para cambiar el proveedor de IA
+const setAIProvider = async (provider: 'azure' | 'openai' | 'backend') => {
+    isApiVerifying.value = true;
+    selectedProvider.value = provider;
+
+    try {
+        // Cambia el proveedor manualmente
+        const response = await AIService.verifyApiKey();
+
+        if (response.provider === provider) {
+            apiProvider.value = provider;
+            manualProviderSelection.value = true;
+            apiVerificationMessage.value = `Usando ${provider.toUpperCase()} como proveedor de IA`;
+            new AlertService().success(`Proveedor cambiado a ${provider.toUpperCase()}`);
+        } else {
+            // Si no se pudo configurar el proveedor solicitado
+            apiProvider.value = response.provider;
+            apiVerificationMessage.value = `No se pudo configurar ${provider}. Usando ${response.provider} como alternativa.`;
+            new AlertService().warning(`No se pudo configurar ${provider}. Usando ${response.provider} como alternativa.`);
+        }
+    } catch (error: any) {
+        console.error('Error al cambiar el proveedor de IA:', error);
+        apiVerificationMessage.value = 'Error al cambiar el proveedor. Usando backend como alternativa.';
+        new AlertService().error('Error al cambiar el proveedor de IA.');
+    } finally {
+        isApiVerifying.value = false;
     }
-}
+};
 
-// Watchers
-watch(() => props.framework, () => {
-    // Update framework-specific settings if needed
-});
+// Función para procesar widgets de un mensaje
+const processWidgetsFromMessage = (message: any, originalPrompt: string) => {
+    if (!message) return;
 
-// Lifecycle
-onMounted(() => {
-    // Initialize any framework-specific settings
-});
+    // Si ya hay widgets procesados en el mensaje, los añadimos directamente
+    if (message.widgets && message.widgets.length > 0) {
+        props.onWidgetsGenerated([...message.widgets]);
+        return;
+    }
+
+    // Si no hay widgets procesados, intentamos extraerlos del texto
+    const jsonData = extractJsonBlock(message.text);
+    if (jsonData) {
+        // Verificamos si el JSON tiene un campo de widgets
+        if (jsonData.widgets && Array.isArray(jsonData.widgets)) {
+            // Determinamos el framework solicitado
+            const requestedFramework = jsonData.framework || detectFramework(originalPrompt);
+
+            // Añadimos información adicional a cada widget
+            const processedWidgets = jsonData.widgets.map((widget: any, index: number) => ({
+                ...widget,
+                id: `widget-${Date.now()}-${index}`,
+                framework: requestedFramework,
+                // Añadimos metadatos si no existen
+                metadata: widget.metadata || {
+                    createdBy: 'ai',
+                    prompt: originalPrompt
+                }
+            }));
+
+            // Guardamos los widgets procesados en el mensaje para referencia futura
+            message.widgets = processedWidgets;
+
+            // Enviamos los widgets al canvas
+            props.onWidgetsGenerated(processedWidgets);
+
+            // Informamos al usuario
+            new AlertService().success(`${processedWidgets.length} widgets añadidos a la pizarra`);
+        } else {
+            console.warn("JSON detectado pero no contiene un array de widgets válido");
+        }
+    } else {
+        console.log("No se encontró un bloque JSON válido en la respuesta");
+    }
+};
 </script>
 
 <template>
@@ -319,11 +414,36 @@ onMounted(() => {
                 <div class="text-2xl">🤖</div>
                 <div>
                     <h3 class="font-semibold">Asistente IA</h3>
-                    <p class="text-sm opacity-90">{{ currentModel.name }} • {{ props.framework.toUpperCase() }}</p>
+                    <div class="flex items-center gap-1">
+                        <p class="text-sm opacity-90">{{ currentModel.name }} • {{ props.framework.toUpperCase() }}</p>
+                        <span v-if="apiVerificationMessage" class="text-xs px-2 py-0.5 rounded-full ml-1"
+                            :class="{
+                                'bg-green-500 text-white': apiProvider === 'azure',
+                                'bg-blue-500 text-white': apiProvider === 'openai',
+                                'bg-yellow-500 text-gray-800': apiProvider === 'backend'
+                            }"
+                            :title="apiVerificationMessage"
+                        >
+                            {{ apiProvider === 'azure' ? 'Azure' : apiProvider === 'openai' ? 'OpenAI' : 'Backend' }}
+                        </span>
+                        <span v-if="isApiVerifying" class="ml-1">
+                            <div class="w-3 h-3 rounded-full bg-gray-300 animate-pulse"></div>
+                        </span>
+                    </div>
                 </div>
             </div>
 
             <div class="flex items-center space-x-2">
+<!--                <button
+                    @click="verifyApiKey"
+                    class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                    title="Verificar API Key"
+                    :disabled="isApiVerifying"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>-->
                 <button
                     @click="showSettings = !showSettings"
                     class="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
@@ -387,6 +507,20 @@ onMounted(() => {
                         :max="currentModel.maxTokens"
                         class="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                     />
+                </div>
+
+                <!-- AI Provider Selection -->
+                <div>
+                    <label class="block text-sm font-medium mb-2">Proveedor de IA</label>
+                    <select
+                        v-model="apiProvider"
+                        @change="selectedProvider = apiProvider"
+                        class="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                    >
+                        <option value="azure">Azure</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="backend">Backend</option>
+                    </select>
                 </div>
 
                 <!-- Options -->
@@ -517,14 +651,14 @@ onMounted(() => {
                     </div>
 
                     <!-- Botón para insertar en la pizarra -->
-                    <div v-if="!message.isUser && (message.widgets?.length || extractJsonBlock(message.text))" class="mt-2 flex justify-end">
+<!--                    <div v-if="!message.isUser && (message.widgets?.length || extractJsonBlock(message.text))" class="mt-2 flex justify-end">
                         <button
                             @click="insertMessageToCanvas(message)"
                             class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors"
                         >
                             🖼️ Insertar en la pizarra
                         </button>
-                    </div>
+                    </div>-->
                 </div>
             </div>
 
@@ -552,6 +686,7 @@ onMounted(() => {
               <strong>Tip:</strong> Para solicitar un formulario o componente, inicia tu mensaje con <b>"Generame un formulario para..."</b> y el resultado se insertará automáticamente en la pizarra.
             </div>
 
+            <!-- Speech Status Indicators -->
             <!-- Recording Indicator -->
             <div v-if="isRecording" class="flex items-center justify-between bg-red-100 dark:bg-red-900 p-2 rounded-md mb-2">
                 <div class="flex items-center">
@@ -559,6 +694,28 @@ onMounted(() => {
                     <span class="text-red-700 dark:text-red-300 text-sm">Grabando... {{ formatRecordingTime(recordingTime) }}</span>
                 </div>
                 <span class="text-red-700 dark:text-red-300 text-xs">Suelta para enviar</span>
+            </div>
+
+            <!-- Processing Indicator -->
+            <div v-if="!isRecording && speechStatus === 'processing'" class="flex items-center justify-between bg-blue-100 dark:bg-blue-900 p-2 rounded-md mb-2">
+                <div class="flex items-center">
+                    <div class="animate-pulse h-3 w-3 bg-blue-500 rounded-full mr-2"></div>
+                    <span class="text-blue-700 dark:text-blue-300 text-sm">Procesando audio...</span>
+                </div>
+            </div>
+
+            <!-- Error Indicator -->
+            <div v-if="speechStatus === 'error' && speechErrorMessage" class="flex items-center justify-between bg-yellow-100 dark:bg-yellow-900 p-2 rounded-md mb-2">
+                <div class="flex items-center">
+                    <div class="h-3 w-3 bg-yellow-500 rounded-full mr-2"></div>
+                    <span class="text-yellow-700 dark:text-yellow-300 text-sm">{{ speechErrorMessage }}</span>
+                </div>
+                <button
+                    @click="speechStatus = 'idle'; speechErrorMessage = null"
+                    class="text-xs text-yellow-700 dark:text-yellow-300 hover:underline"
+                >
+                    Cerrar
+                </button>
             </div>
 
             <div class="flex space-x-2">

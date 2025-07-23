@@ -23,7 +23,7 @@ const emit = defineEmits([
 ]);
 
 // Track the element being dragged over
-const dragOverElementId = ref<string | null>(null);
+// const dragOverElementId = ref<string | null>(null);
 
 // Track selected element
 const selectedElementId = ref<string | null>(null);
@@ -35,7 +35,7 @@ const currentElements = computed(() => {
 });
 
 // Get framework icon
-function getFrameworkIcon(framework: string): string {
+/*function getFrameworkIcon(framework: string): string {
     switch (framework) {
         case 'flutter':
             return '🎯';
@@ -46,10 +46,10 @@ function getFrameworkIcon(framework: string): string {
         default:
             return '📦';
     }
-}
+}*/
 
 // Get framework header icon
-function getFrameworkHeaderIcon(framework: string): string {
+/*function getFrameworkHeaderIcon(framework: string): string {
     switch (framework) {
         case 'flutter':
             return 'phone_iphone';
@@ -60,13 +60,13 @@ function getFrameworkHeaderIcon(framework: string): string {
         default:
             return 'dashboard';
     }
-}
+}*/
 
 // Handle element selection
 function selectElement(element: UnifiedElement) {
     selectedElementId.value = element.id ?? null;
     emit('select-element', element);
-    
+
     // Removido: setTimeout innecesario que causaba actualizaciones constantes
 }
 
@@ -81,19 +81,19 @@ function deselectElement() {
 function handleClickOutside(event: MouseEvent) {
     const canvasElement = event.currentTarget as HTMLElement;
     const clickedElement = event.target as HTMLElement;
-    
+
     // Verificar si algún elemento está siendo arrastrado
     const isAnyElementDragging = document.querySelector('.unified-widget-element.is-dragging');
     if (isAnyElementDragging) {
         console.log('🚫 Click outside ignored - element is being dragged');
         return;
     }
-    
+
     // Si el click fue fuera del canvas o en el canvas pero no en un elemento
-    if (!canvasElement.contains(clickedElement) || 
+    if (!canvasElement.contains(clickedElement) ||
         clickedElement.classList.contains('canvas-content') ||
         clickedElement.classList.contains('unified-canvas')) {
-        
+
         // Solo deseleccionar si hay un elemento seleccionado
         if (selectedElementId.value) {
             console.log('🖱️ Click outside detected, deselecting element');
@@ -115,19 +115,19 @@ function handleKeyDown(event: KeyboardEvent) {
 // Handle canvas click for deselection
 function handleCanvasClick(event: MouseEvent) {
     const clickedElement = event.target as HTMLElement;
-    
+
     // Verificar si algún elemento está siendo arrastrado
     const isAnyElementDragging = document.querySelector('.unified-widget-element.is-dragging');
     if (isAnyElementDragging) {
         console.log('🚫 Canvas click ignored - element is being dragged');
         return;
     }
-    
+
     // Si el click fue directamente en el canvas (no en un elemento)
     if (clickedElement.classList.contains('canvas-content') ||
         clickedElement.classList.contains('unified-canvas') ||
         clickedElement.classList.contains('unified-frame')) {
-        
+
         if (selectedElementId.value) {
             console.log('🎯 Canvas click detected, deselecting element');
             deselectElement();
@@ -183,8 +183,9 @@ function duplicateElement(element: UnifiedElement) {
 }
 
 function handleDrop(event: DragEvent, targetElementId: string | null = null) {
+    console.log('🎯 handleDrop:', targetElementId, event);
     const dropResult = unifiedDragDropService.handleDrop(event);
-    
+
     if (!dropResult) {
         console.warn('⚠️ No drop result from service');
         return;
@@ -231,10 +232,10 @@ function handleWidgetEvent(eventData: any) {
     } else if (eventData.type === 'open-properties') {
         // Manejar apertura del panel de propiedades
         console.log('⚙️ Opening properties panel for element:', eventData.elementId);
-        
+
         // Emitir evento para seleccionar el elemento y abrir propiedades
         emit('select-element', eventData.element);
-        
+
         // Emitir evento adicional para abrir el panel de propiedades
         emit('open-properties-panel', eventData.element);
     }
@@ -263,8 +264,8 @@ onUnmounted(() => {
             <div class="canvas-grid" :class="`grid-${selectedFramework}`"></div>
 
             <!-- Deselection button - Solo visible cuando hay un elemento seleccionado -->
-            <button 
-                v-if="selectedElementId" 
+            <button
+                v-if="selectedElementId"
                 class="deselect-button"
                 @click.stop="deselectElement"
                 title="Deseleccionar elemento (Escape)">
@@ -273,15 +274,15 @@ onUnmounted(() => {
             </button>
 
             <!-- Deselection hint - Aparece brevemente cuando se selecciona un elemento -->
-            <div 
-                v-if="selectedElementId" 
+<!--            <div
+                v-if="selectedElementId"
                 class="deselection-hint"
                 :class="{ 'hint-visible': selectedElementId }">
                 <div class="hint-content">
                     <span class="material-icons">info</span>
                     <span>Presiona <kbd>Escape</kbd> o haz click fuera para deseleccionar</span>
                 </div>
-            </div>
+            </div>-->
 
             <!-- Flutter Mobile Frame -->
             <div v-if="selectedFramework === 'flutter'" class="mobile-frame">
@@ -510,122 +511,15 @@ onUnmounted(() => {
 }
 
 /* Compact Header */
-.canvas-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    position: relative;
-}
 
 .dark .canvas-header {
     background: rgba(15, 23, 42, 0.8);
     border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
-.canvas-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    pointer-events: none;
-}
-
-.screen-info {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.screen-title-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.screen-icon {
-    color: #3b82f6;
-    font-size: 20px;
-}
-
-.screen-name {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-    color: #1f2937;
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
 
 .dark .screen-name {
     color: #f9fafb;
-}
-
-.framework-badges {
-    display: flex;
-    gap: 8px;
-}
-
-.framework-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.framework-badge.framework-flutter {
-    background: linear-gradient(135deg, #0ea5e9, #0284c7);
-    color: white;
-}
-
-.framework-badge.framework-angular {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-}
-
-.framework-badge.framework-both {
-    background: linear-gradient(135deg, #64748b, #475569);
-    color: white;
-}
-
-.framework-icon {
-    font-size: 14px;
-}
-
-.canvas-controls {
-    display: flex;
-    gap: 8px;
-}
-
-.control-btn {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(10px);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .control-btn:hover {
@@ -678,39 +572,6 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-}
-
-.canvas-element {
-    position: relative;
-    transition: all 0.2s ease;
-}
-
-.canvas-element:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-/* Framework-specific canvas styling */
-.canvas-flutter {
-    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 20px;
-    width: 100%;
-    min-height: 100%;
-}
-
-.canvas-angular {
-    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-
-.canvas-both {
-    background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
 }
 
 /* Angular Web Frame */
